@@ -151,10 +151,25 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
         backdrop = featured.getOrNull(featuredIndex)?.backdropUrl
     }
     val titleScope = rememberCoroutineScope()
-    val openTitle: (Title) -> Unit = { title ->
+    // OK on a title opens its details; holding OK plays it straight away.
+    var detailFor by remember { mutableStateOf<Title?>(null) }
+    val openTitle: (Title) -> Unit = { detailFor = it }
+    fun watch(title: Title, only: Source? = null) {
         titleScope.launch {
-            val message = TitleOpener.open(context, title, apps)
+            val message = TitleOpener.open(context, title, apps, only)
             if (message != null) Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
+    val playTitle: (Title) -> Unit = { watch(it) }
+
+    // My List, shown as a row once you've added something.
+    val library = remember { Library(context) }
+    var myList by remember { mutableStateOf(library.myList()) }
+    val allRows = remember(rows, myList, mediaType) {
+        val mine = myList.filter { it.type == mediaType }
+        if (mine.isEmpty()) rows else {
+            val top = rows.filter { it.key == "top" }
+            top + ContentRow("mylist", "My List", "", ranked = false, items = mine) + rows.filter { it.key != "top" }
         }
     }
 
@@ -259,6 +274,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                             index = featuredIndex.coerceIn(0, featured.size - 1),
                             onIndexChange = { featuredIndex = it },
                             onOpen = openTitle,
+                            onPlay = playTitle,
                         )
                         rowsFailed -> RowMessage("Couldn't reach TMDB. Check the internet connection.")
                         else -> RowMessage("Loading ${mediaType.label.lowercase()}…")
@@ -294,19 +310,20 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                                 focusKey = focusKey,
                                 focusTick = focusTick,
                                 rowRequester = appsRow,
-                                down = rows.firstOrNull()?.let { rowRequester(it.key) },
+                                down = allRows.firstOrNull()?.let { rowRequester(it.key) },
                             )
                         }
                     }
                 }
-                itemsIndexed(rows, key = { _, row -> "row:${mediaType.path}:${row.key}" }) { i, row ->
+                itemsIndexed(allRows, key = { _, row -> "row:${mediaType.path}:${row.key}" }) { i, row ->
                     Box(Modifier.padding(top = 10.dp)) {
                         PosterRow(
                             row = row,
                             onOpen = openTitle,
+                            onPlay = playTitle,
                             requester = rowRequester(row.key),
-                            up = if (i == 0) appsRow else rowRequester(rows[i - 1].key),
-                            down = rows.getOrNull(i + 1)?.let { rowRequester(it.key) },
+                            up = if (i == 0) appsRow else rowRequester(allRows[i - 1].key),
+                            down = allRows.getOrNull(i + 1)?.let { rowRequester(it.key) },
                         )
                     }
                 }
@@ -318,6 +335,23 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                     )
                 }
             } }
+
+            // A title's details page, over the home screen.
+            detailFor?.let { title ->
+                DetailScreen(
+                    title = title,
+                    onWatch = { source -> watch(title, source) },
+                    onTrailer = { key ->
+                        TitleOpener.openTrailer(context, key, apps)?.let {
+                            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    onOpenOther = { detailFor = it },
+                    onPlayOther = playTitle,
+                    onLibraryChange = { myList = library.myList() },
+                    onClose = { detailFor = null },
+                )
+            }
 
             // Hold OK on an app: hide it or move it.
             menuFor?.let { app ->

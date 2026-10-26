@@ -57,6 +57,20 @@ data class ContentRow(
     val items: List<Title>,
 )
 
+/** Everything on a title's details page beyond what the rows already know. */
+data class TitleDetails(
+    /** e.g. "2h 5m" for a film, "3 seasons" for a show. */
+    val length: String?,
+    val genres: List<String>,
+    /** "Directed by …" for films, "Created by …" for shows. */
+    val madeBy: String?,
+    val cast: List<String>,
+    /** YouTube video id of the official trailer, if there is one. */
+    val trailerKey: String?,
+    /** Similar titles on your services. */
+    val moreLikeThis: List<Title>,
+)
+
 /**
  * Shows and films from The Movie Database (TMDB), limited to what's on your services in Ireland.
  * This product uses the TMDB API but is not endorsed or certified by TMDB.
@@ -209,6 +223,67 @@ object Catalog {
         if (item.isNull(field)) return null
         val path = item.optString(field)
         return if (path.isBlank()) null else "$IMAGES/$size$path"
+    }
+
+    private val detailsCache = ConcurrentHashMap<String, TitleDetails>()
+
+    /** Runtime or seasons, genres, credits, trailer and similar titles for the details page. */
+    suspend fun details(title: Title): TitleDetails = coroutineScope {
+        detailsCache[title.key]?.let { return@coroutineScope it }
+        val main = async(Dispatchers.IO) {
+            JSONObject(get("$API/${title.type.path}/${title.id}?append_to_response=credits,videos&language=en-GB"))
+        }
+        val similar = async {
+            val genres = title.genreIds.filter { it != COMEDY || title.genreIds.size == 1 }.take(2)
+            val params = buildString {
+                append("sort_by=popularity.desc&vote_count.gte=100")
+                if (genres.isNotEmpty()) append("&with_genres=").append(genres.joinToString(","))
+            }
+            val both = runCatching { merged(title.type, params, byRating = false) }.getOrDefault(emptyList())
+            // Two genres together can be too narrow: fall back to just the first.
+            val found = if (both.size < 4 && genres.size > 1) {
+                runCatching { merged(title.type, "sort_by=popularity.desc&vote_count.gte=100&with_genres=${genres[0]}", byRating = false) }
+                    .getOrDefault(both)
+            } else {
+                both
+            }
+            found.filter { it.id != title.id }.take(12)
+        }
+        val json = main.await()
+
+        val length = if (title.type == MediaType.MOVIE) {
+            json.optInt("runtime", 0).takeIf { it > 0 }?.let { minutes ->
+                if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
+            }
+        } else {
+            json.optInt("number_of_seasons", 0).takeIf { it > 0 }?.let { if (it == 1) "1 season" else "$it seasons" }
+        }
+        val genres = json.optJSONArray("genres")?.let { a -> (0 until a.length()).map { a.getJSONObject(it).optString("name") } }
+            .orEmpty()
+        val credits = json.optJSONObject("credits")
+        val cast = credits?.optJSONArray("cast")?.let { a ->
+            (0 until minOf(a.length(), 4)).map { a.getJSONObject(it).optString("name") }
+        }.orEmpty()
+        val madeBy = if (title.type == MediaType.MOVIE) {
+            credits?.optJSONArray("crew")?.let { a ->
+                (0 until a.length()).map { a.getJSONObject(it) }
+                    .filter { it.optString("job") == "Director" }
+                    .map { it.optString("name") }
+                    .take(2)
+            }?.takeIf { it.isNotEmpty() }?.let { "Directed by " + it.joinToString(" and ") }
+        } else {
+            json.optJSONArray("created_by")?.let { a -> (0 until minOf(a.length(), 2)).map { a.getJSONObject(it).optString("name") } }
+                ?.takeIf { it.isNotEmpty() }?.let { "Created by " + it.joinToString(" and ") }
+        }
+        val trailer = json.optJSONObject("videos")?.optJSONArray("results")?.let { a ->
+            val videos = (0 until a.length()).map { a.getJSONObject(it) }
+                .filter { it.optString("site") == "YouTube" && it.optString("type") == "Trailer" }
+            (videos.firstOrNull { it.optBoolean("official") } ?: videos.firstOrNull())?.optString("key")
+        }
+
+        val details = TitleDetails(length, genres, madeBy, cast, trailer, similar.await())
+        detailsCache[title.key] = details
+        details
     }
 
     /**
