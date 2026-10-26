@@ -50,7 +50,7 @@ object Updater {
             var apkUrl: String? = null
             for (i in 0 until assets.length()) {
                 val asset = assets.getJSONObject(i)
-                if (asset.getString("name").endsWith(".apk")) {
+                if (asset.getString("name") == "tv-launcher.apk") {
                     apkUrl = asset.getString("browser_download_url")
                     break
                 }

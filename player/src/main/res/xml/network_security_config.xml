@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Many IPTV providers only offer plain http://, so it's allowed. Credentials typed on the TV
+     go only to the provider's own server. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>
