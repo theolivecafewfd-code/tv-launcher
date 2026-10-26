@@ -17,9 +17,11 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** What the update button in the header should show. */
+/** What the update button in the header shows. It's always visible; pressing it acts on the state. */
 sealed interface UpdateState {
-    data object None : UpdateState
+    data object Checking : UpdateState
+    data object UpToDate : UpdateState
+    data class CheckFailed(val reason: String) : UpdateState
     data class Available(val build: Int, val apkUrl: String) : UpdateState
     data class Downloading(val percent: Int) : UpdateState
     data object Installing : UpdateState
@@ -37,12 +39,13 @@ object Updater {
     private const val LATEST_RELEASE =
         "https://api.github.com/repos/${BuildConfig.UPDATE_REPO}/releases/latest"
 
-    /** Returns [UpdateState.Available] when GitHub has a newer build, otherwise [UpdateState.None]. */
+    /** Asks GitHub for the newest release: [UpdateState.Available], [UpdateState.UpToDate] or [UpdateState.CheckFailed]. */
     suspend fun check(): UpdateState = withContext(Dispatchers.IO) {
         try {
             val json = JSONObject(httpGetText(LATEST_RELEASE))
-            val build = json.getString("tag_name").removePrefix("build-").toIntOrNull()
-                ?: return@withContext UpdateState.None
+            val tag = json.getString("tag_name")
+            val build = tag.removePrefix("build-").toIntOrNull()
+                ?: return@withContext UpdateState.CheckFailed("unexpected release name $tag")
             val assets = json.getJSONArray("assets")
             var apkUrl: String? = null
             for (i in 0 until assets.length()) {
@@ -52,15 +55,25 @@ object Updater {
                     break
                 }
             }
-            if (apkUrl != null && build > BuildConfig.VERSION_CODE) {
-                UpdateState.Available(build, apkUrl)
-            } else {
-                UpdateState.None
+            when {
+                build <= BuildConfig.VERSION_CODE -> UpdateState.UpToDate
+                apkUrl == null -> UpdateState.CheckFailed("build $build has no app file yet")
+                else -> UpdateState.Available(build, apkUrl)
             }
         } catch (e: Exception) {
-            // No internet or GitHub unavailable: just don't show the button.
             Log.w(TAG, "Update check failed", e)
-            UpdateState.None
+            UpdateState.CheckFailed(describe(e))
+        }
+    }
+
+    /** A short, readable reason for the header pill. */
+    private fun describe(e: Exception): String {
+        val message = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
+        return when {
+            e is java.net.UnknownHostException -> "no internet connection"
+            e is java.net.SocketTimeoutException -> "GitHub didn't answer in time"
+            message.contains("HTTP 403") -> "GitHub is limiting checks, try later"
+            else -> message.substringBefore(" from ").take(60)
         }
     }
 

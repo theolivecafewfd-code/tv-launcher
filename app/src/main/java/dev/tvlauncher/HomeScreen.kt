@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,24 +83,30 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
 
     // Check GitHub for a newer build when the screen opens, then at most every 30 minutes.
     val scope = rememberCoroutineScope()
-    var update by remember { mutableStateOf<UpdateState>(UpdateState.None) }
+    var update by remember { mutableStateOf<UpdateState>(UpdateState.Checking) }
     var lastUpdateCheck by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(refreshKey) {
-        // Back on screen while still "installing" means the install was cancelled: check again.
-        if (update is UpdateState.Installing) {
-            update = UpdateState.None
-            lastUpdateCheck = 0L
-        }
-        val due = lastUpdateCheck == 0L || SystemClock.elapsedRealtime() - lastUpdateCheck > 30 * 60_000L
-        if (due && update !is UpdateState.Downloading && update !is UpdateState.Installing) {
+    val checkNow: () -> Unit = {
+        scope.launch {
+            update = UpdateState.Checking
             lastUpdateCheck = SystemClock.elapsedRealtime()
             update = Updater.check()
         }
+    }
+    LaunchedEffect(refreshKey) {
+        // Back on screen while still "installing" means the install was cancelled: check again.
+        if (update is UpdateState.Installing) lastUpdateCheck = 0L
+        val busy = update is UpdateState.Downloading || update is UpdateState.Checking && lastUpdateCheck != 0L
+        val due = lastUpdateCheck == 0L || SystemClock.elapsedRealtime() - lastUpdateCheck > 30 * 60_000L
+        if (due && !busy) checkNow()
     }
     val onUpdateClick: () -> Unit = onUpdateClick@{
         val target = when (val current = update) {
             is UpdateState.Available -> current
             is UpdateState.Failed -> current.retry
+            UpdateState.UpToDate, is UpdateState.CheckFailed, UpdateState.Installing -> {
+                checkNow()
+                return@onUpdateClick
+            }
             else -> return@onUpdateClick
         }
         if (!Updater.canInstall(context)) {
@@ -218,23 +225,31 @@ private fun Header(now: LocalTime, update: UpdateState, onUpdateClick: () -> Uni
     }
 }
 
-/** A pill in the header that appears only when there's a newer build on GitHub. */
+/**
+ * A pill in the header that's always there: it shows the installed build, and lights up when a
+ * newer one is on GitHub. Pressing it checks again, or installs the update when there is one.
+ */
 @Composable
 private fun UpdateButton(update: UpdateState, onClick: () -> Unit) {
+    val installed = BuildConfig.VERSION_CODE
     val label = when (update) {
-        UpdateState.None -> return
+        UpdateState.Checking -> "Checking for updates…"
+        UpdateState.UpToDate -> "Up to date · build $installed"
+        is UpdateState.CheckFailed -> "Couldn't check: ${update.reason}"
         is UpdateState.Available -> "Update available · build ${update.build}"
         is UpdateState.Downloading -> "Downloading update… ${update.percent}%"
         UpdateState.Installing -> "Installing update…"
         is UpdateState.Failed -> "Update failed · press to retry"
     }
+    // Bright when there's something to do, quiet otherwise.
+    val loud = update is UpdateState.Available || update is UpdateState.Failed
     val shape = RoundedCornerShape(50)
     Surface(
         onClick = onClick,
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Palette.glow,
-            contentColor = Palette.background,
+            containerColor = if (loud) Palette.glow else Palette.tile,
+            contentColor = if (loud) Palette.background else Palette.quiet,
             focusedContainerColor = Color.White,
             focusedContentColor = Palette.background,
         ),
@@ -245,8 +260,12 @@ private fun UpdateButton(update: UpdateState, onClick: () -> Unit) {
     ) {
         Text(
             text = label,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.background),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .widthIn(max = 320.dp)
+                .padding(horizontal = 14.dp, vertical = 7.dp),
+            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
         )
     }
 }
