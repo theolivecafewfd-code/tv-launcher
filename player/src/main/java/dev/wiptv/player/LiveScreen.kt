@@ -67,9 +67,9 @@ private object LastWatched {
 }
 
 /**
- * Live TV: groups on the left; on the right, a small preview of the highlighted channel with
- * what's on, and below it the group's channels as a simple two-hour guide. OK on a channel
- * plays it full screen.
+ * Live TV: groups on the left; on the right, a small preview with what's on, and below it the
+ * group's channels as a simple two-hour guide. Moving around leaves the preview alone: OK on a
+ * channel previews it, and OK again on the channel in the preview goes full screen.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -85,8 +85,6 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     var showAccount by remember { mutableStateOf(false) }
     var watching by remember { mutableStateOf<Int?>(null) }
 
-    // The highlighted channel: it plays in the preview and its programme shows beside it.
-    var highlighted by remember { mutableStateOf<Channel?>(null) }
     val live = rememberLivePlayer()
     val guide = remember(login) { GuideStore(login) }
     val now = rememberNow()
@@ -141,13 +139,18 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
 
     val channels = selectedGroup?.let { channelsByGroup[it] }
 
-    // Preview the highlighted channel once you've stopped on it for a moment.
-    LaunchedEffect(highlighted?.id) {
-        val channel = highlighted ?: return@LaunchedEffect
-        launch { guide.ensure(channel) }
-        delay(700)
-        live.play(login, format, channel)
+    // When the app opens, the preview picks up the last channel you watched.
+    LaunchedEffect(channels) {
+        if (live.channel != null) return@LaunchedEffect
+        val last = LastWatched.channel(context)
+        channels?.firstOrNull { it.id == last }?.let { live.play(login, format, it) }
+    }
+
+    // Whatever's in the preview: load its guide for the panel, and remember it for next time.
+    LaunchedEffect(live.channel?.id) {
+        val channel = live.channel ?: return@LaunchedEffect
         LastWatched.save(context, channel)
+        guide.ensure(channel)
     }
 
     // Put the focus somewhere sensible: that channel if it's in the list, else the selected group.
@@ -245,11 +248,11 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 // Preview and what's on.
                 Row(modifier = Modifier.height(176.dp)) {
-                    Preview(live = live, attached = watching == null, highlighted = highlighted)
+                    Preview(live = live, attached = watching == null)
                     Spacer(Modifier.width(16.dp))
                     NowPanel(
-                        channel = highlighted,
-                        programmes = highlighted?.let { guide.programmes(it.id) },
+                        channel = live.channel,
+                        programmes = live.channel?.let { guide.programmes(it.id) },
                         now = now,
                         modifier = Modifier.weight(1f).padding(top = 2.dp),
                     )
@@ -302,15 +305,14 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                             programmes = guide.programmes(channel.id),
                             windowStart = guideStart(now),
                             now = now,
-                            onClick = { watching = index },
+                            playing = live.channel?.id == channel.id,
+                            // First OK previews the channel; OK on the channel already in the preview goes full screen.
+                            onClick = {
+                                if (live.channel?.id == channel.id) watching = index else live.play(login, format, channel)
+                            },
                             modifier = Modifier
                                 .focusRequester(requesterFor(channel.id))
-                                .onFocusChanged {
-                                    if (it.isFocused) {
-                                        lastChannelInGroup[channel.groupId] = channel.id
-                                        highlighted = channel
-                                    }
-                                },
+                                .onFocusChanged { if (it.isFocused) lastChannelInGroup[channel.groupId] = channel.id },
                         )
                     }
                 }
@@ -331,7 +333,6 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
             onChannel = { LastWatched.save(context, it) },
             onClose = { last ->
                 watching = null
-                highlighted = last
                 pendingFocus = last.id
             },
         )
@@ -377,9 +378,9 @@ private fun ListItem(
     }
 }
 
-/** The small picture at the top: the highlighted channel, with loading and error notes over it. */
+/** The small picture at the top, with loading and error notes over it. */
 @Composable
-private fun Preview(live: LivePlayer, attached: Boolean, highlighted: Channel?) {
+private fun Preview(live: LivePlayer, attached: Boolean) {
     Box(
         modifier = Modifier
             .size(width = 313.dp, height = 176.dp)
@@ -388,7 +389,7 @@ private fun Preview(live: LivePlayer, attached: Boolean, highlighted: Channel?) 
     ) {
         PlayerSurface(live, attached = attached, modifier = Modifier.fillMaxSize())
         val note = when {
-            live.channel == null -> if (highlighted == null) "Preview" else "Loading…"
+            live.channel == null -> "Press OK on a channel to preview it"
             live.error != null -> live.error
             live.buffering -> "Loading…"
             else -> null
