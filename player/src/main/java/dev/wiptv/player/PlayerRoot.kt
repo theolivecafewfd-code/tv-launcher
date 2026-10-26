@@ -38,7 +38,7 @@ internal object Palette {
     val warn = Color(0xFFFFB86B)
 }
 
-/** Shows the sign-in screen until there are saved details, then the account screen. */
+/** Shows the sign-in screen until there are saved details, then Live TV. */
 @Composable
 fun PlayerRoot() {
     val context = LocalContext.current
@@ -55,7 +55,7 @@ fun PlayerRoot() {
             },
         )
     } else {
-        AccountScreen(
+        LiveScreen(
             login = current,
             update = update,
             onSignOut = {

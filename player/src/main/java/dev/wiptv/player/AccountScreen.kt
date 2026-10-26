@@ -117,7 +117,7 @@ fun AccountScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                text = "Live TV, the TV guide, films and series are coming in the next updates.",
+                text = "Back returns to Live TV. The TV guide, films and series are coming in the next updates.",
                 style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
             )
         }

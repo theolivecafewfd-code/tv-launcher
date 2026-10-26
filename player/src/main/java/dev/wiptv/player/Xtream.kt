@@ -29,9 +29,35 @@ data class Account(
     val liveGroups: Int?,
     val movieGroups: Int?,
     val seriesGroups: Int?,
+    /** Stream formats the provider allows, like "ts" and "m3u8". */
+    val formats: List<String> = emptyList(),
 ) {
     val isActive: Boolean get() = status.equals("Active", ignoreCase = true)
+
+    /** The format to ask for live channels in: MPEG-TS when allowed (it starts fastest), else HLS. */
+    val liveFormat: String
+        get() = when {
+            formats.isEmpty() || "ts" in formats -> "ts"
+            "m3u8" in formats -> "m3u8"
+            else -> formats.first()
+        }
 }
+
+/** A Live TV group (category) from the provider. */
+data class Group(val id: String, val name: String)
+
+/** One live channel. */
+data class Channel(
+    val id: Long,
+    val number: Int,
+    val name: String,
+    val logo: String?,
+    val groupId: String,
+    /** Links the channel to the TV guide (used from phase 3). */
+    val guideId: String?,
+    /** Whether past programmes can be replayed (used from phase 5). */
+    val catchUp: Boolean,
+)
 
 /** A sign-in problem, worded for the screen. */
 class XtreamException(message: String) : Exception(message)
@@ -71,9 +97,12 @@ object Xtream {
         return Login(normaliseServer(text), username, password)
     }
 
-    /** Signs in and fetches the account details. Throws [XtreamException] with a readable reason. */
-    suspend fun signIn(login: Login): Account = withContext(Dispatchers.IO) {
-        val base = "${login.server}/player_api.php?username=${encode(login.username)}&password=${encode(login.password)}"
+    /**
+     * Signs in and fetches the account details. Throws [XtreamException] with a readable reason.
+     * [withCatalogue] also counts the provider's groups, which takes three more small requests.
+     */
+    suspend fun signIn(login: Login, withCatalogue: Boolean = true): Account = withContext(Dispatchers.IO) {
+        val base = api(login)
 
         val json = try {
             JSONObject(get(base))
@@ -88,7 +117,7 @@ object Xtream {
         val server = json.optJSONObject("server_info")
 
         // How big the catalogue is: three small requests, made at the same time.
-        val counts = coroutineScope {
+        val counts = if (!withCatalogue) listOf(null, null, null) else coroutineScope {
             listOf("get_live_categories", "get_vod_categories", "get_series_categories").map { action ->
                 async { runCatching { JSONArray(get("$base&action=$action")).length() }.getOrNull() }
             }.map { it.await() }
@@ -104,8 +133,55 @@ object Xtream {
             liveGroups = counts[0],
             movieGroups = counts[1],
             seriesGroups = counts[2],
+            formats = user.optJSONArray("allowed_output_formats")?.let { array ->
+                (0 until array.length()).map { array.optString(it).lowercase() }.filter { it.isNotBlank() }
+            } ?: emptyList(),
         )
     }
+
+    /** The provider's Live TV groups, in the provider's order. */
+    suspend fun liveGroups(login: Login): List<Group> = withContext(Dispatchers.IO) {
+        val array = parseArray(get("${api(login)}&action=get_live_categories"))
+        (0 until array.length()).mapNotNull { i ->
+            val item = array.optJSONObject(i) ?: return@mapNotNull null
+            val id = item.optString("category_id").ifBlank { return@mapNotNull null }
+            Group(id, item.optString("category_name").trim().ifBlank { "Group $id" })
+        }
+    }
+
+    /** The channels in one group, in the provider's order. */
+    suspend fun liveChannels(login: Login, groupId: String): List<Channel> = withContext(Dispatchers.IO) {
+        val array = parseArray(get("${api(login)}&action=get_live_streams&category_id=${encode(groupId)}"))
+        (0 until array.length()).mapNotNull { i ->
+            val item = array.optJSONObject(i) ?: return@mapNotNull null
+            val id = number(item, "stream_id") ?: return@mapNotNull null
+            Channel(
+                id = id,
+                number = number(item, "num")?.toInt() ?: (i + 1),
+                name = item.optString("name").trim().ifBlank { "Channel $id" },
+                logo = item.optString("stream_icon").trim().takeIf { it.startsWith("http") },
+                groupId = groupId,
+                guideId = item.optString("epg_channel_id").trim().takeIf { it.isNotEmpty() && it != "null" },
+                catchUp = number(item, "tv_archive") == 1L,
+            )
+        }
+    }
+
+    /** The address a live channel plays from. */
+    fun liveUrl(login: Login, channel: Channel, format: String): String =
+        "${login.server}/live/${pathPart(login.username)}/${pathPart(login.password)}/${channel.id}.$format"
+
+    private fun api(login: Login) =
+        "${login.server}/player_api.php?username=${encode(login.username)}&password=${encode(login.password)}"
+
+    private fun parseArray(text: String): JSONArray = try {
+        JSONArray(text)
+    } catch (e: JSONException) {
+        // Some panels answer an empty group with {} or nothing at all.
+        if (text.isBlank() || text.trim().startsWith("{")) JSONArray() else throw XtreamException("The provider sent something unexpected.")
+    }
+
+    private fun pathPart(text: String): String = encode(text).replace("+", "%20")
 
     /** Providers send numbers as numbers, strings or null, depending on the panel. */
     private fun number(obj: JSONObject, key: String): Long? {
