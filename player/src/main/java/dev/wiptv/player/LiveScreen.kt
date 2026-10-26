@@ -83,6 +83,14 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     var channelsError by remember { mutableStateOf<String?>(null) }
     var selectedGroup by remember { mutableStateOf(LastWatched.group(context)) }
     var showAccount by remember { mutableStateOf(false) }
+
+    // Groups you've hidden or reordered (Edit groups).
+    val groupPrefs = remember { GroupPrefs(context) }
+    var hiddenGroups by remember { mutableStateOf(groupPrefs.hidden()) }
+    var groupOrder by remember { mutableStateOf(groupPrefs.order()) }
+    var editingGroups by remember { mutableStateOf(false) }
+    val arranged = groups?.let { GroupPrefs.arrange(it, groupOrder) }
+    val shownGroups = arranged?.filter { it.id !in hiddenGroups }
     var watching by remember { mutableStateOf<Int?>(null) }
 
     val live = rememberLivePlayer()
@@ -112,9 +120,6 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
         try {
             val loaded = Xtream.liveGroups(login)
             groups = loaded
-            if (loaded.none { it.id == selectedGroup }) selectedGroup = loaded.firstOrNull()?.id
-            val index = loaded.indexOfFirst { it.id == selectedGroup }.coerceAtLeast(0)
-            groupList.scrollToItem(index)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -134,6 +139,17 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
             throw e
         } catch (e: Exception) {
             channelsError = e.message ?: "Couldn't load this group."
+        }
+    }
+
+    // Keep the selection on a group that's showing, and scroll to it when the list first appears.
+    var scrolledToSelection by remember { mutableStateOf(false) }
+    LaunchedEffect(shownGroups) {
+        val shown = shownGroups ?: return@LaunchedEffect
+        if (shown.none { it.id == selectedGroup }) selectedGroup = shown.firstOrNull()?.id
+        if (!scrolledToSelection) {
+            scrolledToSelection = true
+            groupList.scrollToItem(shown.indexOfFirst { it.id == selectedGroup }.coerceAtLeast(0))
         }
     }
 
@@ -200,8 +216,12 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                         )
                     }
                     groups == null -> Text(text = "Loading groups…", style = TextStyle(fontSize = 13.sp, color = Palette.quiet))
+                    shownGroups.isNullOrEmpty() -> Text(
+                        text = "All groups are hidden. Use Edit groups below to show some.",
+                        style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
+                    )
                 }
-                val list = groups.orEmpty()
+                val list = shownGroups.orEmpty()
                 LazyColumn(
                     state = groupList,
                     modifier = Modifier
@@ -233,8 +253,20 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                             )
                         }
                     }
-                    item(key = "account") {
+                    item(key = "edit") {
                         Spacer(Modifier.height(8.dp))
+                        ListItem(
+                            onClick = { editingGroups = true },
+                            selected = false,
+                            modifier = if (list.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier,
+                        ) {
+                            Text(
+                                text = "Edit groups",
+                                style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
+                            )
+                        }
+                    }
+                    item(key = "account") {
                         ListItem(onClick = { showAccount = true }, selected = false) {
                             Text(
                                 text = "Account & sign out",
@@ -335,6 +367,42 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                 watching = null
                 pendingFocus = last.id
             },
+        )
+    }
+
+    if (editingGroups && arranged != null) {
+        fun saveOrder(ids: List<String>) {
+            groupOrder = ids
+            groupPrefs.setOrder(ids)
+        }
+        GroupEditor(
+            groups = arranged,
+            hidden = hiddenGroups,
+            onToggle = { group ->
+                hiddenGroups = if (group.id in hiddenGroups) hiddenGroups - group.id else hiddenGroups + group.id
+                groupPrefs.setHidden(hiddenGroups)
+            },
+            onSetAllHidden = { hide ->
+                hiddenGroups = if (hide) arranged.map { it.id }.toSet() else emptySet()
+                groupPrefs.setHidden(hiddenGroups)
+            },
+            onMove = { group, step ->
+                val ids = arranged.map { it.id }.toMutableList()
+                val from = ids.indexOf(group.id)
+                val to = from + step
+                if (from >= 0 && to in ids.indices) {
+                    ids.add(to, ids.removeAt(from))
+                    saveOrder(ids)
+                }
+            },
+            onMoveToTop = { group ->
+                val ids = arranged.map { it.id }.toMutableList()
+                if (ids.remove(group.id)) {
+                    ids.add(0, group.id)
+                    saveOrder(ids)
+                }
+            },
+            onDone = { editingGroups = false },
         )
     }
 
