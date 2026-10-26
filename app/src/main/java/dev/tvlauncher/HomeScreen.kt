@@ -17,11 +17,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -76,6 +78,30 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     var apps by remember { mutableStateOf<List<TvApp>>(emptyList()) }
     var now by remember { mutableStateOf(LocalTime.now()) }
     var backdrop by remember { mutableStateOf<String?>(null) }
+
+    // Which apps you've hidden and the order you've chosen, saved on the device.
+    val dockPrefs = remember { DockPrefs(context) }
+    var hidden by remember { mutableStateOf(dockPrefs.hidden()) }
+    var order by remember { mutableStateOf(dockPrefs.order()) }
+    val dockApps = remember(apps, hidden, order) { DockPrefs.arrange(apps, hidden, order) }
+    var menuFor by remember { mutableStateOf<TvApp?>(null) }
+    var editing by remember { mutableStateOf(false) }
+    // After a menu action, which tile the remote's focus should land on.
+    var focusKey by remember { mutableStateOf<String?>(null) }
+    var focusTick by remember { mutableIntStateOf(0) }
+    fun focusOn(key: String?) {
+        focusKey = key
+        focusTick++
+    }
+
+    fun saveOrder(newOrder: List<TvApp>) {
+        order = newOrder.map { it.packageName }
+        dockPrefs.setOrder(order)
+    }
+    fun setHidden(newHidden: Set<String>) {
+        hidden = newHidden
+        dockPrefs.setHidden(newHidden)
+    }
 
     LaunchedEffect(refreshKey) {
         apps = withContext(Dispatchers.IO) { AppRepository.load(context) }
@@ -159,7 +185,9 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                         ),
                 )
             }
-            Column(
+            // While choosing apps, the editor replaces the home screen so the remote can't
+            // wander onto the tiles underneath.
+            if (!editing) Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(top = 24.dp, bottom = 16.dp),
@@ -192,12 +220,71 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                         style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
                     )
                 } else {
-                    AppDock(apps = apps, onLaunch = onLaunch)
+                    AppDock(
+                        apps = dockApps,
+                        onLaunch = onLaunch,
+                        onLongPress = { menuFor = it },
+                        onEdit = { editing = true },
+                        focusKey = focusKey,
+                        focusTick = focusTick,
+                    )
                 }
+            }
+
+            // Hold OK on an app: hide it or move it.
+            menuFor?.let { app ->
+                val index = dockApps.indexOfFirst { it.packageName == app.packageName }
+                AppMenu(
+                    app = app,
+                    canMoveLeft = index > 0,
+                    canMoveRight = index in 0 until dockApps.size - 1,
+                    onHide = {
+                        setHidden(hidden + app.packageName)
+                        val neighbour = dockApps.getOrNull(index + 1) ?: dockApps.getOrNull(index - 1)
+                        focusOn(neighbour?.packageName ?: EDIT_TILE_KEY)
+                        menuFor = null
+                    },
+                    onMoveLeft = {
+                        val list = dockApps.toMutableList()
+                        list.add(index - 1, list.removeAt(index))
+                        saveOrder(list)
+                        focusOn(app.packageName)
+                        menuFor = null
+                    },
+                    onMoveRight = {
+                        val list = dockApps.toMutableList()
+                        list.add(index + 1, list.removeAt(index))
+                        saveOrder(list)
+                        focusOn(app.packageName)
+                        menuFor = null
+                    },
+                    onClose = {
+                        focusOn(app.packageName)
+                        menuFor = null
+                    },
+                )
+            }
+
+            // "Edit apps": every app on the TV, OK to show or hide.
+            if (editing) {
+                AppEditor(
+                    apps = apps,
+                    hidden = hidden,
+                    onToggle = { app ->
+                        setHidden(if (app.packageName in hidden) hidden - app.packageName else hidden + app.packageName)
+                    },
+                    onDone = {
+                        editing = false
+                        focusOn(EDIT_TILE_KEY)
+                    },
+                )
             }
         }
     }
 }
+
+/** Focus key for the "Edit apps" tile at the end of the dock. */
+private const val EDIT_TILE_KEY = "__edit_apps__"
 
 @Composable
 private fun Header(now: LocalTime, update: UpdateState, onUpdateClick: () -> Unit) {
@@ -277,14 +364,24 @@ private fun greeting(now: LocalTime): String = when (now.hour) {
 }
 
 @Composable
-private fun AppDock(apps: List<TvApp>, onLaunch: (TvApp) -> Unit) {
-    val firstTile = remember { FocusRequester() }
+private fun AppDock(
+    apps: List<TvApp>,
+    onLaunch: (TvApp) -> Unit,
+    onLongPress: (TvApp) -> Unit,
+    onEdit: () -> Unit,
+    focusKey: String?,
+    focusTick: Int,
+) {
+    val requesters = remember { mutableMapOf<String, FocusRequester>() }
+    fun requesterFor(key: String) = requesters.getOrPut(key) { FocusRequester() }
 
-    // Put the remote's focus on the first app when the screen opens.
-    // The first tile may not be laid out yet on the first frame, so retry briefly.
-    LaunchedEffect(Unit) {
+    // Put the remote's focus on the first app when the screen opens, and back on the right
+    // tile after the menu or editor closes. Tiles may not be laid out on the first frame,
+    // so retry briefly.
+    LaunchedEffect(focusKey, focusTick) {
+        val key = focusKey ?: apps.firstOrNull()?.packageName ?: EDIT_TILE_KEY
         repeat(20) {
-            if (runCatching { firstTile.requestFocus() }.isSuccess) return@LaunchedEffect
+            if (runCatching { requesterFor(key).requestFocus() }.isSuccess) return@LaunchedEffect
             delay(50)
         }
     }
@@ -293,24 +390,76 @@ private fun AppDock(apps: List<TvApp>, onLaunch: (TvApp) -> Unit) {
         contentPadding = PaddingValues(horizontal = 40.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        itemsIndexed(apps, key = { _, app -> app.packageName }) { index, app ->
+        items(apps, key = { it.packageName }) { app ->
             AppTile(
                 app = app,
                 onClick = { onLaunch(app) },
-                modifier = if (index == 0) Modifier.focusRequester(firstTile) else Modifier,
+                onLongClick = { onLongPress(app) },
+                modifier = Modifier.focusRequester(requesterFor(app.packageName)),
+            )
+        }
+        item(key = EDIT_TILE_KEY) {
+            EditAppsTile(
+                onClick = onEdit,
+                modifier = Modifier.focusRequester(requesterFor(EDIT_TILE_KEY)),
             )
         }
     }
 }
 
+/** The last tile in the dock: opens the screen for choosing which apps show. */
 @Composable
-private fun AppTile(app: TvApp, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun EditAppsTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(10.dp)
     Surface(
         onClick = onClick,
         modifier = modifier
             .width(144.dp)
             .height(81.dp),
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = Palette.quiet,
+            focusedContainerColor = Palette.tileFocused,
+            focusedContentColor = Palette.text,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+        border = ClickableSurfaceDefaults.border(
+            border = Border(border = BorderStroke(1.dp, Palette.quiet.copy(alpha = 0.5f)), shape = shape),
+            focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
+        ),
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(text = "+", style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Medium))
+            Text(text = "Edit apps", style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
+        }
+    }
+}
+
+/**
+ * One app tile. [shown] is only set on the "Choose your apps" screen: a tick when the app shows
+ * in the dock, dimmed when it's hidden.
+ */
+@Composable
+internal fun AppTile(
+    app: TvApp,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+    shown: Boolean? = null,
+) {
+    val shape = RoundedCornerShape(10.dp)
+    Surface(
+        onClick = onClick,
+        onLongClick = onLongClick,
+        modifier = modifier
+            .width(144.dp)
+            .height(81.dp)
+            .alpha(if (shown == false) 0.4f else 1f),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Palette.tile,
@@ -326,6 +475,7 @@ private fun AppTile(app: TvApp, onClick: () -> Unit, modifier: Modifier = Modifi
             focusedGlow = Glow(elevationColor = Palette.glow.copy(alpha = 0.45f), elevation = 10.dp),
         ),
     ) {
+      Box(Modifier.fillMaxSize()) {
         val image = app.image
         if (image != null && app.isBanner) {
             Image(
@@ -358,5 +508,21 @@ private fun AppTile(app: TvApp, onClick: () -> Unit, modifier: Modifier = Modifi
                 )
             }
         }
+        if (shown != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(6.dp)
+                    .size(20.dp)
+                    .background(if (shown) Palette.glow else Palette.background.copy(alpha = 0.8f), RoundedCornerShape(50)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = if (shown) "✓" else "–",
+                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (shown) Palette.background else Palette.quiet),
+                )
+            }
+        }
+      }
     }
 }
