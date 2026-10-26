@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 320 x 180 banner shown for this app in the TV's own app list. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path
+        android:fillColor="#16111E"
+        android:pathData="M0,0h320v180h-320z" />
+    <path
+        android:fillColor="#2A2238"
+        android:pathData="M40,44h240a12,12 0,0 1,12 12v68a12,12 0,0 1,-12 12h-240a12,12 0,0 1,-12 -12v-68a12,12 0,0 1,12 -12z" />
+    <path
+        android:fillColor="#EDE4FF"
+        android:pathData="M60,70h64a8,8 0,0 1,8 8v24a8,8 0,0 1,-8 8h-64a8,8 0,0 1,-8 -8v-24a8,8 0,0 1,8 -8z" />
+    <path
+        android:fillColor="#5A4E70"
+        android:pathData="M152,70h40a8,8 0,0 1,8 8v24a8,8 0,0 1,-8 8h-40a8,8 0,0 1,-8 -8v-24a8,8 0,0 1,8 -8z" />
+    <path
+        android:fillColor="#5A4E70"
+        android:pathData="M220,70h40a8,8 0,0 1,8 8v24a8,8 0,0 1,-8 8h-40a8,8 0,0 1,-8 -8v-24a8,8 0,0 1,8 -8z" />
+</vector>

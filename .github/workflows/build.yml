@@ -1,0 +1,46 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build the app
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk tv-launcher.apk
+
+      - name: Keep the app file with this run
+        uses: actions/upload-artifact@v4
+        with:
+          name: tv-launcher
+          path: tv-launcher.apk
+
+      # Only merged changes on main become a release, with a download link that never changes:
+      # https://github.com/<owner>/tv-launcher/releases/latest/download/tv-launcher.apk
+      - name: Publish release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: TV Launcher build ${{ github.run_number }}
+          files: tv-launcher.apk
+          make_latest: "true"
