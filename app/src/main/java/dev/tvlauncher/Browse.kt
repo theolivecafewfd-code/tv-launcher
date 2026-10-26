@@ -19,7 +19,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -205,8 +210,15 @@ private fun SourceTag(source: Source) {
 }
 
 /** One row of posters, e.g. Comedy. Top 10 rows get a big number beside each poster. */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun PosterRow(row: ContentRow, onOpen: (Title) -> Unit) {
+fun PosterRow(
+    row: ContentRow,
+    onOpen: (Title) -> Unit,
+    requester: FocusRequester,
+    up: FocusRequester,
+    down: FocusRequester?,
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(start = 40.dp, end = 40.dp),
@@ -226,7 +238,13 @@ fun PosterRow(row: ContentRow, onOpen: (Title) -> Unit) {
                 )
             }
         }
+        // The row remembers which poster you were on, and up and down always go to the row
+        // directly above or below, whatever the posters' positions.
+        NormalScrolling {
         LazyRow(
+            modifier = Modifier
+                .focusRequester(requester)
+                .focusRestorer(),
             contentPadding = PaddingValues(horizontal = 40.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(if (row.ranked) 16.dp else 12.dp),
         ) {
@@ -245,19 +263,27 @@ fun PosterRow(row: ContentRow, onOpen: (Title) -> Unit) {
                             ),
                         )
                     }
-                    PosterCard(title = title, onClick = { onOpen(title) })
+                    PosterCard(
+                        title = title,
+                        onClick = { onOpen(title) },
+                        modifier = Modifier.focusProperties {
+                            this.up = up
+                            if (down != null) this.down = down
+                        },
+                    )
                 }
             }
+        }
         }
     }
 }
 
 @Composable
-private fun PosterCard(title: Title, onClick: () -> Unit) {
+private fun PosterCard(title: Title, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(10.dp)
     Surface(
         onClick = onClick,
-        modifier = Modifier.size(width = 84.dp, height = 126.dp),
+        modifier = modifier.size(width = 84.dp, height = 126.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(containerColor = Palette.tile, focusedContainerColor = Palette.tile),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
