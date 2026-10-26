@@ -49,6 +49,7 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /** Remembers the last group and channel watched, so the app opens where you left off. */
@@ -102,6 +103,8 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
             if (loaded.none { it.id == selectedGroup }) selectedGroup = loaded.firstOrNull()?.id
             val index = loaded.indexOfFirst { it.id == selectedGroup }.coerceAtLeast(0)
             groupList.scrollToItem(index)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             groupsError = e.message ?: "Couldn't load Live TV."
         }
@@ -115,6 +118,8 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
         delay(250)
         try {
             channelsByGroup[id] = Xtream.liveChannels(login, id)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             channelsError = e.message ?: "Couldn't load this group."
         }

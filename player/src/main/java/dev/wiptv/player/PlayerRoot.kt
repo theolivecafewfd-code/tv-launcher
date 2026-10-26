@@ -23,6 +23,7 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -98,6 +99,8 @@ fun rememberUpdateState(): UpdateHandle {
                             state = UpdateState.Downloading(percent)
                         }
                         UpdateState.Installing
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         UpdateState.Failed(e.message ?: "download failed", target)
                     }
