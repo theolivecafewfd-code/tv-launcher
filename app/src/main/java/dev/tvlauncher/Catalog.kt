@@ -1,0 +1,276 @@
+package dev.tvlauncher
+
+import android.os.SystemClock
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import java.util.concurrent.ConcurrentHashMap
+
+enum class MediaType(val path: String, val label: String) {
+    TV("tv", "TV Shows"),
+    MOVIE("movie", "Movies"),
+}
+
+/**
+ * Where you can watch something, in your order of preference: the first one listed is what OK
+ * opens. Your IPTV player will join at the front once it exists.
+ * [providerIds] are TMDB's ids for the service ("|" means any of them).
+ */
+enum class Source(val label: String, val providerIds: String) {
+    NETFLIX("Netflix", "8"),
+    PRIME("Prime", "9|119|2100"),
+}
+
+/** A show or film in the rows. */
+data class Title(
+    val id: Int,
+    val type: MediaType,
+    val name: String,
+    val year: String,
+    val overview: String,
+    /** TMDB's average user score out of 10. */
+    val rating: Double,
+    val popularity: Double,
+    val genreIds: List<Int>,
+    val backdropUrl: String?,
+    val posterUrl: String?,
+    /** Services that have it, in your order of preference. */
+    val sources: List<Source>,
+) {
+    val key: String get() = "${type.path}:$id"
+}
+
+/** One row on the home screen, e.g. "Top 10 this week". */
+data class ContentRow(
+    val key: String,
+    val title: String,
+    val note: String,
+    /** Top 10 style: a big number beside each poster. */
+    val ranked: Boolean,
+    val items: List<Title>,
+)
+
+/**
+ * Shows and films from The Movie Database (TMDB), limited to what's on your services in Ireland.
+ * This product uses the TMDB API but is not endorsed or certified by TMDB.
+ */
+object Catalog {
+
+    private const val TAG = "TvLauncherCatalog"
+    private const val API = "https://api.themoviedb.org/3"
+    private const val IMAGES = "https://image.tmdb.org/t/p"
+    private const val REGION = "IE"
+    private const val CACHE_MILLIS = 6 * 60 * 60_000L
+
+    private const val COMEDY = 35
+    private const val DOCUMENTARY = 99
+
+    /** False when the build has no TMDB key (the GitHub secret is missing). */
+    val hasKey: Boolean get() = BuildConfig.TMDB_API_KEY.isNotBlank()
+
+    private class Cached<T>(val value: T, val at: Long)
+
+    private val rowCache = ConcurrentHashMap<String, Cached<ContentRow>>()
+    private val netflixIds = ConcurrentHashMap<String, String>()
+
+    /** The four home-screen rows for TV shows or films. */
+    suspend fun rows(type: MediaType, history: List<HistoryEntry>): List<ContentRow> = coroutineScope {
+        val ofType = history.filter { it.type == type }
+        listOf(
+            async { cached("${type.path}:top") { topTen(type) } },
+            async { cached("${type.path}:comedy") { genreRow(type, "comedy", "Comedy", COMEDY) } },
+            async { cached("${type.path}:docs") { genreRow(type, "docs", "Documentary", DOCUMENTARY) } },
+            async {
+                val signature = ofType.take(10).joinToString(",") { it.id.toString() }
+                cached("${type.path}:recommended:$signature") { recommended(type, ofType) }
+            },
+        ).awaitAll().filter { it.items.isNotEmpty() }
+    }
+
+    private suspend fun cached(key: String, load: suspend () -> ContentRow): ContentRow {
+        rowCache[key]?.takeIf { SystemClock.elapsedRealtime() - it.at < CACHE_MILLIS }?.let { return it.value }
+        val row = load()
+        if (row.items.isNotEmpty()) rowCache[key] = Cached(row, SystemClock.elapsedRealtime())
+        return row
+    }
+
+    private suspend fun topTen(type: MediaType): ContentRow {
+        val items = merged(type, "sort_by=popularity.desc&vote_count.gte=100", byRating = false)
+            .filter { it.backdropUrl != null }
+            .take(10)
+        return ContentRow("top", "Top 10 this week", "Most popular on your services in Ireland", ranked = true, items = items)
+    }
+
+    private suspend fun genreRow(type: MediaType, key: String, title: String, genre: Int): ContentRow {
+        val minVotes = if (genre == DOCUMENTARY) 30 else 100
+        val items = merged(type, "sort_by=popularity.desc&vote_count.gte=$minVotes&with_genres=$genre", byRating = false)
+            .take(15)
+        return ContentRow(key, title, "", ranked = false, items = items)
+    }
+
+    /**
+     * Built from what you've opened in the launcher: the genres you pick most, best rated first.
+     * Before there's any history, it's simply the top rated titles on your services.
+     */
+    private suspend fun recommended(type: MediaType, history: List<HistoryEntry>): ContentRow {
+        val seen = history.map { it.id }.toSet()
+        val favouriteGenres = history
+            .flatMap { it.genreIds }
+            .filter { it != COMEDY && it != DOCUMENTARY }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .take(2)
+            .map { it.key }
+
+        return if (favouriteGenres.isEmpty()) {
+            val items = merged(type, "sort_by=vote_average.desc&vote_count.gte=1000", byRating = true).take(15)
+            ContentRow("recommended", "Recommended for you", "Top rated on your services for now. It learns from what you open.", false, items)
+        } else {
+            val items = merged(
+                type,
+                "sort_by=vote_average.desc&vote_count.gte=300&with_genres=${favouriteGenres.joinToString("|")}",
+                byRating = true,
+            ).filter { it.id !in seen }.take(15)
+            val because = favouriteGenres.mapNotNull { genreName(it) }.joinToString(" and ")
+            ContentRow("recommended", "Recommended for you", "Because you watch $because", false, items)
+        }
+    }
+
+    /**
+     * Runs the same search once per service, so each title knows which services have it,
+     * then merges the results.
+     */
+    private suspend fun merged(type: MediaType, params: String, byRating: Boolean): List<Title> = coroutineScope {
+        val perSource = Source.entries.map { source ->
+            async { source to runCatching { discover(type, params, source) }.getOrElse { e ->
+                Log.w(TAG, "Discover failed for ${source.label}", e)
+                emptyList()
+            } }
+        }.awaitAll()
+
+        val byId = LinkedHashMap<Int, Title>()
+        for ((source, titles) in perSource) {
+            for (title in titles) {
+                val existing = byId[title.id]
+                byId[title.id] = if (existing == null) {
+                    title.copy(sources = listOf(source))
+                } else {
+                    existing.copy(sources = (existing.sources + source).distinct().sortedBy { it.ordinal })
+                }
+            }
+        }
+        if (perSource.all { it.second.isEmpty() } && Source.entries.isNotEmpty()) {
+            error("Couldn't load titles from TMDB")
+        }
+        val list = byId.values.toList()
+        if (byRating) list.sortedByDescending { it.rating } else list.sortedByDescending { it.popularity }
+    }
+
+    private suspend fun discover(type: MediaType, params: String, source: Source): List<Title> =
+        withContext(Dispatchers.IO) {
+            val query = buildString {
+                append(params)
+                append("&watch_region=$REGION")
+                append("&with_watch_providers=").append(URLEncoder.encode(source.providerIds, "UTF-8"))
+                append("&with_watch_monetization_types=flatrate")
+                append("&include_adult=false")
+                append("&language=en-GB")
+            }
+            val json = JSONObject(get("$API/discover/${type.path}?$query"))
+            val results = json.getJSONArray("results")
+            (0 until results.length()).map { results.getJSONObject(it) }.map { item ->
+                val genres = item.optJSONArray("genre_ids")
+                Title(
+                    id = item.getInt("id"),
+                    type = type,
+                    name = item.optString(if (type == MediaType.TV) "name" else "title"),
+                    year = item.optString(if (type == MediaType.TV) "first_air_date" else "release_date").take(4),
+                    overview = item.optString("overview"),
+                    rating = item.optDouble("vote_average", 0.0),
+                    popularity = item.optDouble("popularity", 0.0),
+                    genreIds = if (genres == null) emptyList() else (0 until genres.length()).map { genres.getInt(it) },
+                    backdropUrl = image(item, "backdrop_path", "w780"),
+                    posterUrl = image(item, "poster_path", "w342"),
+                    sources = emptyList(),
+                )
+            }
+        }
+
+    private fun image(item: JSONObject, field: String, size: String): String? {
+        if (item.isNull(field)) return null
+        val path = item.optString(field)
+        return if (path.isBlank()) null else "$IMAGES/$size$path"
+    }
+
+    /**
+     * Netflix's own id for a title, so "Watch on Netflix" can jump straight to it. TMDB gives the
+     * title's Wikidata entry, and Wikidata records the Netflix id for many titles. Null when unknown.
+     */
+    suspend fun netflixId(title: Title): String? = withContext(Dispatchers.IO) {
+        netflixIds[title.key]?.let { return@withContext it.ifBlank { null } }
+        val id = try {
+            val external = JSONObject(get("$API/${title.type.path}/${title.id}/external_ids?"))
+            val wikidata = external.optString("wikidata_id").takeIf { it.startsWith("Q") }
+            if (wikidata == null) {
+                null
+            } else {
+                val entity = JSONObject(getPlain("https://www.wikidata.org/wiki/Special:EntityData/$wikidata.json"))
+                entity.getJSONObject("entities").optJSONObject(wikidata)
+                    ?.optJSONObject("claims")
+                    ?.optJSONArray("P1874")
+                    ?.optJSONObject(0)
+                    ?.optJSONObject("mainsnak")
+                    ?.optJSONObject("datavalue")
+                    ?.optString("value")
+                    ?.takeIf { it.isNotBlank() && it.all(Char::isDigit) }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Netflix id lookup failed for ${title.name}", e)
+            null
+        }
+        netflixIds[title.key] = id ?: ""
+        id
+    }
+
+    private val genreNames = mapOf(
+        28 to "Action", 12 to "Adventure", 16 to "Animation", 80 to "Crime", 18 to "Drama",
+        10751 to "Family", 14 to "Fantasy", 36 to "History", 27 to "Horror", 10402 to "Music",
+        9648 to "Mystery", 10749 to "Romance", 878 to "Sci-Fi", 53 to "Thriller", 10752 to "War",
+        37 to "Westerns", 10759 to "Action", 10762 to "Kids", 10765 to "Sci-Fi and Fantasy",
+        10768 to "War and Politics", 10764 to "Reality", 10766 to "Soaps", 10767 to "Talk", 10763 to "News",
+    )
+
+    fun genreName(id: Int): String? = genreNames[id]
+
+    /** TMDB request; the key is added here and never stored in the code. */
+    private fun get(url: String): String {
+        val key = URLEncoder.encode(BuildConfig.TMDB_API_KEY, "UTF-8")
+        val separator = if (url.endsWith("?")) "" else "&"
+        return getPlain("$url${separator}api_key=$key")
+    }
+
+    private fun getPlain(url: String): String {
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 15_000
+            readTimeout = 20_000
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("User-Agent", "TvLauncher/${BuildConfig.VERSION_NAME} (personal home screen app)")
+        }
+        try {
+            val code = connection.responseCode
+            if (code !in 200..299) error("Answered $code")
+            return connection.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            connection.disconnect()
+        }
+    }
+}

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,6 +52,7 @@ import androidx.tv.material3.darkColorScheme
 import androidx.compose.ui.graphics.Brush
 import coil.compose.AsyncImage
 import android.os.SystemClock
+import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -114,6 +116,38 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
 
     LaunchedEffect(refreshKey) {
         apps = withContext(Dispatchers.IO) { AppRepository.load(context) }
+    }
+
+    // TV Shows or Movies, and the rows for it from TMDB, limited to your services.
+    var mediaType by remember { mutableStateOf(MediaType.TV) }
+    var rows by remember { mutableStateOf<List<ContentRow>>(emptyList()) }
+    var rowsFailed by remember { mutableStateOf(false) }
+    var featuredIndex by remember { mutableIntStateOf(0) }
+    val featured = rows.firstOrNull { it.key == "top" }?.items.orEmpty()
+    LaunchedEffect(mediaType, refreshKey) {
+        if (!Catalog.hasKey) return@LaunchedEffect
+        rowsFailed = false
+        val loaded = try {
+            Catalog.rows(mediaType, History(context).entries())
+        } catch (e: Exception) {
+            rowsFailed = true
+            emptyList()
+        }
+        // A refresh on returning home keeps the current rows if the new load failed.
+        if (loaded.isNotEmpty() || rows.isEmpty() || rows.firstOrNull()?.items?.firstOrNull()?.type != mediaType) {
+            if (rows.firstOrNull()?.items?.firstOrNull()?.type != mediaType) featuredIndex = 0
+            rows = loaded
+        }
+    }
+    LaunchedEffect(featured.getOrNull(featuredIndex)?.key) {
+        backdrop = featured.getOrNull(featuredIndex)?.backdropUrl
+    }
+    val titleScope = rememberCoroutineScope()
+    val openTitle: (Title) -> Unit = { title ->
+        titleScope.launch {
+            val message = TitleOpener.open(context, title, apps)
+            if (message != null) Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
     }
 
     // Check GitHub for a newer build when the screen opens, then at most every 30 minutes.
@@ -195,47 +229,76 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                 )
             }
             // While choosing apps, the editor replaces the home screen so the remote can't
-            // wander onto the tiles underneath.
-            if (!editing) Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = 24.dp, bottom = 16.dp),
+            // wander onto the tiles underneath. Everything scrolls as one list: header, the
+            // featured title and your apps first, then the rows below.
+            if (!editing) LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp),
             ) {
-                Header(now = now, weather = weather, update = update, onUpdateClick = onUpdateClick)
-                Spacer(Modifier.height(10.dp))
-                FilmCarousel(apps = apps, onLaunch = onLaunch, onBackdrop = { backdrop = it })
-                Spacer(Modifier.weight(1f))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 40.dp, end = 40.dp, bottom = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom,
-                ) {
-                    Text(
-                        text = "Your apps",
-                        style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Palette.quiet),
-                    )
-                    // Which build is installed, so it's easy to tell whether an update landed.
-                    Text(
-                        text = "Build ${BuildConfig.VERSION_CODE}",
-                        style = TextStyle(fontSize = 11.sp, color = Palette.quiet.copy(alpha = 0.7f)),
-                    )
+                item(key = "header") {
+                    Header(now = now, weather = weather, update = update, onUpdateClick = onUpdateClick)
                 }
-                if (apps.isEmpty()) {
+                item(key = "switch") {
+                    Box(Modifier.padding(top = 10.dp, bottom = 12.dp)) {
+                        TypeSwitch(selected = mediaType, onSelect = { mediaType = it })
+                    }
+                }
+                item(key = "featured") {
+                    when {
+                        !Catalog.hasKey -> RowMessage("Add your TMDB key to GitHub secrets as TMDB_API_KEY to see shows and films here.")
+                        featured.isNotEmpty() -> Featured(
+                            titles = featured,
+                            index = featuredIndex.coerceIn(0, featured.size - 1),
+                            onIndexChange = { featuredIndex = it },
+                            onOpen = openTitle,
+                        )
+                        rowsFailed -> RowMessage("Couldn't reach TMDB. Check the internet connection.")
+                        else -> RowMessage("Loading ${mediaType.label.lowercase()}…")
+                    }
+                }
+                item(key = "apps") {
+                    Column(Modifier.padding(top = 16.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 40.dp, end = 40.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Bottom,
+                        ) {
+                            Text(
+                                text = "Your apps",
+                                style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Palette.quiet),
+                            )
+                            // Which build is installed, so it's easy to tell whether an update landed.
+                            Text(
+                                text = "Build ${BuildConfig.VERSION_CODE}",
+                                style = TextStyle(fontSize = 11.sp, color = Palette.quiet.copy(alpha = 0.7f)),
+                            )
+                        }
+                        if (apps.isEmpty()) {
+                            RowMessage("Loading apps…")
+                        } else {
+                            AppDock(
+                                apps = dockApps,
+                                onLaunch = onLaunch,
+                                onLongPress = { menuFor = it },
+                                onEdit = { editing = true },
+                                focusKey = focusKey,
+                                focusTick = focusTick,
+                            )
+                        }
+                    }
+                }
+                items(rows, key = { "row:${mediaType.path}:${it.key}" }) { row ->
+                    Box(Modifier.padding(top = 10.dp)) {
+                        PosterRow(row = row, onOpen = openTitle)
+                    }
+                }
+                item(key = "credit") {
                     Text(
-                        text = "Loading apps…",
-                        modifier = Modifier.padding(start = 40.dp),
-                        style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
-                    )
-                } else {
-                    AppDock(
-                        apps = dockApps,
-                        onLaunch = onLaunch,
-                        onLongPress = { menuFor = it },
-                        onEdit = { editing = true },
-                        focusKey = focusKey,
-                        focusTick = focusTick,
+                        text = "Show and film data from TMDB. This app uses the TMDB API but is not endorsed or certified by TMDB.",
+                        modifier = Modifier.padding(horizontal = 40.dp, vertical = 16.dp),
+                        style = TextStyle(fontSize = 10.sp, color = Palette.quiet.copy(alpha = 0.6f)),
                     )
                 }
             }
