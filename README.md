@@ -14,6 +14,16 @@ https://github.com/theolivecafewfd-code/tv-launcher/releases/latest/download/tv-
 
 On the TV, type the short link instead: **`is.gd/mAyKiF`**. It points at the link above, which never changes, so it keeps working for every new build.
 
+## WIPTV Player (the IPTV app)
+
+The second app lives in `player/`, in this same repo. Every merge builds both apps. The player's newest build is always at:
+
+```
+https://github.com/theolivecafewfd-code/tv-launcher/releases/download/player/wiptv-player.apk
+```
+
+On the TV, type the short link instead: **`is.gd/pPSEvh`**. Install it once with Downloader; after that it updates itself from the pill in its top corner. It signs in to an Xtream Codes provider with the details typed on the TV, which are stored encrypted on the TV only and never in this repo.
+
 ## Install on the TV
 
 1. On the TV, install **Downloader** (by AFTVnews) from the Play Store.
