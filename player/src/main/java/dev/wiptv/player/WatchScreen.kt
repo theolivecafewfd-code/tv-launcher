@@ -55,11 +55,18 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
+/** What's over the picture: nothing, a group's channels, or the list of groups. */
+private enum class Overlay { NONE, CHANNELS, GROUPS }
+
+/** A group of channels to play through: its id, name and channels. */
+class ChannelGroup(val id: String, val name: String, val channels: List<Channel>)
+
 /**
  * Full-screen playback, using the same player as the preview.
  * - Up and down change channel within the group (up goes to the channel above in the list).
- * - Left opens the group's channel list over the picture; OK on a channel switches to it.
- * - Right jumps back to the channel you were on before.
+ * - Left opens the group's channel list over the picture; Left again shows the groups, so you can
+ *   pick a channel from any group. OK on a channel switches to it.
+ * - Right jumps back to the channel you were on before, whichever group it's in.
  * - OK shows the channel info. Back returns to the guide with the channel still in the preview.
  */
 @Composable
@@ -67,42 +74,79 @@ fun WatchScreen(
     login: Login,
     format: String,
     live: LivePlayer,
-    channels: List<Channel>,
-    groupName: String,
+    start: ChannelGroup,
     startIndex: Int,
+    groups: List<Pair<String, String>>,
+    loadGroup: suspend (String) -> List<Channel>,
+    groupOf: (Channel) -> ChannelGroup,
     nowShowing: (Channel) -> Programme?,
     ensureGuide: suspend (Channel) -> Unit,
     onChannel: (Channel) -> Unit,
-    onClose: (Channel) -> Unit,
+    onClose: (Channel, String) -> Unit,
 ) {
-    var index by remember { mutableIntStateOf(startIndex.coerceIn(0, channels.lastIndex)) }
-    var previous by remember { mutableStateOf<Int?>(null) }
+    var group by remember { mutableStateOf(start) }
+    var index by remember { mutableIntStateOf(startIndex.coerceIn(0, start.channels.lastIndex)) }
     var infoTick by remember { mutableIntStateOf(0) }
     var showInfo by remember { mutableStateOf(true) }
-    var showList by remember { mutableStateOf(false) }
+    var overlay by remember { mutableStateOf(Overlay.NONE) }
     val focus = remember { FocusRequester() }
     val listState = rememberLazyListState()
+    val groupListState = rememberLazyListState()
     val itemRequesters = remember { mutableMapOf<Long, FocusRequester>() }
     fun requesterFor(id: Long) = itemRequesters.getOrPut(id) { FocusRequester() }
-    val channel = channels[index]
+    val groupRequesters = remember { mutableMapOf<String, FocusRequester>() }
+    fun groupRequesterFor(id: String) = groupRequesters.getOrPut(id) { FocusRequester() }
+    val channels = group.channels
+    val channel = channels[index.coerceIn(0, channels.lastIndex)]
 
-    fun goTo(target: Int) {
-        if (target != index && target in channels.indices) {
-            previous = index
-            index = target
+    // The group shown in the channel list overlay, which can differ from the one playing
+    // while you browse other groups.
+    var browseId by remember { mutableStateOf(start.id) }
+    var browseName by remember { mutableStateOf(start.name) }
+    var browseList by remember { mutableStateOf<List<Channel>?>(start.channels) }
+
+    /** Plays a channel, moving to its group if it isn't in the one playing. */
+    fun goToChannel(target: Channel, from: ChannelGroup? = null) {
+        val inCurrent = channels.indexOfFirst { it.id == target.id }
+        if (from == null && inCurrent >= 0) {
+            index = inCurrent
+            return
         }
+        val newGroup = from ?: groupOf(target)
+        group = newGroup
+        index = newGroup.channels.indexOfFirst { it.id == target.id }.coerceAtLeast(0)
     }
 
     fun move(step: Int) {
-        if (channels.size > 1) goTo((index + step + channels.size) % channels.size)
+        if (channels.size > 1) index = (index + step + channels.size) % channels.size
+    }
+
+    fun openChannelList() {
+        browseId = group.id
+        browseName = group.name
+        browseList = group.channels
+        overlay = Overlay.CHANNELS
     }
 
     // Play the current channel whenever it changes (nothing restarts if it's already playing).
-    LaunchedEffect(index) {
+    LaunchedEffect(channel.id) {
         live.play(login, format, channel)
         onChannel(channel)
         infoTick++
         ensureGuide(channel)
+    }
+
+    // Load a group's channels when you pick it from the groups overlay.
+    LaunchedEffect(browseId) {
+        if (browseList == null) {
+            browseList = try {
+                loadGroup(browseId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
     }
 
     // The info bar shows for a few seconds after a change or an OK press.
@@ -112,16 +156,29 @@ fun WatchScreen(
         showInfo = false
     }
 
-    // Focus: the channel list when it's open (on the channel playing), otherwise the picture.
-    LaunchedEffect(showList) {
-        if (showList) {
-            listState.scrollToItem((index - 4).coerceAtLeast(0))
-            repeat(20) {
-                if (runCatching { requesterFor(channel.id).requestFocus() }.isSuccess) return@LaunchedEffect
-                delay(50)
+    // Focus: the channel playing in the channel list, the group in the groups list, or the picture.
+    LaunchedEffect(overlay, browseList) {
+        when (overlay) {
+            Overlay.CHANNELS -> {
+                val list = browseList ?: return@LaunchedEffect
+                val target = list.indexOfFirst { it.id == channel.id }
+                listState.scrollToItem((target - 4).coerceAtLeast(0))
+                val focusId = list.getOrNull(target.coerceAtLeast(0))?.id ?: return@LaunchedEffect
+                repeat(20) {
+                    if (runCatching { requesterFor(focusId).requestFocus() }.isSuccess) return@LaunchedEffect
+                    delay(50)
+                }
             }
-        } else {
-            repeat(20) {
+            Overlay.GROUPS -> {
+                val target = groups.indexOfFirst { it.first == browseId }.coerceAtLeast(0)
+                groupListState.scrollToItem((target - 4).coerceAtLeast(0))
+                val focusId = groups.getOrNull(target)?.first ?: return@LaunchedEffect
+                repeat(20) {
+                    if (runCatching { groupRequesterFor(focusId).requestFocus() }.isSuccess) return@LaunchedEffect
+                    delay(50)
+                }
+            }
+            Overlay.NONE -> repeat(20) {
                 if (runCatching { focus.requestFocus() }.isSuccess) return@LaunchedEffect
                 delay(50)
             }
@@ -129,7 +186,13 @@ fun WatchScreen(
     }
 
     Dialog(
-        onDismissRequest = { if (showList) showList = false else onClose(channel) },
+        onDismissRequest = {
+            when (overlay) {
+                Overlay.GROUPS -> overlay = Overlay.CHANNELS
+                Overlay.CHANNELS -> overlay = Overlay.NONE
+                Overlay.NONE -> onClose(channel, group.id)
+            }
+        },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Box(
@@ -141,21 +204,24 @@ fun WatchScreen(
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     val key = event.nativeKeyEvent.keyCode
-                    if (showList) {
-                        // The list handles its own moving; Right closes it.
-                        if (key == AndroidKeyEvent.KEYCODE_DPAD_RIGHT) {
-                            showList = false
-                            true
-                        } else {
-                            false
+                    when (overlay) {
+                        // The lists handle their own up and down; left and right move between them.
+                        Overlay.CHANNELS -> when (key) {
+                            AndroidKeyEvent.KEYCODE_DPAD_LEFT -> { overlay = Overlay.GROUPS; true }
+                            AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> { overlay = Overlay.NONE; true }
+                            else -> false
                         }
-                    } else {
-                        when (key) {
+                        Overlay.GROUPS -> when (key) {
+                            AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> { overlay = Overlay.CHANNELS; true }
+                            AndroidKeyEvent.KEYCODE_DPAD_LEFT -> true
+                            else -> false
+                        }
+                        Overlay.NONE -> when (key) {
                             AndroidKeyEvent.KEYCODE_DPAD_UP, AndroidKeyEvent.KEYCODE_CHANNEL_DOWN -> { move(-1); true }
                             AndroidKeyEvent.KEYCODE_DPAD_DOWN, AndroidKeyEvent.KEYCODE_CHANNEL_UP -> { move(1); true }
-                            AndroidKeyEvent.KEYCODE_DPAD_LEFT -> { showList = true; true }
+                            AndroidKeyEvent.KEYCODE_DPAD_LEFT -> { openChannelList(); true }
                             AndroidKeyEvent.KEYCODE_DPAD_RIGHT, AndroidKeyEvent.KEYCODE_LAST_CHANNEL -> {
-                                previous?.let { goTo(it) }
+                                live.previous?.let { goToChannel(it) }
                                 true
                             }
                             AndroidKeyEvent.KEYCODE_DPAD_CENTER, AndroidKeyEvent.KEYCODE_ENTER,
@@ -185,7 +251,7 @@ fun WatchScreen(
             }
 
             AnimatedVisibility(
-                visible = !showList && (showInfo || live.error != null),
+                visible = overlay == Overlay.NONE && (showInfo || live.error != null),
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -193,25 +259,44 @@ fun WatchScreen(
                 InfoBar(
                     channel = channel,
                     programme = nowShowing(channel),
-                    groupName = groupName,
+                    groupName = group.name,
                     index = index,
                     total = channels.size,
-                    previous = previous?.let { channels.getOrNull(it) },
+                    previous = live.previous,
                 )
             }
 
-            if (showList) {
+            if (overlay == Overlay.CHANNELS) {
                 ChannelListOverlay(
-                    channels = channels,
-                    groupName = groupName,
-                    playingIndex = index,
+                    channels = browseList.orEmpty(),
+                    loading = browseList == null,
+                    groupName = browseName,
+                    playingId = channel.id,
                     listState = listState,
                     requesterFor = ::requesterFor,
                     nowShowing = nowShowing,
                     ensureGuide = ensureGuide,
                     onPick = { picked ->
-                        goTo(picked)
-                        showList = false
+                        val list = browseList.orEmpty()
+                        list.getOrNull(picked)?.let { goToChannel(it, ChannelGroup(browseId, browseName, list)) }
+                        overlay = Overlay.NONE
+                    },
+                )
+            }
+
+            if (overlay == Overlay.GROUPS) {
+                GroupListOverlay(
+                    groups = groups,
+                    currentId = browseId,
+                    listState = groupListState,
+                    requesterFor = ::groupRequesterFor,
+                    onPick = { (id, name) ->
+                        if (id != browseId) {
+                            browseId = id
+                            browseName = name
+                            browseList = null
+                        }
+                        overlay = Overlay.CHANNELS
                     },
                 )
             }
@@ -223,8 +308,9 @@ fun WatchScreen(
 @Composable
 private fun ChannelListOverlay(
     channels: List<Channel>,
+    loading: Boolean,
     groupName: String,
-    playingIndex: Int,
+    playingId: Long,
     listState: androidx.compose.foundation.lazy.LazyListState,
     requesterFor: (Long) -> FocusRequester,
     nowShowing: (Channel) -> Programme?,
@@ -245,7 +331,7 @@ private fun ChannelListOverlay(
             style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
         )
         Text(
-            text = "OK to switch · Right or Back to close",
+            text = if (loading) "Loading channels…" else "OK to switch · ◀ groups · Right or Back to close",
             style = TextStyle(fontSize = 11.sp, color = Palette.quiet),
         )
         Spacer(Modifier.height(8.dp))
@@ -257,7 +343,7 @@ private fun ChannelListOverlay(
             itemsIndexed(channels, key = { _, c -> c.id }) { i, item ->
                 LaunchedEffect(item.id) { ensureGuide(item) }
                 val shape = RoundedCornerShape(8.dp)
-                val playing = i == playingIndex
+                val playing = item.id == playingId
                 Surface(
                     onClick = { onPick(i) },
                     modifier = Modifier.fillMaxWidth().focusRequester(requesterFor(item.id)),
@@ -310,6 +396,67 @@ private fun ChannelListOverlay(
     }
 }
 
+/** The groups (Favourites first) down the left of the picture; OK shows a group's channels. */
+@Composable
+private fun GroupListOverlay(
+    groups: List<Pair<String, String>>,
+    currentId: String,
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    requesterFor: (String) -> FocusRequester,
+    onPick: (Pair<String, String>) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .width(300.dp)
+            .fillMaxHeight()
+            .background(Color.Black.copy(alpha = 0.92f))
+            .padding(top = 20.dp, start = 16.dp, end = 12.dp),
+    ) {
+        Text(
+            text = "Groups",
+            style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
+        )
+        Text(
+            text = "OK to see a group's channels · Right or Back to go back",
+            style = TextStyle(fontSize = 11.sp, color = Palette.quiet),
+        )
+        Spacer(Modifier.height(8.dp))
+        LazyColumn(
+            state = listState,
+            contentPadding = PaddingValues(bottom = 20.dp, start = 2.dp, end = 2.dp, top = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            itemsIndexed(groups, key = { _, g -> g.first }) { _, item ->
+                val shape = RoundedCornerShape(8.dp)
+                val current = item.first == currentId
+                Surface(
+                    onClick = { onPick(item) },
+                    modifier = Modifier.fillMaxWidth().focusRequester(requesterFor(item.first)),
+                    shape = ClickableSurfaceDefaults.shape(shape = shape),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = if (current) Palette.tile else Color.Transparent,
+                        contentColor = Palette.text,
+                        focusedContainerColor = Palette.tileFocused,
+                        focusedContentColor = Palette.text,
+                    ),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
+                    border = ClickableSurfaceDefaults.border(
+                        focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
+                    ),
+                ) {
+                    Text(
+                        text = item.second,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                        style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                    )
+                }
+            }
+        }
+    }
+}
+
 /** Channel number, logo, name, what's on, and the group along the bottom of the picture. */
 @Composable
 private fun InfoBar(
@@ -356,7 +503,7 @@ private fun InfoBar(
                 }
                 val back = if (previous != null) " · ▶ back to ${previous.name}" else ""
                 Text(
-                    text = "$groupName · ${index + 1} of $total · ▲▼ change · ◀ channel list$back",
+                    text = "$groupName · ${index + 1} of $total · ▲▼ change · ◀ channels and groups$back",
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontSize = 12.sp, color = Palette.quiet),

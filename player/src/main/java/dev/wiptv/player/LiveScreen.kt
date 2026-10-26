@@ -435,16 +435,33 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
             login = login,
             format = format,
             live = live,
-            channels = playing.channels,
-            groupName = playing.groupName,
+            start = ChannelGroup(playing.groupId, playing.groupName, playing.channels),
             startIndex = playing.start,
+            groups = listOf(FAVOURITES_ID to "★ Favourites") + shownGroups.orEmpty().map { it.id to it.name },
+            loadGroup = { id ->
+                if (id == FAVOURITES_ID) favourites
+                else channelsByGroup[id] ?: Xtream.liveChannels(login, id).also { channelsByGroup[id] = it }
+            },
+            groupOf = { channel ->
+                val inGroup = channelsByGroup[channel.groupId]
+                when {
+                    inGroup != null && inGroup.any { it.id == channel.id } ->
+                        ChannelGroup(channel.groupId, groupName(channel.groupId), inGroup)
+                    favourites.any { it.id == channel.id } -> ChannelGroup(FAVOURITES_ID, "Favourites", favourites)
+                    else -> ChannelGroup(channel.groupId, groupName(channel.groupId), listOf(channel))
+                }
+            },
             nowShowing = { guide.nowShowing(it) },
             ensureGuide = { guide.ensure(it) },
             onChannel = { LastWatched.save(context, it) },
-            onClose = { last ->
+            onClose = { last, groupId ->
                 watching = null
                 // Back in the guide, on the group and channel you finished on.
-                if (playing.groupId.isNotEmpty()) selectedGroup = playing.groupId
+                if (groupId.isNotEmpty()) {
+                    selectedGroup = groupId
+                    val list = if (groupId == FAVOURITES_ID) favourites else channelsByGroup[groupId]
+                    previewSource = groupId to (list ?: listOf(last))
+                }
                 pendingFocus = last.id
             },
         )

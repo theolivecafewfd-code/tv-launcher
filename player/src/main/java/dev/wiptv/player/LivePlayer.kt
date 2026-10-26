@@ -52,6 +52,10 @@ class LivePlayer(context: Context) {
     /** The channel playing (or loading) now. */
     var channel by mutableStateOf<Channel?>(null)
         private set
+
+    /** The channel before this one, from any group, for "back to the last channel". */
+    var previous by mutableStateOf<Channel?>(null)
+        private set
     var buffering by mutableStateOf(false)
         private set
     var error by mutableStateOf<String?>(null)
@@ -88,6 +92,7 @@ class LivePlayer(context: Context) {
     /** Plays [target], unless it's already the channel playing. */
     fun play(login: Login, format: String, target: Channel) {
         if (channel?.id == target.id && exo.playbackState != Player.STATE_IDLE) return
+        channel?.let { if (it.id != target.id) previous = it }
         channel = target
         error = null
         buffering = true

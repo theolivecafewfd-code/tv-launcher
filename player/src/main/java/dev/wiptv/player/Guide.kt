@@ -29,6 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -139,10 +142,35 @@ fun GuideRow(
     onLongClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(8.dp)
+    // Holding OK repeats the key press; the first repeat counts as a hold. The release that
+    // follows is swallowed, otherwise it would also act as a normal OK press.
+    val held = remember { booleanArrayOf(false) }
     Surface(
         onClick = onClick,
-        onLongClick = onLongClick,
-        modifier = modifier.fillMaxWidth().height(46.dp),
+        modifier = modifier
+            .onPreviewKeyEvent { event ->
+                val key = event.nativeKeyEvent.keyCode
+                val isOk = key == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                    key == android.view.KeyEvent.KEYCODE_ENTER ||
+                    key == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
+                when {
+                    !isOk || onLongClick == null -> false
+                    event.type == KeyEventType.KeyDown && event.nativeKeyEvent.repeatCount > 0 -> {
+                        if (!held[0]) {
+                            held[0] = true
+                            onLongClick?.invoke()
+                        }
+                        true
+                    }
+                    event.type == KeyEventType.KeyUp && held[0] -> {
+                        held[0] = false
+                        true
+                    }
+                    else -> false
+                }
+            }
+            .fillMaxWidth()
+            .height(46.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
