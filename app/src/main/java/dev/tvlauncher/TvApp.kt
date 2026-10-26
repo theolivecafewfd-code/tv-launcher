@@ -45,17 +45,8 @@ object AppRepository {
             }
         }
 
-        val sorted = found.values.sortedWith(compareBy({ pinRank(it.label) }, { it.label.lowercase() }))
-
-        // The TV's Settings app isn't listed as a normal app, so it gets its own tile at the end.
-        val settings = TvApp(
-            label = "Settings",
-            packageName = "android.settings",
-            intent = Intent(Settings.ACTION_SETTINGS),
-            image = null,
-            isBanner = false,
-        )
-        return sorted + settings
+        // Settings shortcuts are separate tiles at the end of the dock (see QuickSettings).
+        return found.values.sortedWith(compareBy({ pinRank(it.label) }, { it.label.lowercase() }))
     }
 
     private fun toTvApp(

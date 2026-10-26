@@ -225,6 +225,17 @@ object Catalog {
         return if (path.isBlank()) null else "$IMAGES/$size$path"
     }
 
+    /**
+     * Surprise Me: a random well-rated title on your services that you haven't marked as watched.
+     * Picks from a random page of the best rated, so it isn't always the same few.
+     */
+    suspend fun surprise(type: MediaType, watched: Set<String>): Title? {
+        val page = (1..5).random()
+        val pool = merged(type, "sort_by=vote_average.desc&vote_count.gte=500&page=$page", byRating = true)
+            .filter { it.key !in watched && it.backdropUrl != null }
+        return pool.randomOrNull()
+    }
+
     private val providerCache = ConcurrentHashMap<String, List<Source>>()
 
     /**

@@ -57,6 +57,8 @@ fun DetailScreen(
     onPlayOther: (Title) -> Unit,
     onLibraryChange: () -> Unit,
     onClose: () -> Unit,
+    /** Set when this page is a Surprise Me pick: adds an "Another one" button. */
+    onAnother: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val library = remember { Library(context) }
@@ -167,6 +169,9 @@ fun DetailScreen(
                             onClick = { onWatch(source) },
                             modifier = if (i == 0) Modifier.focusRequester(primary) else Modifier,
                         )
+                    }
+                    if (onAnother != null) {
+                        ActionButton(text = "↻  Another one", onClick = onAnother)
                     }
                     details?.trailerKey?.let { key ->
                         ActionButton(text = "Trailer", onClick = { onTrailer(key) })
