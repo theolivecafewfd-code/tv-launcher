@@ -36,6 +36,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -66,10 +69,15 @@ private object LastWatched {
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }
 
+/** What full screen plays through: a group's channels and where to start. */
+private class WatchList(val channels: List<Channel>, val groupId: String, val groupName: String, val start: Int)
+
 /**
  * Live TV: groups on the left; on the right, a small preview with what's on, and below it the
  * group's channels as a simple two-hour guide. Moving around leaves the preview alone: OK on a
- * channel previews it, and OK again on the channel in the preview goes full screen.
+ * channel previews it, and OK again on the channel in the preview goes full screen. Play/Pause,
+ * or OK on the preview itself, also goes full screen from anywhere. Holding OK on a channel adds
+ * it to (or removes it from) Favourites.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -91,7 +99,15 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     var editingGroups by remember { mutableStateOf(false) }
     val arranged = groups?.let { GroupPrefs.arrange(it, groupOrder) }
     val shownGroups = arranged?.filter { it.id !in hiddenGroups }
-    var watching by remember { mutableStateOf<Int?>(null) }
+    var watching by remember { mutableStateOf<WatchList?>(null) }
+
+    // Favourites: a group of your own above the provider's groups.
+    val favouritePrefs = remember { FavouritePrefs(context) }
+    var favourites by remember { mutableStateOf(favouritePrefs.load()) }
+    val favouriteIds = favourites.map { it.id }.toSet()
+
+    // The group the preview's channel was picked from, so full screen can change channel within it.
+    var previewSource by remember { mutableStateOf<Pair<String, List<Channel>>?>(null) }
 
     val live = rememberLivePlayer()
     val guide = remember(login) { GuideStore(login) }
@@ -131,6 +147,7 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     LaunchedEffect(selectedGroup) {
         val id = selectedGroup ?: return@LaunchedEffect
         channelsError = null
+        if (id == FAVOURITES_ID) return@LaunchedEffect
         if (channelsByGroup.containsKey(id)) return@LaunchedEffect
         delay(250)
         try {
@@ -146,20 +163,34 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     var scrolledToSelection by remember { mutableStateOf(false) }
     LaunchedEffect(shownGroups) {
         val shown = shownGroups ?: return@LaunchedEffect
-        if (shown.none { it.id == selectedGroup }) selectedGroup = shown.firstOrNull()?.id
+        if (selectedGroup != FAVOURITES_ID && shown.none { it.id == selectedGroup }) selectedGroup = shown.firstOrNull()?.id
         if (!scrolledToSelection) {
             scrolledToSelection = true
             groupList.scrollToItem(shown.indexOfFirst { it.id == selectedGroup }.coerceAtLeast(0))
         }
     }
 
-    val channels = selectedGroup?.let { channelsByGroup[it] }
+    val channels = if (selectedGroup == FAVOURITES_ID) favourites else selectedGroup?.let { channelsByGroup[it] }
+    fun groupName(id: String?): String =
+        if (id == FAVOURITES_ID) "Favourites" else groups?.firstOrNull { it.id == id }?.name.orEmpty()
 
     // When the app opens, the preview picks up the last channel you watched.
     LaunchedEffect(channels) {
         if (live.channel != null) return@LaunchedEffect
         val last = LastWatched.channel(context)
-        channels?.firstOrNull { it.id == last }?.let { live.play(login, format, it) }
+        val list = channels ?: return@LaunchedEffect
+        list.firstOrNull { it.id == last }?.let {
+            previewSource = (selectedGroup ?: "") to list
+            live.play(login, format, it)
+        }
+    }
+
+    /** Full screen for whatever's in the preview, changing channel within the group it came from. */
+    fun watchPreview() {
+        val current = live.channel ?: return
+        val (groupId, list) = previewSource?.takeIf { (_, l) -> l.any { it.id == current.id } }
+            ?: (current.groupId to listOf(current))
+        watching = WatchList(list, groupId, groupName(groupId), list.indexOfFirst { it.id == current.id }.coerceAtLeast(0))
     }
 
     // Whatever's in the preview: load its guide for the panel, and remember it for next time.
@@ -193,6 +224,17 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Palette.background)
+            .onPreviewKeyEvent { event ->
+                // Play/Pause goes full screen on the preview from anywhere on this screen.
+                val key = event.nativeKeyEvent.keyCode
+                val isPlay = key == android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE || key == android.view.KeyEvent.KEYCODE_MEDIA_PLAY
+                if (isPlay && live.channel != null) {
+                    if (event.type == KeyEventType.KeyDown) watchPreview()
+                    true
+                } else {
+                    false
+                }
+            }
             .padding(start = 24.dp, end = 24.dp, top = 18.dp),
     ) {
         Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -236,6 +278,22 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                     contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
+                    item(key = FAVOURITES_ID) {
+                        val selected = selectedGroup == FAVOURITES_ID
+                        ListItem(
+                            onClick = { requesterForFirstChannel(channels, ::requesterFor) },
+                            selected = selected,
+                            modifier = Modifier
+                                .then(if (selected) Modifier.focusRequester(firstFocus) else Modifier)
+                                .onFocusChanged { if (it.isFocused) selectedGroup = FAVOURITES_ID },
+                        ) {
+                            Text(
+                                text = "★ Favourites",
+                                maxLines = 1,
+                                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Palette.glow),
+                            )
+                        }
+                    }
                     itemsIndexed(list, key = { _, g -> g.id }) { _, group ->
                         val selected = group.id == selectedGroup
                         ListItem(
@@ -280,7 +338,7 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 // Preview and what's on.
                 Row(modifier = Modifier.height(176.dp)) {
-                    Preview(live = live, attached = watching == null)
+                    Preview(live = live, attached = watching == null, onClick = ::watchPreview)
                     Spacer(Modifier.width(16.dp))
                     NowPanel(
                         channel = live.channel,
@@ -293,9 +351,8 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
 
                 // The selected group's channels, as a guide.
                 Row(verticalAlignment = Alignment.Bottom) {
-                    val groupName = groups?.firstOrNull { it.id == selectedGroup }?.name.orEmpty()
                     Text(
-                        text = groupName,
+                        text = groupName(selectedGroup),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(start = 4.dp).width(ChannelCellWidth - 8.dp),
@@ -306,6 +363,8 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                             channelsError != null -> channelsError!!
                             selectedGroup == null -> ""
                             channels == null -> "Loading channels…"
+                            channels.isEmpty() && selectedGroup == FAVOURITES_ID ->
+                                "No favourites yet. Hold OK on a channel to add it."
                             channels.isEmpty() -> "No channels in this group"
                             else -> ""
                         },
@@ -338,13 +397,28 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                             windowStart = guideStart(now),
                             now = now,
                             playing = live.channel?.id == channel.id,
+                            favourite = channel.id in favouriteIds,
                             // First OK previews the channel; OK on the channel already in the preview goes full screen.
                             onClick = {
-                                if (live.channel?.id == channel.id) watching = index else live.play(login, format, channel)
+                                previewSource = (selectedGroup ?: "") to channels.orEmpty()
+                                if (live.channel?.id == channel.id) watchPreview() else live.play(login, format, channel)
+                            },
+                            // Holding OK adds the channel to Favourites, or takes it off.
+                            onLongClick = {
+                                favourites = FavouritePrefs.toggle(favourites, channel)
+                                favouritePrefs.save(favourites)
+                                val added = favourites.any { it.id == channel.id }
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (added) "Added ${channel.name} to Favourites" else "Removed ${channel.name} from Favourites",
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
                             },
                             modifier = Modifier
                                 .focusRequester(requesterFor(channel.id))
-                                .onFocusChanged { if (it.isFocused) lastChannelInGroup[channel.groupId] = channel.id },
+                                .onFocusChanged { focus ->
+                                    if (focus.isFocused) selectedGroup?.let { lastChannelInGroup[it] = channel.id }
+                                },
                         )
                     }
                 }
@@ -353,18 +427,21 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     }
 
     val playing = watching
-    if (playing != null && channels != null) {
+    if (playing != null) {
         WatchScreen(
             login = login,
             format = format,
             live = live,
-            channels = channels,
-            groupName = groups?.firstOrNull { it.id == selectedGroup }?.name.orEmpty(),
-            startIndex = playing,
+            channels = playing.channels,
+            groupName = playing.groupName,
+            startIndex = playing.start,
             nowShowing = { guide.nowShowing(it) },
+            ensureGuide = { guide.ensure(it) },
             onChannel = { LastWatched.save(context, it) },
             onClose = { last ->
                 watching = null
+                // Back in the guide, on the group and channel you finished on.
+                if (playing.groupId.isNotEmpty()) selectedGroup = playing.groupId
                 pendingFocus = last.id
             },
         )
@@ -446,32 +523,45 @@ private fun ListItem(
     }
 }
 
-/** The small picture at the top, with loading and error notes over it. */
+/**
+ * The small picture at the top, with loading and error notes over it. It can be highlighted
+ * (Up from the top of the guide), and OK on it goes full screen.
+ */
 @Composable
-private fun Preview(live: LivePlayer, attached: Boolean) {
-    Box(
-        modifier = Modifier
-            .size(width = 313.dp, height = 176.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(androidx.compose.ui.graphics.Color.Black),
+private fun Preview(live: LivePlayer, attached: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(10.dp)
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.size(width = 313.dp, height = 176.dp),
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = androidx.compose.ui.graphics.Color.Black,
+            focusedContainerColor = androidx.compose.ui.graphics.Color.Black,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = Border(border = BorderStroke(3.dp, Palette.glow), shape = shape),
+        ),
     ) {
-        PlayerSurface(live, attached = attached, modifier = Modifier.fillMaxSize())
-        val note = when {
-            live.channel == null -> "Press OK on a channel to preview it"
-            live.error != null -> live.error
-            live.buffering -> "Loading…"
-            else -> null
-        }
-        if (note != null) {
-            Text(
-                text = note,
-                maxLines = 3,
-                modifier = Modifier.align(Alignment.Center).padding(12.dp),
-                style = TextStyle(
-                    fontSize = 12.sp,
-                    color = if (live.error != null && live.channel != null) Palette.warn else Palette.quiet,
-                ),
-            )
+        Box(modifier = Modifier.fillMaxSize().clip(shape)) {
+            PlayerSurface(live, attached = attached, modifier = Modifier.fillMaxSize())
+            val note = when {
+                live.channel == null -> "Press OK on a channel to preview it"
+                live.error != null -> live.error
+                live.buffering -> "Loading…"
+                else -> null
+            }
+            if (note != null) {
+                Text(
+                    text = note,
+                    maxLines = 3,
+                    modifier = Modifier.align(Alignment.Center).padding(12.dp),
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        color = if (live.error != null && live.channel != null) Palette.warn else Palette.quiet,
+                    ),
+                )
+            }
         }
     }
 }

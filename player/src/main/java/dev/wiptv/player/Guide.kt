@@ -135,10 +135,13 @@ fun GuideRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     playing: Boolean = false,
+    favourite: Boolean = false,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(8.dp)
     Surface(
         onClick = onClick,
+        onLongClick = onLongClick,
         modifier = modifier.fillMaxWidth().height(46.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
@@ -176,7 +179,7 @@ fun GuideRow(
                     }
                 }
                 Text(
-                    text = channel.name,
+                    text = if (favourite) "★ ${channel.name}" else channel.name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(
@@ -253,7 +256,7 @@ fun NowPanel(channel: Channel?, programmes: List<Programme>?, now: Long, modifie
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         if (channel == null) {
             Text(
-                text = "Press OK on a channel to preview it here, and OK again to watch it full screen.",
+                text = "OK on a channel previews it here. OK again, or Play/Pause, watches it full screen. Hold OK to add a favourite.",
                 style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
             )
             return@Column
