@@ -55,7 +55,7 @@ private fun Source.colours(): Pair<Color, Color> = when (this) {
 
 /** The TV Shows | Movies switch under the header. */
 @Composable
-fun TypeSwitch(selected: MediaType, onSelect: (MediaType) -> Unit) {
+fun TypeSwitch(selected: MediaType, onSelect: (MediaType) -> Unit, onSearch: () -> Unit) {
     Row(
         modifier = Modifier
             .padding(start = 40.dp)
@@ -83,6 +83,47 @@ fun TypeSwitch(selected: MediaType, onSelect: (MediaType) -> Unit) {
                 )
             }
         }
+        // Search: a magnifying glass after TV Shows and Movies.
+        Surface(
+            onClick = onSearch,
+            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(50)),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color.Transparent,
+                contentColor = Palette.text,
+                focusedContainerColor = Palette.tileFocused,
+                focusedContentColor = Palette.text,
+            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+        ) {
+            Box(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                SearchIcon(color = Palette.text, size = 16.dp)
+            }
+        }
+    }
+}
+
+/** A line-drawn magnifying glass. */
+@Composable
+fun SearchIcon(color: Color, size: androidx.compose.ui.unit.Dp) {
+    androidx.compose.foundation.Canvas(Modifier.size(size)) {
+        val w = this.size.width
+        val stroke = w * 0.13f
+        drawCircle(
+            color = color,
+            radius = w * 0.3f,
+            center = androidx.compose.ui.geometry.Offset(w * 0.42f, w * 0.42f),
+            style = Stroke(width = stroke),
+        )
+        drawLine(
+            color = color,
+            start = androidx.compose.ui.geometry.Offset(w * 0.65f, w * 0.65f),
+            end = androidx.compose.ui.geometry.Offset(w * 0.92f, w * 0.92f),
+            strokeWidth = stroke,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
     }
 }
 

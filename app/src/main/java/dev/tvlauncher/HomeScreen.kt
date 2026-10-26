@@ -153,6 +153,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     val titleScope = rememberCoroutineScope()
     // OK on a title opens its details; holding OK plays it straight away.
     var detailFor by remember { mutableStateOf<Title?>(null) }
+    var searchOpen by remember { mutableStateOf(false) }
     val openTitle: (Title) -> Unit = { detailFor = it }
     fun watch(title: Title, only: Source? = null) {
         titleScope.launch {
@@ -263,7 +264,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                 }
                 item(key = "switch") {
                     Box(Modifier.padding(top = 10.dp, bottom = 12.dp)) {
-                        TypeSwitch(selected = mediaType, onSelect = { mediaType = it })
+                        TypeSwitch(selected = mediaType, onSelect = { mediaType = it }, onSearch = { searchOpen = true })
                     }
                 }
                 item(key = "featured") {
@@ -335,6 +336,15 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                     )
                 }
             } }
+
+            // Search, over the home screen. A details page opened from it sits on top.
+            if (searchOpen) {
+                SearchScreen(
+                    onOpen = { detailFor = it },
+                    onPlay = playTitle,
+                    onClose = { searchOpen = false },
+                )
+            }
 
             // A title's details page, over the home screen.
             detailFor?.let { title ->
