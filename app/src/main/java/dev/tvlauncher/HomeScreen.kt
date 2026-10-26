@@ -161,11 +161,23 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 FilmCarousel(apps = apps, onLaunch = onLaunch, onBackdrop = { backdrop = it })
                 Spacer(Modifier.weight(1f))
-                Text(
-                    text = "Your apps",
-                    modifier = Modifier.padding(start = 40.dp, bottom = 4.dp),
-                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Palette.quiet),
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 40.dp, end = 40.dp, bottom = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    Text(
+                        text = "Your apps",
+                        style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Palette.quiet),
+                    )
+                    // Which build is installed, so it's easy to tell whether an update landed.
+                    Text(
+                        text = "Build ${BuildConfig.VERSION_CODE}",
+                        style = TextStyle(fontSize = 11.sp, color = Palette.quiet.copy(alpha = 0.7f)),
+                    )
+                }
                 if (apps.isEmpty()) {
                     Text(
                         text = "Loading apps…",
