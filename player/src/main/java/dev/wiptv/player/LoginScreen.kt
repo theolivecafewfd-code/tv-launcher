@@ -44,6 +44,7 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -92,6 +93,8 @@ fun LoginScreen(update: UpdateHandle, onSignedIn: (Login) -> Unit) {
                 try {
                     Xtream.signIn(login)
                     onSignedIn(login)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: XtreamException) {
                     error = e.message
                 } catch (e: Exception) {

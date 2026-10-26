@@ -33,7 +33,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +50,7 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /** Remembers the last group and channel watched, so the app opens where you left off. */
@@ -90,6 +92,9 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     val channelRequesters = remember { mutableMapOf<Long, FocusRequester>() }
     fun requesterFor(id: Long) = channelRequesters.getOrPut(id) { FocusRequester() }
 
+    // The channel you were last on in each group, so moving right returns to it.
+    val lastChannelInGroup = remember { mutableMapOf<String, Long>() }
+
     // The account (for the stream format) and the groups load together when the screen opens.
     LaunchedEffect(Unit) {
         account = runCatching { Xtream.signIn(login, withCatalogue = false) }.getOrNull()
@@ -102,6 +107,8 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
             if (loaded.none { it.id == selectedGroup }) selectedGroup = loaded.firstOrNull()?.id
             val index = loaded.indexOfFirst { it.id == selectedGroup }.coerceAtLeast(0)
             groupList.scrollToItem(index)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             groupsError = e.message ?: "Couldn't load Live TV."
         }
@@ -115,6 +122,8 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
         delay(250)
         try {
             channelsByGroup[id] = Xtream.liveChannels(login, id)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             channelsError = e.message ?: "Couldn't load this group."
         }
@@ -171,7 +180,15 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                 val list = groups.orEmpty()
                 LazyColumn(
                     state = groupList,
-                    modifier = Modifier.weight(1f).focusRestorer(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusProperties {
+                            enter = {
+                                val visible = groupList.layoutInfo.visibleItemsInfo.any { it.key == selectedGroup }
+                                if (visible) firstFocus else FocusRequester.Default
+                            }
+                        }
+                        .focusGroup(),
                     contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -230,7 +247,17 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
                 LazyColumn(
                     state = channelList,
-                    modifier = Modifier.weight(1f).focusRestorer(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusProperties {
+                            enter = {
+                                val last = selectedGroup?.let { lastChannelInGroup[it] }
+                                val visible = last != null &&
+                                    channelList.layoutInfo.visibleItemsInfo.any { it.key == last }
+                                if (visible) requesterFor(last!!) else FocusRequester.Default
+                            }
+                        }
+                        .focusGroup(),
                     contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -238,7 +265,9 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                         ListItem(
                             onClick = { watching = index },
                             selected = false,
-                            modifier = Modifier.focusRequester(requesterFor(channel.id)),
+                            modifier = Modifier
+                                .focusRequester(requesterFor(channel.id))
+                                .onFocusChanged { if (it.isFocused) lastChannelInGroup[channel.groupId] = channel.id },
                         ) {
                             ChannelRow(channel)
                         }

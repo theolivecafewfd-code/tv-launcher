@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import java.net.URL
 import java.time.Instant
@@ -52,6 +53,8 @@ fun AccountScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
         error = null
         try {
             account = Xtream.signIn(login)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: XtreamException) {
             error = e.message
         } catch (e: Exception) {
