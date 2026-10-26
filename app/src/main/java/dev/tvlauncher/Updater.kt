@@ -177,17 +177,19 @@ object Updater {
     }
 
     private fun httpGetText(url: String): String {
-        val connection = open(url)
+        val connection = open(url, accept = "application/vnd.github+json")
         try {
-            connection.setRequestProperty("Accept", "application/vnd.github+json")
             return connection.inputStream.bufferedReader().use { it.readText() }
         } finally {
             connection.disconnect()
         }
     }
 
-    /** Opens a connection, following redirects by hand (GitHub sends downloads to another host). */
-    private fun open(url: String): HttpURLConnection {
+    /**
+     * Opens a connection, following redirects by hand (GitHub sends downloads to another host).
+     * Headers must be set here, before the connection is made: Android refuses them afterwards.
+     */
+    private fun open(url: String, accept: String? = null): HttpURLConnection {
         var current = url
         repeat(5) {
             val connection = (URL(current).openConnection() as HttpURLConnection).apply {
@@ -195,6 +197,7 @@ object Updater {
                 connectTimeout = 15_000
                 readTimeout = 30_000
                 setRequestProperty("User-Agent", "TvLauncher/${BuildConfig.VERSION_NAME}")
+                if (accept != null) setRequestProperty("Accept", accept)
             }
             when (val code = connection.responseCode) {
                 in 300..399 -> {
