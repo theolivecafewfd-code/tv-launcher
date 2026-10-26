@@ -20,6 +20,10 @@ android {
 
         // Where the in-app updater looks for new releases.
         buildConfigField("String", "UPDATE_REPO", "\"theolivecafewfd-code/tv-launcher\"")
+
+        // The TMDB key comes from the TMDB_API_KEY GitHub secret at build time; it's never in the code.
+        val tmdbKey = (System.getenv("TMDB_API_KEY") ?: "").trim()
+        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbKey\"")
     }
 
     signingConfigs {
@@ -67,4 +71,5 @@ dependencies {
     implementation("androidx.tv:tv-material:1.0.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
 }
