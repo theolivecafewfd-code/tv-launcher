@@ -154,6 +154,19 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     // OK on a title opens its details; holding OK plays it straight away.
     var detailFor by remember { mutableStateOf<Title?>(null) }
     var searchOpen by remember { mutableStateOf(false) }
+    // Surprise Me: a random well-rated pick, shown on its details page with "Another one".
+    var surpriseMode by remember { mutableStateOf(false) }
+    fun surprise() {
+        titleScope.launch {
+            val pick = runCatching { Catalog.surprise(mediaType, Library(context).watched()) }.getOrNull()
+            if (pick == null) {
+                Toast.makeText(context, "Couldn't find a surprise right now", Toast.LENGTH_SHORT).show()
+            } else {
+                surpriseMode = true
+                detailFor = pick
+            }
+        }
+    }
     val openTitle: (Title) -> Unit = { detailFor = it }
     fun watch(title: Title, only: Source? = null) {
         titleScope.launch {
@@ -264,7 +277,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                 }
                 item(key = "switch") {
                     Box(Modifier.padding(top = 10.dp, bottom = 12.dp)) {
-                        TypeSwitch(selected = mediaType, onSelect = { mediaType = it }, onSearch = { searchOpen = true })
+                        TypeSwitch(selected = mediaType, onSelect = { mediaType = it }, onSearch = { searchOpen = true }, onSurprise = { surprise() })
                     }
                 }
                 item(key = "featured") {
@@ -340,7 +353,10 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
             // Search, over the home screen. A details page opened from it sits on top.
             if (searchOpen) {
                 SearchScreen(
-                    onOpen = { detailFor = it },
+                    onOpen = {
+                        surpriseMode = false
+                        detailFor = it
+                    },
                     onPlay = playTitle,
                     onClose = { searchOpen = false },
                 )
@@ -356,10 +372,17 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
                         }
                     },
-                    onOpenOther = { detailFor = it },
+                    onOpenOther = {
+                        surpriseMode = false
+                        detailFor = it
+                    },
+                    onAnother = if (surpriseMode) ({ surprise() }) else null,
                     onPlayOther = playTitle,
                     onLibraryChange = { myList = library.myList() },
-                    onClose = { detailFor = null },
+                    onClose = {
+                        detailFor = null
+                        surpriseMode = false
+                    },
                 )
             }
 
@@ -562,6 +585,12 @@ private fun AppDock(
                 onClick = { onLaunch(app) },
                 onLongClick = { onLongPress(app) },
                 modifier = Modifier.focusRequester(requesterFor(app.packageName)).then(toNextRow),
+            )
+        }
+        items(QuickSetting.entries, key = { it.key }) { setting ->
+            QuickSettingTile(
+                setting = setting,
+                modifier = Modifier.focusRequester(requesterFor(setting.key)).then(toNextRow),
             )
         }
         item(key = EDIT_TILE_KEY) {

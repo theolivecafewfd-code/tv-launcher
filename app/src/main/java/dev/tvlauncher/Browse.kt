@@ -55,7 +55,7 @@ private fun Source.colours(): Pair<Color, Color> = when (this) {
 
 /** The TV Shows | Movies switch under the header. */
 @Composable
-fun TypeSwitch(selected: MediaType, onSelect: (MediaType) -> Unit, onSearch: () -> Unit) {
+fun TypeSwitch(selected: MediaType, onSelect: (MediaType) -> Unit, onSearch: () -> Unit, onSurprise: () -> Unit) {
     Row(
         modifier = Modifier
             .padding(start = 40.dp)
@@ -100,6 +100,27 @@ fun TypeSwitch(selected: MediaType, onSelect: (MediaType) -> Unit, onSearch: () 
                 contentAlignment = Alignment.Center,
             ) {
                 SearchIcon(color = Palette.text, size = 16.dp)
+            }
+        }
+        // Surprise Me: a die after search.
+        Surface(
+            onClick = onSurprise,
+            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(50)),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color.Transparent,
+                contentColor = Palette.text,
+                focusedContainerColor = Palette.tileFocused,
+                focusedContentColor = Palette.text,
+            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DiceIcon(color = Palette.text, size = 15.dp)
+                Text(text = "Surprise me", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
             }
         }
     }

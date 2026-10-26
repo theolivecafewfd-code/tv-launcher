@@ -225,6 +225,17 @@ object Catalog {
         return if (path.isBlank()) null else "$IMAGES/$size$path"
     }
 
+    /**
+     * Surprise Me: a random well-rated title on your services that you haven't marked as watched.
+     * Picks from a random page of the best rated, so it isn't always the same few.
+     */
+    suspend fun surprise(type: MediaType, watched: Set<String>): Title? {
+        val page = (1..5).random()
+        val pool = merged(type, "sort_by=vote_average.desc&vote_count.gte=500&page=$page", byRating = true)
+            .filter { it.key !in watched && it.backdropUrl != null }
+        return pool.randomOrNull()
+    }
+
     private val providerCache = ConcurrentHashMap<String, List<Source>>()
 
     /**
@@ -232,38 +243,61 @@ object Catalog {
      * services come first; the rest follow so you can see they exist.
      */
     suspend fun search(query: String): List<Title> = coroutineScope {
-        val text = URLEncoder.encode(query.trim(), "UTF-8")
-        val json = withContext(Dispatchers.IO) {
-            JSONObject(get("$API/search/multi?query=$text&include_adult=false&language=en-GB&page=1"))
-        }
-        val results = json.getJSONArray("results")
-        val found = (0 until results.length()).map { results.getJSONObject(it) }
-            .mapNotNull { item ->
-                val type = when (item.optString("media_type")) {
-                    "tv" -> MediaType.TV
-                    "movie" -> MediaType.MOVIE
-                    else -> return@mapNotNull null
+        val typed = query.trim()
+        val text = URLEncoder.encode(typed, "UTF-8")
+        // Shows and films separately, two pages each, so popular titles that only partly match
+        // what you've typed (e.g. "break" -> Breaking Bad) aren't crowded out by exact matches.
+        val pages = MediaType.entries.flatMap { type ->
+            (1..2).map { page ->
+                async(Dispatchers.IO) {
+                    runCatching {
+                        val json = JSONObject(get("$API/search/${type.path}?query=$text&include_adult=false&language=en-GB&page=$page"))
+                        val results = json.getJSONArray("results")
+                        (0 until results.length()).mapNotNull { i -> searchResult(results.getJSONObject(i), type) }
+                    }
                 }
-                if (item.isNull("poster_path")) return@mapNotNull null
-                val genres = item.optJSONArray("genre_ids")
-                Title(
-                    id = item.getInt("id"),
-                    type = type,
-                    name = item.optString(if (type == MediaType.TV) "name" else "title"),
-                    year = item.optString(if (type == MediaType.TV) "first_air_date" else "release_date").take(4),
-                    overview = item.optString("overview"),
-                    rating = item.optDouble("vote_average", 0.0),
-                    popularity = item.optDouble("popularity", 0.0),
-                    genreIds = if (genres == null) emptyList() else (0 until genres.length()).map { genres.getInt(it) },
-                    backdropUrl = image(item, "backdrop_path", "w780"),
-                    posterUrl = image(item, "poster_path", "w342"),
-                    sources = emptyList(),
-                )
             }
-            .take(18)
-        val withSources = found.map { title -> async { title.copy(sources = sourcesFor(title)) } }.awaitAll()
-        // Available first, keeping TMDB's relevance order within each group.
+        }.awaitAll()
+        if (pages.all { it.isFailure }) error("Search failed")
+        val found = pages.flatMap { it.getOrDefault(emptyList()) }.distinctBy { it.key }
+
+        // Best matches first: a title starting with what you typed, then any word starting with
+        // it, then the rest; within each group, the most popular first.
+        val lower = typed.lowercase()
+        fun matchRank(name: String): Int {
+            val n = name.lowercase()
+            return when {
+                n.startsWith(lower) -> 0
+                n.split(' ', '-', ':', '\'').any { it.startsWith(lower) } -> 1
+                n.contains(lower) -> 2
+                else -> 3
+            }
+        }
+        val ranked = found
+            .sortedWith(compareBy<Title> { matchRank(it.name) }.thenByDescending { it.popularity })
+            .take(24)
+
+        val withSources = ranked.map { title -> async { title.copy(sources = sourcesFor(title)) } }.awaitAll()
+        // Titles on your services first, keeping the ranking within each group.
         withSources.sortedBy { if (it.sources.isEmpty()) 1 else 0 }
+    }
+
+    private fun searchResult(item: JSONObject, type: MediaType): Title? {
+        if (item.isNull("poster_path")) return null
+        val genres = item.optJSONArray("genre_ids")
+        return Title(
+            id = item.getInt("id"),
+            type = type,
+            name = item.optString(if (type == MediaType.TV) "name" else "title"),
+            year = item.optString(if (type == MediaType.TV) "first_air_date" else "release_date").take(4),
+            overview = item.optString("overview"),
+            rating = item.optDouble("vote_average", 0.0),
+            popularity = item.optDouble("popularity", 0.0),
+            genreIds = if (genres == null) emptyList() else (0 until genres.length()).map { genres.getInt(it) },
+            backdropUrl = image(item, "backdrop_path", "w780"),
+            posterUrl = image(item, "poster_path", "w342"),
+            sources = emptyList(),
+        )
     }
 
     /** Which of your services carry [title] in Ireland, in your order of preference. */
