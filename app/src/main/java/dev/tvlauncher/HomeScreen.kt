@@ -52,6 +52,8 @@ import java.time.format.DateTimeFormatter
 /** Your name for the greeting. Moves to a settings screen in a later phase. */
 private const val OWNER_NAME = "Wayne"
 
+// Sizes are in dp on the TV's 960 x 540 layout grid (a 1080p TV at the standard TV density),
+// which is three-quarters of the 1280 x 720 mockups.
 private object Palette {
     val background = Color(0xFF16111E)
     val text = Color(0xFFF4F1F8)
@@ -86,20 +88,20 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 40.dp, bottom = 40.dp),
+                    .padding(top = 28.dp, bottom = 24.dp),
             ) {
                 Header(now)
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = "Your apps",
-                    modifier = Modifier.padding(start = 56.dp, bottom = 12.dp),
-                    style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Palette.quiet),
+                    modifier = Modifier.padding(start = 40.dp, bottom = 4.dp),
+                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Palette.quiet),
                 )
                 if (apps.isEmpty()) {
                     Text(
                         text = "Loading apps…",
-                        modifier = Modifier.padding(start = 56.dp),
-                        style = TextStyle(fontSize = 16.sp, color = Palette.quiet),
+                        modifier = Modifier.padding(start = 40.dp),
+                        style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
                     )
                 } else {
                     AppDock(apps = apps, onLaunch = onLaunch)
@@ -114,17 +116,17 @@ private fun Header(now: LocalTime) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 56.dp),
+            .padding(horizontal = 40.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top,
     ) {
         Text(
             text = "${greeting(now)}, $OWNER_NAME",
-            style = TextStyle(fontSize = 42.sp, fontWeight = FontWeight.Bold, color = Palette.text),
+            style = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Palette.text),
         )
         Text(
             text = now.format(DateTimeFormatter.ofPattern("HH:mm")),
-            style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Medium, color = Palette.text),
+            style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Palette.text),
         )
     }
 }
@@ -149,8 +151,8 @@ private fun AppDock(apps: List<TvApp>, onLaunch: (TvApp) -> Unit) {
     }
 
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 56.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
+        contentPadding = PaddingValues(horizontal = 40.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         itemsIndexed(apps, key = { _, app -> app.packageName }) { index, app ->
             AppTile(
@@ -164,12 +166,12 @@ private fun AppDock(apps: List<TvApp>, onLaunch: (TvApp) -> Unit) {
 
 @Composable
 private fun AppTile(app: TvApp, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(10.dp)
     Surface(
         onClick = onClick,
         modifier = modifier
-            .width(224.dp)
-            .height(126.dp),
+            .width(144.dp)
+            .height(81.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Palette.tile,
@@ -179,10 +181,10 @@ private fun AppTile(app: TvApp, onClick: () -> Unit, modifier: Modifier = Modifi
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
         border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(border = BorderStroke(3.dp, Palette.glow), shape = shape),
+            focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
         ),
         glow = ClickableSurfaceDefaults.glow(
-            focusedGlow = Glow(elevationColor = Palette.glow.copy(alpha = 0.45f), elevation = 18.dp),
+            focusedGlow = Glow(elevationColor = Palette.glow.copy(alpha = 0.45f), elevation = 10.dp),
         ),
     ) {
         val image = app.image
@@ -197,7 +199,7 @@ private fun AppTile(app: TvApp, onClick: () -> Unit, modifier: Modifier = Modifi
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(12.dp),
+                    .padding(8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -205,15 +207,15 @@ private fun AppTile(app: TvApp, onClick: () -> Unit, modifier: Modifier = Modifi
                     Image(
                         bitmap = image,
                         contentDescription = null,
-                        modifier = Modifier.size(52.dp),
+                        modifier = Modifier.size(32.dp),
                     )
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(6.dp))
                 }
                 Text(
                     text = app.label,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
+                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
                 )
             }
         }
