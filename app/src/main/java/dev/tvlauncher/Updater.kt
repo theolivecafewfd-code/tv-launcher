@@ -89,12 +89,12 @@ object Updater {
         ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             context.startActivity(intent)
-            Toast.makeText(context, "Turn on TV Launcher, then press Back and try the update again", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Turn on WIPTV, then press Back and try the update again", Toast.LENGTH_LONG).show()
         } catch (e: Exception) {
             // Fire OS hides this screen; the setting lives in Developer options instead.
             Toast.makeText(
                 context,
-                "Allow TV Launcher under Settings → My Fire TV → Developer options → Install unknown apps",
+                "Allow WIPTV under Settings → My Fire TV → Developer options → Install unknown apps",
                 Toast.LENGTH_LONG,
             ).show()
         }
