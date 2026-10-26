@@ -45,6 +45,8 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import androidx.tv.material3.darkColorScheme
+import androidx.compose.ui.graphics.Brush
+import coil.compose.AsyncImage
 import android.os.SystemClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -58,7 +60,7 @@ private const val OWNER_NAME = "Wayne"
 
 // Sizes are in dp on the TV's 960 x 540 layout grid (a 1080p TV at the standard TV density),
 // which is three-quarters of the 1280 x 720 mockups.
-private object Palette {
+internal object Palette {
     val background = Color(0xFF16111E)
     val text = Color(0xFFF4F1F8)
     val quiet = Color(0xFFB3AAC2)
@@ -72,6 +74,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     val context = LocalContext.current
     var apps by remember { mutableStateOf<List<TvApp>>(emptyList()) }
     var now by remember { mutableStateOf(LocalTime.now()) }
+    var backdrop by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(refreshKey) {
         apps = withContext(Dispatchers.IO) { AppRepository.load(context) }
@@ -87,7 +90,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
             update = UpdateState.None
             lastUpdateCheck = 0L
         }
-        val due =lastUpdateCheck == 0L || SystemClock.elapsedRealtime() - lastUpdateCheck > 30 * 60_000L
+        val due = lastUpdateCheck == 0L || SystemClock.elapsedRealtime() - lastUpdateCheck > 30 * 60_000L
         if (due && update !is UpdateState.Downloading && update !is UpdateState.Installing) {
             lastUpdateCheck = SystemClock.elapsedRealtime()
             update = Updater.check()
@@ -128,12 +131,35 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                 .fillMaxSize()
                 .background(Palette.background),
         ) {
+            // The featured film's backdrop, faint and darkened, tints the whole screen.
+            if (backdrop != null) {
+                AsyncImage(
+                    model = backdrop,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    alpha = 0.22f,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Palette.background.copy(alpha = 0.55f),
+                                0.7f to Palette.background.copy(alpha = 0.9f),
+                                1f to Palette.background,
+                            ),
+                        ),
+                )
+            }
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(top = 28.dp, bottom = 24.dp),
+                    .padding(top = 24.dp, bottom = 16.dp),
             ) {
                 Header(now = now, update = update, onUpdateClick = onUpdateClick)
+                Spacer(Modifier.height(10.dp))
+                FilmCarousel(apps = apps, onLaunch = onLaunch, onBackdrop = { backdrop = it })
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = "Your apps",
@@ -233,7 +259,7 @@ private fun AppDock(apps: List<TvApp>, onLaunch: (TvApp) -> Unit) {
     }
 
     LazyRow(
-        contentPadding = PaddingValues(horizontal = 40.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(horizontal = 40.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         itemsIndexed(apps, key = { _, app -> app.packageName }) { index, app ->
