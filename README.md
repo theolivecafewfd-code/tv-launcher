@@ -12,13 +12,13 @@ The newest build is always at:
 https://github.com/theolivecafewfd-code/tv-launcher/releases/latest/download/tv-launcher.apk
 ```
 
-That's long to type with a remote. Make a short link for it once (for example at is.gd from your phone) and use that on the TV from then on: the link above never changes, so the short link keeps working for every new build.
+On the TV, type the short link instead: **`is.gd/mAyKiF`**. It points at the link above, which never changes, so it keeps working for every new build.
 
 ## Install on the TV
 
 1. On the TV, install **Downloader** (by AFTVnews) from the Play Store.
 2. Allow it to install apps: **Settings → Device Preferences → Security & restrictions → Unknown sources → Downloader** on.
-3. Open Downloader, enter the download link (or your short link), and choose **Install**.
+3. Open Downloader, enter `is.gd/mAyKiF`, and choose **Install**.
 4. Open **TV Launcher** from your apps list. It runs like a normal app until we make it the home screen in a later phase.
 
 Installing a newer build the same way updates it in place, because every build is signed with the same key.
