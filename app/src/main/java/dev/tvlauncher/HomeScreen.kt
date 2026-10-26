@@ -21,8 +21,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,8 +45,10 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import androidx.tv.material3.darkColorScheme
+import android.os.SystemClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -72,6 +76,45 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     LaunchedEffect(refreshKey) {
         apps = withContext(Dispatchers.IO) { AppRepository.load(context) }
     }
+
+    // Check GitHub for a newer build when the screen opens, then at most every 30 minutes.
+    val scope = rememberCoroutineScope()
+    var update by remember { mutableStateOf<UpdateState>(UpdateState.None) }
+    var lastUpdateCheck by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(refreshKey) {
+        // Back on screen while still "installing" means the install was cancelled: check again.
+        if (update is UpdateState.Installing) {
+            update = UpdateState.None
+            lastUpdateCheck = 0L
+        }
+        val due =lastUpdateCheck == 0L || SystemClock.elapsedRealtime() - lastUpdateCheck > 30 * 60_000L
+        if (due && update !is UpdateState.Downloading && update !is UpdateState.Installing) {
+            lastUpdateCheck = SystemClock.elapsedRealtime()
+            update = Updater.check()
+        }
+    }
+    val onUpdateClick: () -> Unit = onUpdateClick@{
+        val target = when (val current = update) {
+            is UpdateState.Available -> current
+            is UpdateState.Failed -> current.retry
+            else -> return@onUpdateClick
+        }
+        if (!Updater.canInstall(context)) {
+            Updater.openInstallPermissionSettings(context)
+            return@onUpdateClick
+        }
+        scope.launch {
+            update = UpdateState.Downloading(0)
+            try {
+                Updater.downloadAndInstall(context, target) { percent ->
+                    update = UpdateState.Downloading(percent)
+                }
+                update = UpdateState.Installing
+            } catch (e: Exception) {
+                update = UpdateState.Failed(e.message ?: "download failed", target)
+            }
+        }
+    }
     LaunchedEffect(Unit) {
         while (true) {
             now = LocalTime.now()
@@ -90,7 +133,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                     .fillMaxSize()
                     .padding(top = 28.dp, bottom = 24.dp),
             ) {
-                Header(now)
+                Header(now = now, update = update, onUpdateClick = onUpdateClick)
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = "Your apps",
@@ -112,7 +155,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
 }
 
 @Composable
-private fun Header(now: LocalTime) {
+private fun Header(now: LocalTime, update: UpdateState, onUpdateClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -124,9 +167,48 @@ private fun Header(now: LocalTime) {
             text = "${greeting(now)}, $OWNER_NAME",
             style = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Palette.text),
         )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            UpdateButton(update = update, onClick = onUpdateClick)
+            Text(
+                text = now.format(DateTimeFormatter.ofPattern("HH:mm")),
+                style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Palette.text),
+            )
+        }
+    }
+}
+
+/** A pill in the header that appears only when there's a newer build on GitHub. */
+@Composable
+private fun UpdateButton(update: UpdateState, onClick: () -> Unit) {
+    val label = when (update) {
+        UpdateState.None -> return
+        is UpdateState.Available -> "Update available · build ${update.build}"
+        is UpdateState.Downloading -> "Downloading update… ${update.percent}%"
+        UpdateState.Installing -> "Installing update…"
+        is UpdateState.Failed -> "Update failed · press to retry"
+    }
+    val shape = RoundedCornerShape(50)
+    Surface(
+        onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Palette.glow,
+            contentColor = Palette.background,
+            focusedContainerColor = Color.White,
+            focusedContentColor = Palette.background,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
+        glow = ClickableSurfaceDefaults.glow(
+            focusedGlow = Glow(elevationColor = Palette.glow.copy(alpha = 0.5f), elevation = 10.dp),
+        ),
+    ) {
         Text(
-            text = now.format(DateTimeFormatter.ofPattern("HH:mm")),
-            style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Palette.text),
+            text = label,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.background),
         )
     }
 }
