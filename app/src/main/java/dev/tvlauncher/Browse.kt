@@ -96,6 +96,7 @@ fun Featured(
     index: Int,
     onIndexChange: (Int) -> Unit,
     onOpen: (Title) -> Unit,
+    onPlay: (Title) -> Unit,
 ) {
     val title = titles.getOrNull(index) ?: return
     val shape = RoundedCornerShape(16.dp)
@@ -105,6 +106,7 @@ fun Featured(
     ) {
         Surface(
             onClick = { onOpen(title) },
+            onLongClick = { onPlay(title) },
             modifier = Modifier
                 .width(570.dp)
                 .height(188.dp)
@@ -215,6 +217,7 @@ private fun SourceTag(source: Source) {
 fun PosterRow(
     row: ContentRow,
     onOpen: (Title) -> Unit,
+    onPlay: (Title) -> Unit,
     requester: FocusRequester,
     up: FocusRequester,
     down: FocusRequester?,
@@ -266,6 +269,7 @@ fun PosterRow(
                     PosterCard(
                         title = title,
                         onClick = { onOpen(title) },
+                        onLongClick = { onPlay(title) },
                         modifier = Modifier.focusProperties {
                             this.up = up
                             if (down != null) this.down = down
@@ -279,10 +283,16 @@ fun PosterRow(
 }
 
 @Composable
-private fun PosterCard(title: Title, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun PosterCard(
+    title: Title,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
+) {
     val shape = RoundedCornerShape(10.dp)
     Surface(
         onClick = onClick,
+        onLongClick = onLongClick,
         modifier = modifier.size(width = 84.dp, height = 126.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(containerColor = Palette.tile, focusedContainerColor = Palette.tile),
