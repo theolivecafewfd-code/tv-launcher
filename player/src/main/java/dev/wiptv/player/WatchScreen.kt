@@ -1,7 +1,6 @@
 package dev.wiptv.player
 
 import android.view.KeyEvent as AndroidKeyEvent
-import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -35,122 +33,43 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.ui.AspectRatioFrameLayout
-import androidx.media3.ui.PlayerView
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 
 /**
- * Full-screen playback of one channel. Up and down change channel within the group (up goes to
- * the channel above in the list), OK shows the channel info, Back returns to the list.
+ * Full-screen playback, using the same player as the preview. Up and down change channel within
+ * the group (up goes to the channel above in the list), OK shows the channel info, Back returns
+ * to the guide with the channel still playing in the preview.
  */
-@OptIn(UnstableApi::class)
 @Composable
 fun WatchScreen(
     login: Login,
     format: String,
+    live: LivePlayer,
     channels: List<Channel>,
     groupName: String,
     startIndex: Int,
+    nowShowing: (Channel) -> Programme?,
     onChannel: (Channel) -> Unit,
     onClose: (Channel) -> Unit,
 ) {
-    val context = LocalContext.current
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, channels.lastIndex)) }
     var infoTick by remember { mutableIntStateOf(0) }
     var showInfo by remember { mutableStateOf(true) }
-    var buffering by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
     val focus = remember { FocusRequester() }
     val channel = channels[index]
 
-    val player = remember {
-        val http = DefaultHttpDataSource.Factory()
-            .setUserAgent("WIPTVPlayer/${BuildConfig.VERSION_NAME}")
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(15_000)
-            .setReadTimeoutMs(30_000)
-        ExoPlayer.Builder(context)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(http))
-            .build()
-            .apply { playWhenReady = true }
-    }
-
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onPlaybackStateChanged(state: Int) {
-                buffering = state == Player.STATE_BUFFERING
-                if (state == Player.STATE_READY) error = null
-            }
-
-            override fun onPlayerError(e: PlaybackException) {
-                if (e.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
-                    // Fell too far behind the live stream: jump back to live.
-                    player.seekToDefaultPosition()
-                    player.prepare()
-                    return
-                }
-                buffering = false
-                error = describe(e)
-            }
-        }
-        player.addListener(listener)
-        onDispose {
-            player.removeListener(listener)
-            player.release()
-        }
-    }
-
-    // Stop when the app goes to the background (Home pressed), and pick up again on return.
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_STOP -> player.stop()
-                Lifecycle.Event.ON_START -> {
-                    if (player.currentMediaItem != null) {
-                        player.seekToDefaultPosition()
-                        player.prepare()
-                    }
-                }
-                else -> Unit
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    // Play the current channel whenever it changes.
+    // Play the current channel whenever it changes (nothing restarts if it's already playing).
     LaunchedEffect(index) {
-        error = null
-        buffering = true
-        val item = MediaItem.Builder()
-            .setUri(Xtream.liveUrl(login, channel, format))
-            .setMimeType(if (format == "m3u8") MimeTypes.APPLICATION_M3U8 else MimeTypes.VIDEO_MP2T)
-            .build()
-        player.setMediaItem(item)
-        player.prepare()
+        live.play(login, format, channel)
         onChannel(channel)
         infoTick++
     }
@@ -194,24 +113,10 @@ fun WatchScreen(
                     }
                 },
         ) {
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        useController = false
-                        isFocusable = false
-                        isFocusableInTouchMode = false
-                        keepScreenOn = true
-                        resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        setShutterBackgroundColor(android.graphics.Color.BLACK)
-                        setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
-                        this.player = player
-                    }
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
+            PlayerSurface(live, attached = true, modifier = Modifier.fillMaxSize())
 
             // Loading or a problem, in the middle of the screen.
-            val message = error ?: if (buffering) "Loading ${channel.name}…" else null
+            val message = live.error ?: if (live.buffering) "Loading ${channel.name}…" else null
             if (message != null) {
                 Text(
                     text = message,
@@ -222,26 +127,26 @@ fun WatchScreen(
                     style = TextStyle(
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
-                        color = if (error != null) Palette.warn else Palette.text,
+                        color = if (live.error != null) Palette.warn else Palette.text,
                     ),
                 )
             }
 
             AnimatedVisibility(
-                visible = showInfo || error != null,
+                visible = showInfo || live.error != null,
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter),
             ) {
-                InfoBar(channel, groupName, index, channels.size)
+                InfoBar(channel, nowShowing(channel), groupName, index, channels.size)
             }
         }
     }
 }
 
-/** Channel number, logo, name and group along the bottom of the picture. */
+/** Channel number, logo, name, what's on, and the group along the bottom of the picture. */
 @Composable
-private fun InfoBar(channel: Channel, groupName: String, index: Int, total: Int) {
+private fun InfoBar(channel: Channel, programme: Programme?, groupName: String, index: Int, total: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -261,15 +166,23 @@ private fun InfoBar(channel: Channel, groupName: String, index: Int, total: Int)
                     modifier = Modifier.size(width = 72.dp, height = 44.dp),
                 )
             }
-            Column(modifier = Modifier.width(560.dp)) {
+            Column(modifier = Modifier.width(620.dp)) {
                 Text(
                     text = channel.name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
                 )
+                if (programme != null) {
+                    Text(
+                        text = "${timeRange(programme)}  ${programme.title}",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = TextStyle(fontSize = 14.sp, color = Palette.text),
+                    )
+                }
                 Text(
-                    text = "$groupName · ${index + 1} of $total · ▲▼ change channel · Back for the list",
+                    text = "$groupName · ${index + 1} of $total · ▲▼ change channel · Back for the guide",
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
@@ -277,19 +190,4 @@ private fun InfoBar(channel: Channel, groupName: String, index: Int, total: Int)
             }
         }
     }
-}
-
-/** A short reason a channel won't play. */
-private fun describe(e: PlaybackException): String = when (e.errorCode) {
-    PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
-        "The provider refused this channel. It may be offline, or all your screens are in use."
-    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
-    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
-        "Couldn't reach the provider. Check the internet connection."
-    PlaybackException.ERROR_CODE_DECODING_FAILED,
-    PlaybackException.ERROR_CODE_DECODER_INIT_FAILED,
-    PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
-    PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ->
-        "This TV can't play this channel's video format."
-    else -> "This channel isn't playing (${e.errorCodeName}). Try another channel."
 }

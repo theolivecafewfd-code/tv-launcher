@@ -59,6 +59,11 @@ data class Channel(
     val catchUp: Boolean,
 )
 
+/** One programme in the TV guide. Times are in milliseconds since 1970. */
+data class Programme(val title: String, val description: String, val start: Long, val end: Long) {
+    fun isOn(now: Long) = now in start until end
+}
+
 /** A sign-in problem, worded for the screen. */
 class XtreamException(message: String) : Exception(message)
 
@@ -166,6 +171,42 @@ object Xtream {
             )
         }
     }
+
+    /**
+     * What's on a channel now and next (the provider's "short EPG"): a handful of programmes from
+     * now on. Cheap enough to ask for each channel as it comes on screen.
+     */
+    suspend fun shortGuide(login: Login, channelId: Long): List<Programme> = withContext(Dispatchers.IO) {
+        val text = get("${api(login)}&action=get_short_epg&stream_id=$channelId&limit=8")
+        val listings = runCatching { JSONObject(text).optJSONArray("epg_listings") }.getOrNull()
+            ?: return@withContext emptyList()
+        (0 until listings.length()).mapNotNull { i ->
+            val item = listings.optJSONObject(i) ?: return@mapNotNull null
+            val start = number(item, "start_timestamp") ?: return@mapNotNull null
+            val end = number(item, "stop_timestamp") ?: number(item, "end_timestamp") ?: return@mapNotNull null
+            if (end <= start) return@mapNotNull null
+            Programme(
+                title = decodeText(item.optString("title")).ifBlank { "No title" },
+                description = decodeText(item.optString("description")),
+                start = start * 1000,
+                end = end * 1000,
+            )
+        }.sortedBy { it.start }
+    }
+
+    /** Guide text usually arrives base64-encoded; some panels send it plain. */
+    private fun decodeText(text: String): String {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty() || trimmed == "null") return ""
+        if (!BASE64.matches(trimmed)) return trimmed
+        val bytes = runCatching { android.util.Base64.decode(trimmed, android.util.Base64.DEFAULT) }.getOrNull()
+            ?: return trimmed
+        val decoded = String(bytes, Charsets.UTF_8)
+        val looksWrong = '\uFFFD' in decoded || decoded.any { it.isISOControl() && it != '\n' && it != '\r' && it != '\t' }
+        return if (looksWrong) trimmed else decoded.trim()
+    }
+
+    private val BASE64 = Regex("^[A-Za-z0-9+/=\\s]+$")
 
     /** The address a live channel plays from. */
     fun liveUrl(login: Login, channel: Channel, format: String): String =
