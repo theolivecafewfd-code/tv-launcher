@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,6 +35,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -123,6 +127,10 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     var rows by remember { mutableStateOf<List<ContentRow>>(emptyList()) }
     var rowsFailed by remember { mutableStateOf(false) }
     var featuredIndex by remember { mutableIntStateOf(0) }
+    // One focus target per row, so up and down move exactly one row.
+    val appsRow = remember { FocusRequester() }
+    val rowFocus = remember { mutableMapOf<String, FocusRequester>() }
+    fun rowRequester(key: String) = rowFocus.getOrPut(key) { FocusRequester() }
     val featured = rows.firstOrNull { it.key == "top" }?.items.orEmpty()
     LaunchedEffect(mediaType, refreshKey) {
         if (!Catalog.hasKey) return@LaunchedEffect
@@ -231,7 +239,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
             // While choosing apps, the editor replaces the home screen so the remote can't
             // wander onto the tiles underneath. Everything scrolls as one list: header, the
             // featured title and your apps first, then the rows below.
-            if (!editing) LazyColumn(
+            if (!editing) PivotScrolling { LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp),
             ) {
@@ -285,13 +293,21 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                                 onEdit = { editing = true },
                                 focusKey = focusKey,
                                 focusTick = focusTick,
+                                rowRequester = appsRow,
+                                down = rows.firstOrNull()?.let { rowRequester(it.key) },
                             )
                         }
                     }
                 }
-                items(rows, key = { "row:${mediaType.path}:${it.key}" }) { row ->
+                itemsIndexed(rows, key = { _, row -> "row:${mediaType.path}:${row.key}" }) { i, row ->
                     Box(Modifier.padding(top = 10.dp)) {
-                        PosterRow(row = row, onOpen = openTitle)
+                        PosterRow(
+                            row = row,
+                            onOpen = openTitle,
+                            requester = rowRequester(row.key),
+                            up = if (i == 0) appsRow else rowRequester(rows[i - 1].key),
+                            down = rows.getOrNull(i + 1)?.let { rowRequester(it.key) },
+                        )
                     }
                 }
                 item(key = "credit") {
@@ -301,7 +317,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                         style = TextStyle(fontSize = 10.sp, color = Palette.quiet.copy(alpha = 0.6f)),
                     )
                 }
-            }
+            } }
 
             // Hold OK on an app: hide it or move it.
             menuFor?.let { app ->
@@ -461,6 +477,7 @@ private fun greeting(now: LocalTime): String = when (now.hour) {
     else -> "Good evening"
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun AppDock(
     apps: List<TvApp>,
@@ -469,6 +486,8 @@ private fun AppDock(
     onEdit: () -> Unit,
     focusKey: String?,
     focusTick: Int,
+    rowRequester: FocusRequester,
+    down: FocusRequester?,
 ) {
     val requesters = remember { mutableMapOf<String, FocusRequester>() }
     fun requesterFor(key: String) = requesters.getOrPut(key) { FocusRequester() }
@@ -484,7 +503,12 @@ private fun AppDock(
         }
     }
 
+    val toNextRow = Modifier.focusProperties { if (down != null) this.down = down }
+    NormalScrolling {
     LazyRow(
+        modifier = Modifier
+            .focusRequester(rowRequester)
+            .focusRestorer(),
         contentPadding = PaddingValues(horizontal = 40.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
@@ -493,15 +517,16 @@ private fun AppDock(
                 app = app,
                 onClick = { onLaunch(app) },
                 onLongClick = { onLongPress(app) },
-                modifier = Modifier.focusRequester(requesterFor(app.packageName)),
+                modifier = Modifier.focusRequester(requesterFor(app.packageName)).then(toNextRow),
             )
         }
         item(key = EDIT_TILE_KEY) {
             EditAppsTile(
                 onClick = onEdit,
-                modifier = Modifier.focusRequester(requesterFor(EDIT_TILE_KEY)),
+                modifier = Modifier.focusRequester(requesterFor(EDIT_TILE_KEY)).then(toNextRow),
             )
         }
+    }
     }
 }
 
