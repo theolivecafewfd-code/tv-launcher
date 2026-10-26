@@ -52,6 +52,8 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.ui.draw.clip
 
 /** Remembers the last group and channel watched, so the app opens where you left off. */
 private object LastWatched {
@@ -65,8 +67,9 @@ private object LastWatched {
 }
 
 /**
- * Live TV: groups on the left, the selected group's channels on the right. Moving through the
- * groups shows each one's channels; OK on a channel plays it full screen.
+ * Live TV: groups on the left; on the right, a small preview of the highlighted channel with
+ * what's on, and below it the group's channels as a simple two-hour guide. OK on a channel
+ * plays it full screen.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -81,6 +84,13 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     var selectedGroup by remember { mutableStateOf(LastWatched.group(context)) }
     var showAccount by remember { mutableStateOf(false) }
     var watching by remember { mutableStateOf<Int?>(null) }
+
+    // The highlighted channel: it plays in the preview and its programme shows beside it.
+    var highlighted by remember { mutableStateOf<Channel?>(null) }
+    val live = rememberLivePlayer()
+    val guide = remember(login) { GuideStore(login) }
+    val now = rememberNow()
+    val format = account?.liveFormat ?: "ts"
 
     // A channel to move the focus to once it's on screen: the last one watched when the app
     // opens, and whichever channel you ended on after watching. Null once it's done.
@@ -131,6 +141,15 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
 
     val channels = selectedGroup?.let { channelsByGroup[it] }
 
+    // Preview the highlighted channel once you've stopped on it for a moment.
+    LaunchedEffect(highlighted?.id) {
+        val channel = highlighted ?: return@LaunchedEffect
+        launch { guide.ensure(channel) }
+        delay(700)
+        live.play(login, format, channel)
+        LastWatched.save(context, channel)
+    }
+
     // Put the focus somewhere sensible: that channel if it's in the list, else the selected group.
     LaunchedEffect(groups, channels, pendingFocus) {
         val target = pendingFocus ?: return@LaunchedEffect
@@ -155,16 +174,18 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Palette.background)
-            .padding(start = 32.dp, end = 32.dp, top = 24.dp),
+            .padding(start = 24.dp, end = 24.dp, top = 18.dp),
     ) {
-        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             // Groups.
-            Column(modifier = Modifier.width(230.dp).fillMaxHeight()) {
+            Column(modifier = Modifier.width(190.dp).fillMaxHeight()) {
                 Text(
                     text = "Live TV",
                     style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Palette.text),
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(6.dp))
+                UpdatePill(update)
+                Spacer(Modifier.height(8.dp))
                 when {
                     groupsError != null -> {
                         Text(text = groupsError!!, style = TextStyle(fontSize = 13.sp, color = Palette.warn))
@@ -221,30 +242,42 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                 }
             }
 
-            // Channels in the selected group.
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Preview and what's on.
+                Row(modifier = Modifier.height(176.dp)) {
+                    Preview(live = live, attached = watching == null, highlighted = highlighted)
+                    Spacer(Modifier.width(16.dp))
+                    NowPanel(
+                        channel = highlighted,
+                        programmes = highlighted?.let { guide.programmes(it.id) },
+                        now = now,
+                        modifier = Modifier.weight(1f).padding(top = 2.dp),
+                    )
+                }
+                Spacer(Modifier.height(10.dp))
+
+                // The selected group's channels, as a guide.
+                Row(verticalAlignment = Alignment.Bottom) {
                     val groupName = groups?.firstOrNull { it.id == selectedGroup }?.name.orEmpty()
                     Text(
                         text = groupName,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                        style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
+                        modifier = Modifier.padding(start = 4.dp).width(ChannelCellWidth - 8.dp),
+                        style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
                     )
-                    UpdatePill(update)
+                    Text(
+                        text = when {
+                            channelsError != null -> channelsError!!
+                            selectedGroup == null -> ""
+                            channels == null -> "Loading channels…"
+                            channels.isEmpty() -> "No channels in this group"
+                            else -> ""
+                        },
+                        style = TextStyle(fontSize = 12.sp, color = if (channelsError != null) Palette.warn else Palette.quiet),
+                    )
                 }
-                Text(
-                    text = when {
-                        channelsError != null -> channelsError!!
-                        selectedGroup == null -> ""
-                        channels == null -> "Loading channels…"
-                        channels.isEmpty() -> "No channels in this group"
-                        else -> "${channels.size} channels"
-                    },
-                    style = TextStyle(fontSize = 12.sp, color = if (channelsError != null) Palette.warn else Palette.quiet),
-                )
-                Spacer(Modifier.height(8.dp))
+                TimeRuler(windowStart = guideStart(now))
                 LazyColumn(
                     state = channelList,
                     modifier = Modifier
@@ -258,19 +291,27 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                             }
                         }
                         .focusGroup(),
-                    contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(top = 2.dp, bottom = 12.dp, start = 4.dp, end = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     itemsIndexed(channels.orEmpty(), key = { _, c -> c.id }) { index, channel ->
-                        ListItem(
+                        // Each row loads its own guide as it comes on screen, and again every half hour.
+                        LaunchedEffect(channel.id, now / (30 * 60_000L)) { guide.ensure(channel) }
+                        GuideRow(
+                            channel = channel,
+                            programmes = guide.programmes(channel.id),
+                            windowStart = guideStart(now),
+                            now = now,
                             onClick = { watching = index },
-                            selected = false,
                             modifier = Modifier
                                 .focusRequester(requesterFor(channel.id))
-                                .onFocusChanged { if (it.isFocused) lastChannelInGroup[channel.groupId] = channel.id },
-                        ) {
-                            ChannelRow(channel)
-                        }
+                                .onFocusChanged {
+                                    if (it.isFocused) {
+                                        lastChannelInGroup[channel.groupId] = channel.id
+                                        highlighted = channel
+                                    }
+                                },
+                        )
                     }
                 }
             }
@@ -278,25 +319,22 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     }
 
     val playing = watching
-    if (playing != null && channels != null && account != null) {
+    if (playing != null && channels != null) {
         WatchScreen(
             login = login,
-            format = account!!.liveFormat,
+            format = format,
+            live = live,
             channels = channels,
             groupName = groups?.firstOrNull { it.id == selectedGroup }?.name.orEmpty(),
             startIndex = playing,
+            nowShowing = { guide.nowShowing(it) },
             onChannel = { LastWatched.save(context, it) },
             onClose = { last ->
                 watching = null
+                highlighted = last
                 pendingFocus = last.id
             },
         )
-    } else if (playing != null && account == null) {
-        // The account details (stream format) haven't arrived; try once more, then play as .ts.
-        LaunchedEffect(playing) {
-            account = runCatching { Xtream.signIn(login, withCatalogue = false) }.getOrNull()
-                ?: Account("Unknown", null, 0, 1, false, null, null, null, null)
-        }
     }
 
     if (showAccount) {
@@ -311,38 +349,7 @@ private fun requesterForFirstChannel(channels: List<Channel>?, requesterFor: (Lo
     runCatching { requesterFor(first.id).requestFocus() }
 }
 
-/** Number, logo and name. */
-@Composable
-private fun ChannelRow(channel: Channel) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            text = channel.number.toString(),
-            modifier = Modifier.width(40.dp),
-            style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
-        )
-        Box(
-            modifier = Modifier.size(width = 44.dp, height = 28.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (channel.logo != null) {
-                AsyncImage(
-                    model = channel.logo,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-        Text(
-            text = channel.name,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium),
-        )
-    }
-}
-
-/** A row in either list: quiet until focused; the selected group keeps a soft highlight. */
+/** A row in the groups list: quiet until focused; the selected group keeps a soft highlight. */
 @Composable
 private fun ListItem(
     onClick: () -> Unit,
@@ -367,5 +374,35 @@ private fun ListItem(
         ),
     ) {
         Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) { content() }
+    }
+}
+
+/** The small picture at the top: the highlighted channel, with loading and error notes over it. */
+@Composable
+private fun Preview(live: LivePlayer, attached: Boolean, highlighted: Channel?) {
+    Box(
+        modifier = Modifier
+            .size(width = 313.dp, height = 176.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(androidx.compose.ui.graphics.Color.Black),
+    ) {
+        PlayerSurface(live, attached = attached, modifier = Modifier.fillMaxSize())
+        val note = when {
+            live.channel == null -> if (highlighted == null) "Preview" else "Loading…"
+            live.error != null -> live.error
+            live.buffering -> "Loading…"
+            else -> null
+        }
+        if (note != null) {
+            Text(
+                text = note,
+                maxLines = 3,
+                modifier = Modifier.align(Alignment.Center).padding(12.dp),
+                style = TextStyle(
+                    fontSize = 12.sp,
+                    color = if (live.error != null && live.channel != null) Palette.warn else Palette.quiet,
+                ),
+            )
+        }
     }
 }
