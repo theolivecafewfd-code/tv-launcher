@@ -134,6 +134,7 @@ fun GuideRow(
     now: Long,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    playing: Boolean = false,
 ) {
     val shape = RoundedCornerShape(8.dp)
     Surface(
@@ -158,10 +159,11 @@ fun GuideRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                // The channel in the preview is marked with ▶.
                 Text(
-                    text = channel.number.toString(),
+                    text = if (playing) "▶" else channel.number.toString(),
                     modifier = Modifier.width(28.dp),
-                    style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
+                    style = TextStyle(fontSize = 12.sp, color = if (playing) Palette.glow else Palette.quiet),
                 )
                 Box(modifier = Modifier.size(width = 36.dp, height = 24.dp), contentAlignment = Alignment.Center) {
                     if (channel.logo != null) {
@@ -177,7 +179,11 @@ fun GuideRow(
                     text = channel.name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                    style = TextStyle(
+                        fontSize = 13.sp,
+                        fontWeight = if (playing) FontWeight.Bold else FontWeight.Medium,
+                        color = if (playing) Palette.glow else Palette.text,
+                    ),
                 )
             }
 
@@ -247,7 +253,7 @@ fun NowPanel(channel: Channel?, programmes: List<Programme>?, now: Long, modifie
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         if (channel == null) {
             Text(
-                text = "Highlight a channel to preview it here. OK watches it full screen.",
+                text = "Press OK on a channel to preview it here, and OK again to watch it full screen.",
                 style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
             )
             return@Column
