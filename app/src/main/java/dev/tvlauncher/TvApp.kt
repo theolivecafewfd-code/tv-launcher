@@ -2,7 +2,10 @@ package dev.tvlauncher
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
 import android.provider.Settings
+import android.util.Log
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
@@ -31,26 +34,14 @@ object AppRepository {
         for (category in listOf(Intent.CATEGORY_LEANBACK_LAUNCHER, Intent.CATEGORY_LAUNCHER)) {
             val query = Intent(Intent.ACTION_MAIN).addCategory(category)
             @Suppress("DEPRECATION")
-            val activities = pm.queryIntentActivities(query, 0)
+            val activities = runCatching { pm.queryIntentActivities(query, 0) }.getOrDefault(emptyList())
             for (info in activities) {
-                val activity = info.activityInfo
-                val pkg = activity.packageName
-                if (pkg == context.packageName || found.containsKey(pkg)) continue
-
-                val banner = activity.loadBanner(pm) ?: activity.applicationInfo.loadBanner(pm)
-                val image = runCatching {
-                    if (banner != null) banner.toBitmap(320, 180) else info.loadIcon(pm).toBitmap(128, 128)
-                }.getOrNull()?.asImageBitmap()
-
-                found[pkg] = TvApp(
-                    label = info.loadLabel(pm).toString(),
-                    packageName = pkg,
-                    intent = Intent(Intent.ACTION_MAIN)
-                        .addCategory(category)
-                        .setClassName(pkg, activity.name),
-                    image = image,
-                    isBanner = banner != null,
-                )
+                // One app with broken details shouldn't stop the rest from showing.
+                try {
+                    toTvApp(context, pm, info, category, found)?.let { found[it.packageName] = it }
+                } catch (e: Exception) {
+                    Log.w("TvLauncher", "Skipping ${info.activityInfo?.packageName}", e)
+                }
             }
         }
 
@@ -65,6 +56,33 @@ object AppRepository {
             isBanner = false,
         )
         return sorted + settings
+    }
+
+    private fun toTvApp(
+        context: Context,
+        pm: PackageManager,
+        info: ResolveInfo,
+        category: String,
+        found: Map<String, TvApp>,
+    ): TvApp? {
+        val activity = info.activityInfo ?: return null
+        val pkg = activity.packageName
+        if (pkg == context.packageName || found.containsKey(pkg)) return null
+
+        val banner = activity.loadBanner(pm) ?: activity.applicationInfo.loadBanner(pm)
+        val image = runCatching {
+            if (banner != null) banner.toBitmap(320, 180) else info.loadIcon(pm).toBitmap(128, 128)
+        }.getOrNull()?.asImageBitmap()
+
+        return TvApp(
+            label = info.loadLabel(pm).toString(),
+            packageName = pkg,
+            intent = Intent(Intent.ACTION_MAIN)
+                .addCategory(category)
+                .setClassName(pkg, activity.name),
+            image = image,
+            isBanner = banner != null,
+        )
     }
 
     private fun pinRank(label: String): Int {
