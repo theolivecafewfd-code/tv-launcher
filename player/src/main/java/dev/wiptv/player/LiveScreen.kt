@@ -3,6 +3,8 @@ package dev.wiptv.player
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +39,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
@@ -526,42 +529,50 @@ private fun ListItem(
 /**
  * The small picture at the top, with loading and error notes over it. It can be highlighted
  * (Up from the top of the guide), and OK on it goes full screen.
+ *
+ * The video can't sit inside a TV "Surface" (the picture goes black, only sound plays), so the
+ * highlight is a plain border drawn over the picture instead.
  */
 @Composable
 private fun Preview(live: LivePlayer, attached: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(10.dp)
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.size(width = 313.dp, height = 176.dp),
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = androidx.compose.ui.graphics.Color.Black,
-            focusedContainerColor = androidx.compose.ui.graphics.Color.Black,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(border = BorderStroke(3.dp, Palette.glow), shape = shape),
-        ),
+    var focused by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .size(width = 313.dp, height = 176.dp)
+            .onFocusChanged { focused = it.isFocused }
+            .onKeyEvent { event ->
+                val key = event.nativeKeyEvent.keyCode
+                val isOk = key == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
+                    key == android.view.KeyEvent.KEYCODE_ENTER ||
+                    key == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
+                if (isOk && event.type == KeyEventType.KeyUp) onClick()
+                isOk
+            }
+            .focusable()
+            .clip(shape)
+            .background(androidx.compose.ui.graphics.Color.Black),
     ) {
-        Box(modifier = Modifier.fillMaxSize().clip(shape)) {
-            PlayerSurface(live, attached = attached, modifier = Modifier.fillMaxSize())
-            val note = when {
-                live.channel == null -> "Press OK on a channel to preview it"
-                live.error != null -> live.error
-                live.buffering -> "Loading…"
-                else -> null
-            }
-            if (note != null) {
-                Text(
-                    text = note,
-                    maxLines = 3,
-                    modifier = Modifier.align(Alignment.Center).padding(12.dp),
-                    style = TextStyle(
-                        fontSize = 12.sp,
-                        color = if (live.error != null && live.channel != null) Palette.warn else Palette.quiet,
-                    ),
-                )
-            }
+        PlayerSurface(live, attached = attached, modifier = Modifier.fillMaxSize())
+        val note = when {
+            live.channel == null -> "Press OK on a channel to preview it"
+            live.error != null -> live.error
+            live.buffering -> "Loading…"
+            else -> null
+        }
+        if (note != null) {
+            Text(
+                text = note,
+                maxLines = 3,
+                modifier = Modifier.align(Alignment.Center).padding(12.dp),
+                style = TextStyle(
+                    fontSize = 12.sp,
+                    color = if (live.error != null && live.channel != null) Palette.warn else Palette.quiet,
+                ),
+            )
+        }
+        if (focused) {
+            Box(modifier = Modifier.matchParentSize().border(3.dp, Palette.glow, shape))
         }
     }
 }
