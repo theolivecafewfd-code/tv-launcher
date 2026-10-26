@@ -17,6 +17,9 @@ android {
         targetSdk = 35
         versionCode = buildNumber
         versionName = "0.1.$buildNumber"
+
+        // Where the in-app updater looks for new releases.
+        buildConfigField("String", "UPDATE_REPO", "\"theolivecafewfd-code/tv-launcher\"")
     }
 
     signingConfigs {
@@ -52,6 +55,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
