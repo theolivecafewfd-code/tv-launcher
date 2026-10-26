@@ -1,4 +1,4 @@
-# TV Launcher
+# WIPTV (TV Launcher)
 
 A custom home screen for Android TV (the Xiaomi-branded stick first, Fire OS sticks later). Built entirely in GitHub: every merge to `main` produces a new app file ready to install from the TV.
 

@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
         val padding = (32 * resources.displayMetrics.density).toInt()
 
         val title = TextView(this).apply {
-            text = "TV Launcher crashed last time. Take a photo of this screen and send it to Claude."
+            text = "WIPTV crashed last time. Take a photo of this screen and send it to Claude."
             setTextColor(Color.WHITE)
             textSize = 20f
             setTypeface(typeface, Typeface.BOLD)
