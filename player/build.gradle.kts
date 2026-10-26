@@ -65,4 +65,12 @@ dependencies {
     implementation("androidx.tv:tv-material:1.0.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
+    // Playback: ExoPlayer, with HLS for providers that only offer .m3u8 streams.
+    val media3 = "1.5.1"
+    implementation("androidx.media3:media3-exoplayer:$media3")
+    implementation("androidx.media3:media3-exoplayer-hls:$media3")
+    implementation("androidx.media3:media3-ui:$media3")
 }
