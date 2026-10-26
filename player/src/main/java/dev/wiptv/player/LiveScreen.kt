@@ -33,7 +33,8 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -90,6 +91,9 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     val firstFocus = remember { FocusRequester() }
     val channelRequesters = remember { mutableMapOf<Long, FocusRequester>() }
     fun requesterFor(id: Long) = channelRequesters.getOrPut(id) { FocusRequester() }
+
+    // The channel you were last on in each group, so moving right returns to it.
+    val lastChannelInGroup = remember { mutableMapOf<String, Long>() }
 
     // The account (for the stream format) and the groups load together when the screen opens.
     LaunchedEffect(Unit) {
@@ -176,7 +180,15 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                 val list = groups.orEmpty()
                 LazyColumn(
                     state = groupList,
-                    modifier = Modifier.weight(1f).focusRestorer(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusProperties {
+                            enter = {
+                                val visible = groupList.layoutInfo.visibleItemsInfo.any { it.key == selectedGroup }
+                                if (visible) firstFocus else FocusRequester.Default
+                            }
+                        }
+                        .focusGroup(),
                     contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -235,7 +247,17 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                 Spacer(Modifier.height(8.dp))
                 LazyColumn(
                     state = channelList,
-                    modifier = Modifier.weight(1f).focusRestorer(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusProperties {
+                            enter = {
+                                val last = selectedGroup?.let { lastChannelInGroup[it] }
+                                val visible = last != null &&
+                                    channelList.layoutInfo.visibleItemsInfo.any { it.key == last }
+                                if (visible) requesterFor(last!!) else FocusRequester.Default
+                            }
+                        }
+                        .focusGroup(),
                     contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -243,7 +265,9 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                         ListItem(
                             onClick = { watching = index },
                             selected = false,
-                            modifier = Modifier.focusRequester(requesterFor(channel.id)),
+                            modifier = Modifier
+                                .focusRequester(requesterFor(channel.id))
+                                .onFocusChanged { if (it.isFocused) lastChannelInGroup[channel.groupId] = channel.id },
                         ) {
                             ChannelRow(channel)
                         }
