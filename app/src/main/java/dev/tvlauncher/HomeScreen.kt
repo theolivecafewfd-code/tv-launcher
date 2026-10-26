@@ -78,6 +78,15 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     var apps by remember { mutableStateOf<List<TvApp>>(emptyList()) }
     var now by remember { mutableStateOf(LocalTime.now()) }
     var backdrop by remember { mutableStateOf<String?>(null) }
+    var weather by remember { mutableStateOf<WeatherNow?>(null) }
+
+    // Weather for the header, refreshed every 30 minutes.
+    LaunchedEffect(Unit) {
+        while (true) {
+            Weather.fetch()?.let { weather = it }
+            delay(30 * 60_000L)
+        }
+    }
 
     // Which apps you've hidden and the order you've chosen, saved on the device.
     val dockPrefs = remember { DockPrefs(context) }
@@ -192,7 +201,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                     .fillMaxSize()
                     .padding(top = 24.dp, bottom = 16.dp),
             ) {
-                Header(now = now, update = update, onUpdateClick = onUpdateClick)
+                Header(now = now, weather = weather, update = update, onUpdateClick = onUpdateClick)
                 Spacer(Modifier.height(10.dp))
                 FilmCarousel(apps = apps, onLaunch = onLaunch, onBackdrop = { backdrop = it })
                 Spacer(Modifier.weight(1f))
@@ -287,7 +296,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
 private const val EDIT_TILE_KEY = "__edit_apps__"
 
 @Composable
-private fun Header(now: LocalTime, update: UpdateState, onUpdateClick: () -> Unit) {
+private fun Header(now: LocalTime, weather: WeatherNow?, update: UpdateState, onUpdateClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -299,15 +308,41 @@ private fun Header(now: LocalTime, update: UpdateState, onUpdateClick: () -> Uni
             text = "${greeting(now)}, $OWNER_NAME",
             style = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Palette.text),
         )
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            UpdateButton(update = update, onClick = onUpdateClick)
-            Text(
-                text = now.format(DateTimeFormatter.ofPattern("HH:mm")),
-                style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Palette.text),
-            )
+        Column(horizontalAlignment = Alignment.End) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                UpdateButton(update = update, onClick = onUpdateClick)
+                if (weather != null) {
+                    WeatherIcon(sky = weather.sky, color = Palette.text, size = 20.dp)
+                    Text(
+                        text = "${weather.temperature}°",
+                        style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
+                    )
+                    Text(
+                        text = weather.description,
+                        style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
+                    )
+                    Box(
+                        Modifier
+                            .width(1.dp)
+                            .height(16.dp)
+                            .background(Palette.quiet.copy(alpha = 0.4f)),
+                    )
+                }
+                Text(
+                    text = now.format(DateTimeFormatter.ofPattern("HH:mm")),
+                    style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Palette.text),
+                )
+            }
+            if (weather != null) {
+                Text(
+                    text = "${Weather.placeName} · ${weather.outlook}",
+                    modifier = Modifier.padding(top = 2.dp),
+                    style = TextStyle(fontSize = 11.sp, color = Palette.quiet),
+                )
+            }
         }
     }
 }
