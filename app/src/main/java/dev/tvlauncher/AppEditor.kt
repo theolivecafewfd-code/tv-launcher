@@ -19,12 +19,20 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -124,10 +132,25 @@ fun AppMenu(
         }
     }
 
+    // The menu opens while OK is still held down. Until that press is released, ignore OK,
+    // otherwise letting go would "press" the first option (Hide) straight away.
+    var armed by remember { mutableStateOf(false) }
+
     // A dialog is its own window, so the remote's focus stays inside it; Back closes it.
     Dialog(onDismissRequest = onClose) {
         Column(
             modifier = Modifier
+                .onPreviewKeyEvent { event ->
+                    if (armed) return@onPreviewKeyEvent false
+                    val isOk = event.key == Key.DirectionCenter || event.key == Key.Enter || event.key == Key.NumPadEnter
+                    if (isOk) {
+                        if (event.type == KeyEventType.KeyUp) armed = true
+                        true // swallow the held press and its release
+                    } else {
+                        armed = true // moving around means the original press is over
+                        false
+                    }
+                }
                 .width(300.dp)
                 .background(Palette.tile, RoundedCornerShape(18.dp))
                 .padding(20.dp),
