@@ -1,6 +1,9 @@
 package dev.wiptv.player
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
 import androidx.annotation.OptIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -54,8 +57,16 @@ class LivePlayer(context: Context) {
     var error by mutableStateOf<String?>(null)
         private set
 
+    /** True while a channel is actually playing (not loading, stopped or failed). */
+    var isPlaying by mutableStateOf(false)
+        private set
+
     init {
         exo.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+
             override fun onPlaybackStateChanged(state: Int) {
                 buffering = state == Player.STATE_BUFFERING
                 if (state == Player.STATE_READY) error = null
@@ -100,11 +111,22 @@ class LivePlayer(context: Context) {
     fun release() = exo.release()
 }
 
-/** One shared player for the screen, stopped when the app goes to the background. */
+/**
+ * One shared player for the screen, stopped when the app goes to the background. While it's
+ * playing, the TV is kept awake so the screen saver doesn't come on mid-programme.
+ */
 @Composable
 fun rememberLivePlayer(): LivePlayer {
     val context = LocalContext.current
     val live = remember { LivePlayer(context) }
+
+    // Asked of the app's main window, which stays on screen behind full screen too.
+    val window = remember(context) { context.findActivity()?.window }
+    DisposableEffect(window, live.isPlaying) {
+        if (live.isPlaying) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -136,7 +158,6 @@ fun PlayerSurface(live: LivePlayer, attached: Boolean, modifier: Modifier = Modi
                 useController = false
                 isFocusable = false
                 isFocusableInTouchMode = false
-                keepScreenOn = true
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 setShutterBackgroundColor(android.graphics.Color.BLACK)
                 setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
@@ -161,4 +182,13 @@ private fun describe(e: PlaybackException): String = when (e.errorCode) {
     PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ->
         "This TV can't play this channel's video format."
     else -> "This channel isn't playing (${e.errorCodeName}). Try another channel."
+}
+
+private fun Context.findActivity(): Activity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
 }
