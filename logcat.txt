@@ -1,0 +1,402 @@
+--------- beginning of system
+10-27 09:00:48.665  1933  1949 D AutofillManagerService: onBackKeyPressed()
+--------- beginning of main
+10-27 09:00:48.667  3631  3631 D AndroidRuntime: Shutting down VM
+10-27 09:00:48.696  3445  3464 D EGL_emulation: eglMakeCurrent: 0x7aec544251a0: ver 3 0 (tinfo 0x7aec5c2f3fa0)
+10-27 09:00:48.703  3445  3464 D EGL_emulation: eglMakeCurrent: 0x7aec544251a0: ver 3 0 (tinfo 0x7aec5c2f3fa0)
+10-27 09:00:48.712  1887  2303 W SurfaceFlinger: Attempting to set client state on removed layer: dev.wiptv.player/dev.wiptv.player.MainActivity#1
+10-27 09:00:48.712  1887  2303 W SurfaceFlinger: Attempting to destroy on removed layer: dev.wiptv.player/dev.wiptv.player.MainActivity#1
+10-27 09:00:48.727  1887  1897 W SurfaceFlinger: Attempting to set client state on removed layer: Dim Layer for - Task=7#0
+10-27 09:00:48.727  1887  1897 W SurfaceFlinger: Attempting to destroy on removed layer: Dim Layer for - Task=7#0
+10-27 09:00:49.024  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@d16b33c)
+10-27 09:00:49.025  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@d16b33c)
+10-27 09:00:50.025  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@9aec8c5)
+10-27 09:00:50.025  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@9aec8c5)
+10-27 09:00:51.024  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@df5b21a)
+10-27 09:00:51.025  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@df5b21a)
+10-27 09:00:51.409  1933  2563 I ActivityManager: Force stopping dev.wiptv.player appid=10067 user=0: clear data
+10-27 09:00:51.410  1933  2563 I ActivityManager: Killing 3445:dev.wiptv.player/u0a67 (adj 0): stop dev.wiptv.player
+10-27 09:00:51.410  1933  2563 W ActivityManager: Force removing ActivityRecord{e68418d u0 dev.wiptv.player/.MainActivity t7}: app died, no saved state
+10-27 09:00:51.410  1933  1951 W libprocessgroup: kill(-3445, 9) failed: No such process
+10-27 09:00:51.423  1779  1799 D hwcomposer: hw_composer sent 96 syncs in 61s
+10-27 09:00:51.425  1933  2563 I ActivityManager: Killing 3031:com.android.contacts/u0a10 (adj 906): empty #17
+10-27 09:00:51.429  1933  2563 D ZenLog  : config: removeAutomaticZenRules,ZenModeConfig[user=0,allowAlarms=true,allowMedia=true,allowSystem=false,allowReminders=false,allowEvents=false,allowCalls=true,allowRepeatCallers=true,allowMessages=false,allowCallsFrom=stars,allowMessagesFrom=contacts,suppressedVisualEffects=511,areChannelsBypassingDnd=false,automaticRules={EVENTS_DEFAULT_RULE=ZenRule[enabled=false,snoozing=false,name=Event,zenMode=ZEN_MODE_IMPORTANT_INTERRUPTIONS,conditionId=condition://android/event?userId=-10000&calendar=&reply=1,condition=Condition[id=condition://android/event?userId=-10000&calendar=&reply=1,summary=...,line1=...,line2=...,icon=0,state=STATE_FALSE,flags=2],component=ComponentInfo{android/com.android.server.notification.EventConditionProvider},id=EVENTS_DEFAULT_RULE,creationTime=1793091535751,enabler=null], EVERY_NIGHT_DEFAULT_RULE=ZenRule[enabled=false,snoozing=false,name=Sleeping,zenMode=ZEN_MODE_IMPORTANT_INTERRUPTIONS,conditionId=condition://android/schedule?days=1.2.3.4.5.6.7&start=22.0&end=7.0&exitAtAlarm=true,condition=Condition[id=condition://android/schedule?days=1.2.3.4.5.6.7&start=22.0&end=7.0&exitAtAlarm=true,summary=...,line1=...,line2=...,icon=0,state=STATE_FALSE,flags=2],component=ComponentInfo{android/com.android.server.notification.ScheduleConditionProvider},id=EVERY_NIGHT_DEFAULT_RULE,creationTime=1793091535750,enabler=null]},manualRule=null],Diff[]
+10-27 09:00:51.429  1933  2563 I ConditionProviders: Disallowing condition provider dev.wiptv.player
+10-27 09:00:51.429  1933  1933 D ZenLog  : set_zen_mode: off,removeAutomaticZenRules
+10-27 09:00:51.430  1933  1948 I ActivityManager: Force stopping dev.wiptv.player appid=10067 user=-1: clearApplicationUserData
+10-27 09:00:51.433  1933  2052 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+10-27 09:00:51.433  1714  1714 I keystore: clear_uid 10067
+10-27 09:00:51.437  1933  1947 E memtrack: Couldn't load memtrack module
+10-27 09:00:51.437  1933  1947 W android.os.Debug: failed to get memory consumption info: -1
+10-27 09:00:51.450  1933  1951 W libprocessgroup: kill(-3445, 9) failed: No such process
+10-27 09:00:51.451  1933  1947 E memtrack: Couldn't load memtrack module
+10-27 09:00:51.451  1933  1947 W android.os.Debug: failed to get memory consumption info: -1
+10-27 09:00:51.461  1933  3424 D ConnectivityService: ConnectivityService NetworkRequestInfo binderDied(NetworkRequest [ LISTEN id=12, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&FOREGROUND Unwanted:  Uid: 10067] ], android.os.BinderProxy@a9a4b7d)
+10-27 09:00:51.462  1888  1888 I Zygote  : Process 3031 exited due to signal (9)
+10-27 09:00:51.462  1888  1888 I Zygote  : Process 3445 exited due to signal (9)
+10-27 09:00:51.463  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:51.463  1933  1956 W ActivityManager: setHasOverlayUi called on unknown pid: 3445
+10-27 09:00:51.466  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:51.467  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:51.476  2500  2593 D EGL_emulation: eglMakeCurrent: 0x7aec470f3d60: ver 3 0 (tinfo 0x7aec4708fae0)
+10-27 09:00:51.485  2171  2171 D CarrierSvcBindHelper: No carrier app for: 0
+10-27 09:00:51.491  1933  1951 W libprocessgroup: kill(-3445, 9) failed: No such process
+10-27 09:00:51.492  1933  1951 I libprocessgroup: Successfully killed process cgroup uid 10067 pid 3445 in 81ms
+10-27 09:00:51.492  1933  1951 W libprocessgroup: kill(-3031, 9) failed: No such process
+10-27 09:00:51.492  1933  1951 I libprocessgroup: Successfully killed process cgroup uid 10010 pid 3031 in 0ms
+10-27 09:00:51.523  1933  2563 I ActivityManager: START u0 {flg=0x10000000 cmp=dev.wiptv.player/.DemoSetupActivity (has extras)} from uid 2000
+10-27 09:00:51.612  3654  3654 I ev.wiptv.playe: Late-enabling -Xcheck:jni
+10-27 09:00:51.619  1933  1950 I ActivityManager: Start proc 3654:dev.wiptv.player/u0a67 for activity dev.wiptv.player/.DemoSetupActivity
+10-27 09:00:51.627  3654  3654 W ev.wiptv.playe: Unexpected CPU variant for X86 using defaults: x86_64
+10-27 09:00:51.663  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:51.737  3654  3654 W ev.wiptv.playe: Accessing hidden field Landroid/os/Trace;->TRACE_TAG_APP:J (light greylist, reflection)
+10-27 09:00:51.737  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/os/Trace;->isTagEnabled(J)Z (light greylist, reflection)
+10-27 09:00:51.789  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:51.812  3654  3672 D NetworkSecurityConfig: Using Network Security Config from resource network_security_config debugBuild: true
+10-27 09:00:51.822  3654  3654 D OpenGLRenderer: Skia GL Pipeline
+10-27 09:00:51.825  1887  2423 E SurfaceFlinger: ro.sf.lcd_density must be defined as a build property
+10-27 09:00:51.843  1714  1714 I keystore: del USRPKEY_wiptv-player-login 10067
+10-27 09:00:51.843  1714  1714 I keystore: del USRCERT_wiptv-player-login 10067
+10-27 09:00:51.843  1714  1714 I keystore: del CACERT_wiptv-player-login 10067
+10-27 09:00:51.857  3654  3674 D         : HostConnection::get() New Host Connection established 0x7aec5445b920, tid 3674
+10-27 09:00:51.857  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:51.868  2500  2593 D EGL_emulation: eglMakeCurrent: 0x7aec470f3d60: ver 3 0 (tinfo 0x7aec4708fae0)
+10-27 09:00:51.868  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:51.870  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:51.874  1714  1714 I keystore: 1 0
+10-27 09:00:51.875  3654  3674 I ConfigStore: android::hardware::configstore::V1_0::ISurfaceFlingerConfigs::hasWideColorDisplay retrieved: 0
+10-27 09:00:51.875  3654  3674 I ConfigStore: android::hardware::configstore::V1_0::ISurfaceFlingerConfigs::hasHDRDisplay retrieved: 0
+10-27 09:00:51.876  3654  3674 I OpenGLRenderer: Initialized EGL, version 1.4
+10-27 09:00:51.876  3654  3674 D OpenGLRenderer: Swap behavior 1
+10-27 09:00:51.886  3654  3674 D EGL_emulation: eglCreateContext: 0x7aec54424ac0: maj 3 min 0 rcv 3
+10-27 09:00:51.887  3654  3674 D EGL_emulation: eglMakeCurrent: 0x7aec54424ac0: ver 3 0 (tinfo 0x7aec5444f560)
+10-27 09:00:51.907  1887  2002 E SurfaceFlinger: ro.sf.lcd_density must be defined as a build property
+10-27 09:00:51.931  3654  3674 D EGL_emulation: eglMakeCurrent: 0x7aec54424ac0: ver 3 0 (tinfo 0x7aec5444f560)
+10-27 09:00:51.991  1933  2458 I ActivityManager: START u0 {flg=0x10008000 cmp=dev.wiptv.player/.MainActivity (has extras)} from uid 10067
+10-27 09:00:51.998  1933  3424 W ActivityManager: Duplicate finish request for ActivityRecord{ac6d35 u0 dev.wiptv.player/.DemoSetupActivity t8 f}
+10-27 09:00:52.002  3654  3654 W ActivityThread: handleWindowVisibility: no activity for token android.os.BinderProxy@dfa6aa3
+10-27 09:00:52.002  1933  1956 I ActivityManager: Displayed dev.wiptv.player/.DemoSetupActivity: +396ms
+10-27 09:00:52.026  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@13d4285)
+10-27 09:00:52.034  1887  1887 D SurfaceFlinger: duplicate layer name: changing Splash Screen dev.wiptv.player to Splash Screen dev.wiptv.player#1
+10-27 09:00:52.037  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@13d4285)
+10-27 09:00:52.056  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:52.157  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:52.215  1714  1714 I keystore: 1 0
+10-27 09:00:52.237  3654  3654 W ev.wiptv.playe: Class androidx.compose.runtime.snapshots.SnapshotStateMap failed lock verification and will run slower.
+10-27 09:00:52.237  3654  3654 W ev.wiptv.playe: Common causes for lock verification issues are non-optimized dex code
+10-27 09:00:52.237  3654  3654 W ev.wiptv.playe: and incorrect proguard optimizations.
+10-27 09:00:52.258  3654  3654 W ev.wiptv.playe: Class androidx.compose.runtime.snapshots.SnapshotStateList failed lock verification and will run slower.
+10-27 09:00:52.440  3654  3680 W ev.wiptv.playe: Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->setUseSessionTickets(Z)V (light greylist, reflection)
+10-27 09:00:52.440  3654  3680 W ev.wiptv.playe: Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->setHostname(Ljava/lang/String;)V (light greylist, reflection)
+10-27 09:00:52.440  3654  3680 W ev.wiptv.playe: Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->getAlpnSelectedProtocol()[B (light greylist, reflection)
+10-27 09:00:52.440  3654  3680 W ev.wiptv.playe: Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->setAlpnProtocols([B)V (light greylist, reflection)
+10-27 09:00:52.443  3654  3680 W ev.wiptv.playe: Accessing hidden method Ldalvik/system/CloseGuard;->get()Ldalvik/system/CloseGuard; (light greylist, reflection)
+10-27 09:00:52.443  3654  3680 W ev.wiptv.playe: Accessing hidden method Ldalvik/system/CloseGuard;->open(Ljava/lang/String;)V (light greylist, reflection)
+10-27 09:00:52.443  3654  3680 W ev.wiptv.playe: Accessing hidden method Ldalvik/system/CloseGuard;->warnIfOpen()V (light greylist, reflection)
+10-27 09:00:52.483  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:52.484  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:52.485  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:00:52.488  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 385024
+10-27 09:00:52.490  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->create(Ljava/lang/String;Landroid/view/View;)Landroid/view/RenderNode; (light greylist, linking)
+10-27 09:00:52.490  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getScaleX()F (dark greylist, linking)
+10-27 09:00:52.491  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/DisplayListCanvas;->drawRenderNode(Landroid/view/RenderNode;)V (light greylist, linking)
+10-27 09:00:52.491  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getScaleX()F (dark greylist, linking)
+10-27 09:00:52.491  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getAlpha()F (dark greylist, linking)
+10-27 09:00:52.491  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getCameraDistance()F (dark greylist, linking)
+10-27 09:00:52.491  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getClipToOutline()Z (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getElevation()F (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->isValid()Z (light greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getInverseMatrix(Landroid/graphics/Matrix;)V (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getMatrix(Landroid/graphics/Matrix;)V (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getPivotX()F (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getPivotY()F (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getRotationX()F (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getRotationY()F (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getRotation()F (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getScaleX()F (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getScaleY()F (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getTranslationX()F (dark greylist, linking)
+10-27 09:00:52.492  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getTranslationY()F (dark greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->hasOverlappingRendering()Z (dark greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->offsetLeftAndRight(I)Z (light greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->offsetTopAndBottom(I)Z (dark greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->start(II)Landroid/view/DisplayListCanvas; (light greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->end(Landroid/view/DisplayListCanvas;)V (light greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setAlpha(F)Z (dark greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setCameraDistance(F)Z (dark greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setClipToBounds(Z)Z (light greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setClipToOutline(Z)Z (dark greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setLayerType(I)Z (dark greylist, linking)
+10-27 09:00:52.493  3654  3654 I chatty  : uid=10067(dev.wiptv.player) identical 1 line
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setLayerType(I)Z (dark greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setElevation(F)Z (dark greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setHasOverlappingRendering(Z)Z (light greylist, linking)
+10-27 09:00:52.493  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setOutline(Landroid/graphics/Outline;)Z (dark greylist, linking)
+10-27 09:00:52.494  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setPivotX(F)Z (dark greylist, linking)
+10-27 09:00:52.494  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setPivotY(F)Z (dark greylist, linking)
+10-27 09:00:52.494  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setLeftTopRightBottom(IIII)Z (light greylist, linking)
+10-27 09:00:52.494  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setRotationX(F)Z (dark greylist, linking)
+10-27 09:00:52.494  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setRotationY(F)Z (dark greylist, linking)
+10-27 09:00:52.494  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setRotation(F)Z (dark greylist, linking)
+10-27 09:00:52.494  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setScaleX(F)Z (dark greylist, linking)
+10-27 09:00:52.494  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setScaleY(F)Z (dark greylist, linking)
+10-27 09:00:52.497  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setTranslationX(F)Z (dark greylist, linking)
+10-27 09:00:52.497  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setTranslationY(F)Z (dark greylist, linking)
+10-27 09:00:52.497  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getScaleX()F (dark greylist, linking)
+10-27 09:00:52.507  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 651264
+10-27 09:00:52.537  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 385024
+10-27 09:00:52.616  3654  3674 D EGL_emulation: eglMakeCurrent: 0x7aec54424ac0: ver 3 0 (tinfo 0x7aec5444f560)
+10-27 09:00:53.026  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@a63b756)
+10-27 09:00:53.026  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@a63b756)
+10-27 09:00:53.179  3654  3674 I OpenGLRenderer: Davey! duration=1075ms; Flags=0, IntendedVsync=148033574772, Vsync=148500241420, OldestInputEvent=9223372036854775807, NewestInputEvent=0, HandleInputStart=148510242470, AnimationStart=148510306460, PerformTraversalsStart=148517782440, DrawStart=148518156730, SyncQueued=148546226080, SyncStart=148547251550, IssueDrawCommandsStart=148550370580, SwapBuffers=149057129610, FrameCompleted=149109603020, DequeueBufferDuration=52000, QueueBufferDuration=2065000, 
+10-27 09:00:53.181  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/os/Trace;->asyncTraceBegin(JLjava/lang/String;I)V (light greylist, reflection)
+10-27 09:00:53.181  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/os/Trace;->asyncTraceEnd(JLjava/lang/String;I)V (light greylist, reflection)
+10-27 09:00:53.181  3654  3654 W ev.wiptv.playe: Accessing hidden method Landroid/os/Trace;->traceCounter(JLjava/lang/String;I)V (light greylist, reflection)
+10-27 09:00:53.184  1933  1956 I ActivityManager: Displayed dev.wiptv.player/.MainActivity: +1s183ms
+10-27 09:00:53.220  1887  2002 W SurfaceFlinger: Attempting to set client state on removed layer: Splash Screen dev.wiptv.player#1
+10-27 09:00:53.220  1887  2002 W SurfaceFlinger: Attempting to destroy on removed layer: Splash Screen dev.wiptv.player#1
+10-27 09:00:53.569  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 3690496
+10-27 09:00:54.026  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@fea5b2e)
+10-27 09:00:54.027  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@fea5b2e)
+10-27 09:00:55.026  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@22506cf)
+10-27 09:00:55.027  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@22506cf)
+10-27 09:00:55.113  1933  2052 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+10-27 09:00:55.657  1721  1771 E storaged: getDiskStats failed with result NOT_SUPPORTED and size 0
+10-27 09:00:56.027  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@4f1285c)
+10-27 09:00:56.027  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@4f1285c)
+10-27 09:00:57.027  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@8226765)
+10-27 09:00:57.027  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@8226765)
+10-27 09:00:57.065  3654  3693 D ProfileInstaller: Installing profile for dev.wiptv.player
+10-27 09:00:58.027  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@f44fc3a)
+10-27 09:00:58.027  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@f44fc3a)
+10-27 09:00:58.399  1933  2563 E memtrack: Couldn't load memtrack module
+10-27 09:00:58.399  1933  2563 W android.os.Debug: failed to get memory consumption info: -1
+10-27 09:00:59.027  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@41540eb)
+10-27 09:00:59.028  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@41540eb)
+10-27 09:01:00.027  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@45714e1)
+10-27 09:01:00.027  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@45714e1)
+10-27 09:01:01.028  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@876a206)
+10-27 09:01:01.028  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@876a206)
+10-27 09:01:02.027  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@8ec3adb)
+10-27 09:01:02.028  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@8ec3adb)
+10-27 09:01:03.028  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@6e5f978)
+10-27 09:01:03.028  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@6e5f978)
+10-27 09:01:04.028  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@cbdf851)
+10-27 09:01:04.028  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@cbdf851)
+10-27 09:01:05.028  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@e3198b6)
+10-27 09:01:05.028  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@e3198b6)
+10-27 09:01:06.028  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@a69a9b7)
+10-27 09:01:06.028  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@a69a9b7)
+10-27 09:01:06.048  1887  2423 E SurfaceFlinger: ro.sf.lcd_density must be defined as a build property
+10-27 09:01:06.049  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:06.061  3696  3696 D         : HostConnection::get() New Host Connection established 0x7880f542ee40, tid 3696
+10-27 09:01:06.241  1933  2563 I ActivityManager: Force stopping dev.wiptv.player appid=10067 user=0: clear data
+10-27 09:01:06.242  1933  2563 I ActivityManager: Killing 3654:dev.wiptv.player/u0a67 (adj 0): stop dev.wiptv.player
+10-27 09:01:06.242  1933  1951 W libprocessgroup: kill(-3654, 9) failed: No such process
+10-27 09:01:06.242  1933  2563 W ActivityManager: Force removing ActivityRecord{b45012a u0 dev.wiptv.player/.MainActivity t8}: app died, no saved state
+10-27 09:01:06.251  1887  2303 W SurfaceFlinger: Attempting to destroy on removed layer: AppWindowToken{670d4b8 token=Token{3387b1b ActivityRecord{b45012a u0 dev.wiptv.player/.MainActivity t8}}}#0
+10-27 09:01:06.258  1933  2563 D ZenLog  : config: removeAutomaticZenRules,ZenModeConfig[user=0,allowAlarms=true,allowMedia=true,allowSystem=false,allowReminders=false,allowEvents=false,allowCalls=true,allowRepeatCallers=true,allowMessages=false,allowCallsFrom=stars,allowMessagesFrom=contacts,suppressedVisualEffects=511,areChannelsBypassingDnd=false,automaticRules={EVENTS_DEFAULT_RULE=ZenRule[enabled=false,snoozing=false,name=Event,zenMode=ZEN_MODE_IMPORTANT_INTERRUPTIONS,conditionId=condition://android/event?userId=-10000&calendar=&reply=1,condition=Condition[id=condition://android/event?userId=-10000&calendar=&reply=1,summary=...,line1=...,line2=...,icon=0,state=STATE_FALSE,flags=2],component=ComponentInfo{android/com.android.server.notification.EventConditionProvider},id=EVENTS_DEFAULT_RULE,creationTime=1793091535751,enabler=null], EVERY_NIGHT_DEFAULT_RULE=ZenRule[enabled=false,snoozing=false,name=Sleeping,zenMode=ZEN_MODE_IMPORTANT_INTERRUPTIONS,conditionId=condition://android/schedule?days=1.2.3.4.5.6.7&start=22.0&end=7.0&exitAtAlarm=true,condition=Condition[id=condition://android/schedule?days=1.2.3.4.5.6.7&start=22.0&end=7.0&exitAtAlarm=true,summary=...,line1=...,line2=...,icon=0,state=STATE_FALSE,flags=2],component=ComponentInfo{android/com.android.server.notification.ScheduleConditionProvider},id=EVERY_NIGHT_DEFAULT_RULE,creationTime=1793091535750,enabler=null]},manualRule=null],Diff[]
+10-27 09:01:06.258  1933  2563 I ConditionProviders: Disallowing condition provider dev.wiptv.player
+10-27 09:01:06.258  1933  1948 I ActivityManager: Force stopping dev.wiptv.player appid=10067 user=-1: clearApplicationUserData
+10-27 09:01:06.260  1933  1933 D ZenLog  : set_zen_mode: off,removeAutomaticZenRules
+10-27 09:01:06.265  1714  1714 I keystore: clear_uid 10067
+10-27 09:01:06.265  1933  2052 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+10-27 09:01:06.275  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:06.276  1567  1567 I chatty  : uid=1000(system) allocator@2.0-s identical 1 line
+10-27 09:01:06.278  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:06.279  2171  2171 D CarrierSvcBindHelper: No carrier app for: 0
+10-27 09:01:06.280  1933  1951 W libprocessgroup: kill(-3654, 9) failed: No such process
+10-27 09:01:06.283  1888  1888 I Zygote  : Process 3654 exited due to signal (9)
+10-27 09:01:06.284  1933  2463 D ConnectivityService: ConnectivityService NetworkRequestInfo binderDied(NetworkRequest [ LISTEN id=13, [ Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&NOT_VPN&FOREGROUND Unwanted:  Uid: 10067] ], android.os.BinderProxy@4a7088e)
+10-27 09:01:06.284  1933  1956 W ActivityManager: setHasOverlayUi called on unknown pid: 3654
+10-27 09:01:06.292  2500  2593 D EGL_emulation: eglMakeCurrent: 0x7aec470f3d60: ver 3 0 (tinfo 0x7aec4708fae0)
+10-27 09:01:06.315  1933  3703 I ActivityManager: START u0 {flg=0x10000000 cmp=dev.wiptv.player/.DemoSetupActivity (has extras)} from uid 2000
+10-27 09:01:06.323  1933  1951 W libprocessgroup: kill(-3654, 9) failed: No such process
+10-27 09:01:06.324  1933  1951 I libprocessgroup: Successfully killed process cgroup uid 10067 pid 3654 in 81ms
+10-27 09:01:06.425  3709  3709 I ev.wiptv.playe: Late-enabling -Xcheck:jni
+10-27 09:01:06.438  3709  3709 W ev.wiptv.playe: Unexpected CPU variant for X86 using defaults: x86_64
+10-27 09:01:06.464  1933  1950 W ActivityManager: Slow operation: 55ms so far, now at startProcess: done updating battery stats
+10-27 09:01:06.464  1933  1950 W ActivityManager: Slow operation: 55ms so far, now at startProcess: building log message
+10-27 09:01:06.464  1933  1950 I ActivityManager: Start proc 3709:dev.wiptv.player/u0a67 for activity dev.wiptv.player/.DemoSetupActivity
+10-27 09:01:06.464  1933  1950 W ActivityManager: Slow operation: 55ms so far, now at startProcess: starting to update pids map
+10-27 09:01:06.465  1933  1950 W ActivityManager: Slow operation: 55ms so far, now at startProcess: done updating pids map
+10-27 09:01:06.467  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:06.477  2500  2593 D EGL_emulation: eglMakeCurrent: 0x7aec470f3d60: ver 3 0 (tinfo 0x7aec4708fae0)
+10-27 09:01:06.508  3709  3709 W ev.wiptv.playe: Accessing hidden field Landroid/os/Trace;->TRACE_TAG_APP:J (light greylist, reflection)
+10-27 09:01:06.508  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/os/Trace;->isTagEnabled(J)Z (light greylist, reflection)
+10-27 09:01:06.529  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:06.541  3709  3727 D NetworkSecurityConfig: Using Network Security Config from resource network_security_config debugBuild: true
+10-27 09:01:06.560  1714  1714 I keystore: del USRPKEY_wiptv-player-login 10067
+10-27 09:01:06.560  1714  1714 I keystore: del USRCERT_wiptv-player-login 10067
+10-27 09:01:06.561  3709  3709 D OpenGLRenderer: Skia GL Pipeline
+10-27 09:01:06.561  1714  1714 I keystore: del CACERT_wiptv-player-login 10067
+10-27 09:01:06.567  1887  2423 E SurfaceFlinger: ro.sf.lcd_density must be defined as a build property
+10-27 09:01:06.586  1887  1891 W SurfaceFlinger: Attempting to set client state on removed layer: com.android.launcher3/com.android.launcher3.Launcher#0
+10-27 09:01:06.586  1887  1891 W SurfaceFlinger: Attempting to destroy on removed layer: com.android.launcher3/com.android.launcher3.Launcher#0
+10-27 09:01:06.602  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:06.607  3709  3729 D         : HostConnection::get() New Host Connection established 0x7aec56057300, tid 3729
+10-27 09:01:06.612  1567  1567 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:06.617  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:06.633  3709  3729 I ConfigStore: android::hardware::configstore::V1_0::ISurfaceFlingerConfigs::hasWideColorDisplay retrieved: 0
+10-27 09:01:06.633  3709  3729 I ConfigStore: android::hardware::configstore::V1_0::ISurfaceFlingerConfigs::hasHDRDisplay retrieved: 0
+10-27 09:01:06.633  3709  3729 I OpenGLRenderer: Initialized EGL, version 1.4
+10-27 09:01:06.633  3709  3729 D OpenGLRenderer: Swap behavior 1
+10-27 09:01:06.637  1714  1714 I keystore: 1 0
+10-27 09:01:06.647  3709  3729 D EGL_emulation: eglCreateContext: 0x7aec5603f8c0: maj 3 min 0 rcv 3
+10-27 09:01:06.659  3709  3729 D EGL_emulation: eglMakeCurrent: 0x7aec5603f8c0: ver 3 0 (tinfo 0x7aec5600d320)
+10-27 09:01:06.667  1887  2423 E SurfaceFlinger: ro.sf.lcd_density must be defined as a build property
+10-27 09:01:06.691  3709  3729 D EGL_emulation: eglMakeCurrent: 0x7aec5603f8c0: ver 3 0 (tinfo 0x7aec5600d320)
+10-27 09:01:06.761  1933  2458 I ActivityManager: START u0 {flg=0x10008000 cmp=dev.wiptv.player/.MainActivity (has extras)} from uid 10067
+10-27 09:01:06.768  1933  2458 W ActivityManager: Duplicate finish request for ActivityRecord{baf9b66 u0 dev.wiptv.player/.DemoSetupActivity t9 f}
+10-27 09:01:06.789  1933  1956 I ActivityManager: Displayed dev.wiptv.player/.DemoSetupActivity: +353ms
+10-27 09:01:06.789  3709  3709 W ActivityThread: handleWindowVisibility: no activity for token android.os.BinderProxy@dfa6aa3
+10-27 09:01:06.803  1887  1887 D SurfaceFlinger: duplicate layer name: changing Splash Screen dev.wiptv.player to Splash Screen dev.wiptv.player#1
+10-27 09:01:06.814  1887  2002 W SurfaceFlinger: Attempting to set client state on removed layer: Splash Screen dev.wiptv.player#0
+10-27 09:01:06.814  1887  2002 W SurfaceFlinger: Attempting to destroy on removed layer: Splash Screen dev.wiptv.player#0
+10-27 09:01:06.822  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:06.876  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:06.996  1714  1714 I keystore: 1 0
+10-27 09:01:07.008  3709  3709 W ev.wiptv.playe: Class androidx.compose.runtime.snapshots.SnapshotStateMap failed lock verification and will run slower.
+10-27 09:01:07.008  3709  3709 W ev.wiptv.playe: Common causes for lock verification issues are non-optimized dex code
+10-27 09:01:07.008  3709  3709 W ev.wiptv.playe: and incorrect proguard optimizations.
+10-27 09:01:07.025  3709  3709 I ExoPlayerImpl: Init 68b35ee [AndroidXMedia3/1.5.1] [generic_x86_64, Android SDK built for x86_64, unknown, 28]
+10-27 09:01:07.028  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@601f6b2)
+10-27 09:01:07.029  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@601f6b2)
+10-27 09:01:07.031  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/media/AudioTrack$Builder;->setOffloadedPlayback(Z)Landroid/media/AudioTrack$Builder; (dark greylist, linking)
+10-27 09:01:07.042  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/media/AudioTrack;->getLatency()I (light greylist, reflection)
+10-27 09:01:07.072  3709  3709 W ev.wiptv.playe: Class androidx.compose.runtime.snapshots.SnapshotStateList failed lock verification and will run slower.
+10-27 09:01:07.188  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/graphics/FontFamily;-><init>()V (light greylist, reflection)
+10-27 09:01:07.188  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/graphics/FontFamily;->addFontFromAssetManager(Landroid/content/res/AssetManager;Ljava/lang/String;IZIII[Landroid/graphics/fonts/FontVariationAxis;)Z (light greylist, reflection)
+10-27 09:01:07.188  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/graphics/FontFamily;->addFontFromBuffer(Ljava/nio/ByteBuffer;I[Landroid/graphics/fonts/FontVariationAxis;II)Z (light greylist, reflection)
+10-27 09:01:07.188  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/graphics/FontFamily;->freeze()Z (light greylist, reflection)
+10-27 09:01:07.188  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/graphics/FontFamily;->abortCreation()V (light greylist, reflection)
+10-27 09:01:07.188  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/graphics/Typeface;->createFromFamiliesWithDefault([Landroid/graphics/FontFamily;Ljava/lang/String;II)Landroid/graphics/Typeface; (light greylist, reflection)
+10-27 09:01:07.302  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/text/SpannableStringInternal;->length()I (light greylist, linking)
+10-27 09:01:07.322  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:07.326  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->create(Ljava/lang/String;Landroid/view/View;)Landroid/view/RenderNode; (light greylist, linking)
+10-27 09:01:07.326  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getScaleX()F (dark greylist, linking)
+10-27 09:01:07.326  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/DisplayListCanvas;->drawRenderNode(Landroid/view/RenderNode;)V (light greylist, linking)
+10-27 09:01:07.326  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getScaleX()F (dark greylist, linking)
+10-27 09:01:07.326  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getAlpha()F (dark greylist, linking)
+10-27 09:01:07.327  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getCameraDistance()F (dark greylist, linking)
+10-27 09:01:07.327  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getClipToOutline()Z (dark greylist, linking)
+10-27 09:01:07.327  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getElevation()F (dark greylist, linking)
+10-27 09:01:07.327  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->isValid()Z (light greylist, linking)
+10-27 09:01:07.327  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getInverseMatrix(Landroid/graphics/Matrix;)V (dark greylist, linking)
+10-27 09:01:07.327  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getMatrix(Landroid/graphics/Matrix;)V (dark greylist, linking)
+10-27 09:01:07.327  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getPivotX()F (dark greylist, linking)
+10-27 09:01:07.327  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getPivotY()F (dark greylist, linking)
+10-27 09:01:07.327  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getRotationX()F (dark greylist, linking)
+10-27 09:01:07.327  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getRotationY()F (dark greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getRotation()F (dark greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getScaleX()F (dark greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getScaleY()F (dark greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getTranslationX()F (dark greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getTranslationY()F (dark greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->hasOverlappingRendering()Z (dark greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->offsetLeftAndRight(I)Z (light greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->offsetTopAndBottom(I)Z (dark greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->start(II)Landroid/view/DisplayListCanvas; (light greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->end(Landroid/view/DisplayListCanvas;)V (light greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setAlpha(F)Z (dark greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setCameraDistance(F)Z (dark greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setClipToBounds(Z)Z (light greylist, linking)
+10-27 09:01:07.328  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setClipToOutline(Z)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setLayerType(I)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 I chatty  : uid=10067(dev.wiptv.player) identical 1 line
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setLayerType(I)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setElevation(F)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setHasOverlappingRendering(Z)Z (light greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setOutline(Landroid/graphics/Outline;)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setPivotX(F)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setPivotY(F)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setLeftTopRightBottom(IIII)Z (light greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setRotationX(F)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setRotationY(F)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setRotation(F)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setScaleX(F)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setScaleY(F)Z (dark greylist, linking)
+10-27 09:01:07.329  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setTranslationX(F)Z (dark greylist, linking)
+10-27 09:01:07.330  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->setTranslationY(F)Z (dark greylist, linking)
+10-27 09:01:07.330  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/view/RenderNode;->getScaleX()F (dark greylist, linking)
+10-27 09:01:07.384  1887  1891 W ServiceManager: Permission failure: android.permission.ACCESS_SURFACE_FLINGER from uid=10067 pid=3709
+10-27 09:01:07.384  1887  1891 D PermissionCache: checking android.permission.ACCESS_SURFACE_FLINGER for uid=10067 => denied (299 us)
+10-27 09:01:07.412  3709  3709 I Choreographer: Skipped 31 frames!  The application may be doing too much work on its main thread.
+10-27 09:01:07.450  3709  3729 D EGL_emulation: eglMakeCurrent: 0x7aec5603f8c0: ver 3 0 (tinfo 0x7aec5600d320)
+10-27 09:01:08.028  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@a14cbfe)
+10-27 09:01:08.029  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@a14cbfe)
+10-27 09:01:08.035  2725  2877 I Dialer  : OmtpVvmCarrierCfgHlpr - OmtpEvent:CONFIG_STATUS_SMS_TIME_OUT
+10-27 09:01:08.036  2725  2725 I Dialer  : RetryPolicy - discarding deferred status: configuration_state=4
+10-27 09:01:08.038  2725  2725 I Dialer  : VvmTaskExecutor - no more tasks, stopping service if no task are added in 5000 millis
+10-27 09:01:08.039  2725  2725 I Dialer  : VvmTaskReceiver - task received
+10-27 09:01:08.039  2725  2725 I Dialer  : VvmTaskReceiver - TaskExecutor already running
+10-27 09:01:08.039  2725  2725 I Dialer  : Task.createTask - create task:com.android.voicemail.impl.ActivationTask
+10-27 09:01:08.043  2725  2725 I Dialer  : RetryPolicy - retry #2 for com.android.voicemail.impl.ActivationTask@e99012b queued, executing in 5000
+10-27 09:01:08.043  2725  2725 I Dialer  : VvmTaskExecutor - com.android.voicemail.impl.ActivationTask@e99012b added
+10-27 09:01:08.043  2725  2725 I Dialer  : VvmTaskExecutor - minimal wait time:5000
+10-27 09:01:08.043  2725  2725 I Dialer  : VvmTaskExecutor - sleep for 5000 millis
+10-27 09:01:08.472  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:08.476  3709  3729 I OpenGLRenderer: Davey! duration=1586ms; Flags=1, IntendedVsync=162819246760, Vsync=163335913406, OldestInputEvent=9223372036854775807, NewestInputEvent=0, HandleInputStart=163342769910, AnimationStart=163342824540, PerformTraversalsStart=163350126040, DrawStart=163353720470, SyncQueued=163380561030, SyncStart=163381147630, IssueDrawCommandsStart=163382982100, SwapBuffers=164347301270, FrameCompleted=164406738890, DequeueBufferDuration=1388000, QueueBufferDuration=172000, 
+10-27 09:01:08.480  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/os/Trace;->asyncTraceBegin(JLjava/lang/String;I)V (light greylist, reflection)
+10-27 09:01:08.480  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/os/Trace;->asyncTraceEnd(JLjava/lang/String;I)V (light greylist, reflection)
+10-27 09:01:08.480  3709  3709 W ev.wiptv.playe: Accessing hidden method Landroid/os/Trace;->traceCounter(JLjava/lang/String;I)V (light greylist, reflection)
+10-27 09:01:08.497  1933  1956 I ActivityManager: Displayed dev.wiptv.player/.MainActivity: +1s710ms
+10-27 09:01:08.507  1887  2002 W SurfaceFlinger: Attempting to set client state on removed layer: Splash Screen dev.wiptv.player#1
+10-27 09:01:08.507  1887  2002 W SurfaceFlinger: Attempting to destroy on removed layer: Splash Screen dev.wiptv.player#1
+10-27 09:01:08.517  3709  3709 I Choreographer: Skipped 65 frames!  The application may be doing too much work on its main thread.
+10-27 09:01:08.628  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:08.629  3709  3729 I OpenGLRenderer: Davey! duration=1208ms; Flags=1, IntendedVsync=163350800343, Vsync=164434133633, OldestInputEvent=9223372036854775807, NewestInputEvent=0, HandleInputStart=164447914820, AnimationStart=164447984800, PerformTraversalsStart=164474849330, DrawStart=164480569090, SyncQueued=164532570360, SyncStart=164532665770, IssueDrawCommandsStart=164534798900, SwapBuffers=164535671070, FrameCompleted=164559845860, DequeueBufferDuration=1031000, QueueBufferDuration=347000, 
+10-27 09:01:08.630  3709  3714 I ev.wiptv.playe: JIT allocated 174KB for stack maps of void dev.wiptv.player.LiveScreenKt.LiveScreen(dev.wiptv.player.Login, dev.wiptv.player.UpdateHandle, kotlin.jvm.functions.Function0, kotlin.jvm.functions.Function2, androidx.compose.runtime.Composer, int, int)
+10-27 09:01:09.028  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@268eb57)
+10-27 09:01:09.029  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@268eb57)
+10-27 09:01:09.042  3709  3740 W ev.wiptv.playe: Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->setUseSessionTickets(Z)V (light greylist, reflection)
+10-27 09:01:09.042  3709  3740 W ev.wiptv.playe: Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->setHostname(Ljava/lang/String;)V (light greylist, reflection)
+10-27 09:01:09.042  3709  3740 W ev.wiptv.playe: Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->getAlpnSelectedProtocol()[B (light greylist, reflection)
+10-27 09:01:09.042  3709  3740 W ev.wiptv.playe: Accessing hidden method Lcom/android/org/conscrypt/OpenSSLSocketImpl;->setAlpnProtocols([B)V (light greylist, reflection)
+10-27 09:01:09.045  3709  3740 W ev.wiptv.playe: Accessing hidden method Ldalvik/system/CloseGuard;->get()Ldalvik/system/CloseGuard; (light greylist, reflection)
+10-27 09:01:09.045  3709  3740 W ev.wiptv.playe: Accessing hidden method Ldalvik/system/CloseGuard;->open(Ljava/lang/String;)V (light greylist, reflection)
+10-27 09:01:09.045  3709  3740 W ev.wiptv.playe: Accessing hidden method Ldalvik/system/CloseGuard;->warnIfOpen()V (light greylist, reflection)
+10-27 09:01:09.098  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 12288
+10-27 09:01:09.928  1933  2052 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+10-27 09:01:09.150  1567  1613 I chatty  : uid=1000(system) HwBinder:1567_2 identical 4 lines
+10-27 09:01:09.173  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 12288
+10-27 09:01:10.029  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@aaae644)
+10-27 09:01:10.029  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@aaae644)
+10-27 09:01:11.029  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@984f32d)
+10-27 09:01:11.029  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@984f32d)
+10-27 09:01:12.029  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@1817062)
+10-27 09:01:12.029  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@1817062)
+10-27 09:01:12.325  3709  3760 D ProfileInstaller: Installing profile for dev.wiptv.player
+10-27 09:01:13.029  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@226e5f3)
+10-27 09:01:13.029  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@226e5f3)
+10-27 09:01:13.084  2725  2877 I Dialer  : VvmTaskExecutor - executing task com.android.voicemail.impl.ActivationTask@e99012b
+10-27 09:01:13.084  2725  2877 I Dialer  : PreOMigrationHandler - ComponentInfo{com.android.phone/com.android.services.telephony.TelephonyConnectionService}, ***, UserHandle{0} already migrated
+10-27 09:01:13.101  1933  1947 E memtrack: Couldn't load memtrack module
+10-27 09:01:13.101  1933  1947 W android.os.Debug: failed to get memory consumption info: -1
+10-27 09:01:13.110  3486  3498 I VoicemailNotifier: receivers for android.intent.action.PROVIDER_CHANGED :[]
+10-27 09:01:13.111  2725  2877 I Dialer  : VvmActivationTask - VVM content provider configured - vvm_type_cvvm
+10-27 09:01:13.111  2725  2877 I Dialer  : OmtpVvmCarrierCfgHlpr - OmtpEvent:CONFIG_ACTIVATING
+10-27 09:01:13.116  3486  3500 I VoicemailNotifier: receivers for android.intent.action.PROVIDER_CHANGED :[]
+10-27 09:01:13.119  2725  2877 I Dialer  : TelephonyMangerCompat.setVisualVoicemailSmsFilterSettings - using TelephonyManager
+10-27 09:01:13.122  2725  2877 I Dialer  : TelephonyMangerCompat.sendVisualVoicemailSms - using TelephonyManager
+10-27 09:01:14.029  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@4bfee4f)
+10-27 09:01:14.030  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@4bfee4f)
+10-27 09:01:15.030  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@6eb9dc)
+10-27 09:01:15.030  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@6eb9dc)
+10-27 09:01:16.030  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@7ee5ae5)
+10-27 09:01:16.030  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@7ee5ae5)
+10-27 09:01:17.030  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@a3a215e)
+10-27 09:01:17.030  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@a3a215e)
+10-27 09:01:18.030  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@d9f093f)
+10-27 09:01:18.030  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@d9f093f)
+10-27 09:01:19.030  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@742520c)
+10-27 09:01:19.030  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@742520c)
+10-27 09:01:20.030  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@d84c755)
+10-27 09:01:20.031  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@d84c755)
+10-27 09:01:21.030  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@702f56a)
+10-27 09:01:21.031  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@702f56a)
+10-27 09:01:22.031  1933  2282 I GnssLocationProvider: WakeLock acquired by sendMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@d04fa5b)
+10-27 09:01:22.031  1933  1947 I GnssLocationProvider: WakeLock released by handleMessage(REPORT_SV_STATUS, 0, com.android.server.location.GnssLocationProvider$SvStatusInfo@d04fa5b)
+10-27 09:01:22.831  1887  2002 E SurfaceFlinger: ro.sf.lcd_density must be defined as a build property
+10-27 09:01:22.832  1567  1613 D gralloc_ranchu: gralloc_alloc: Creating ashmem region of size 8298496
+10-27 09:01:22.844  3763  3763 D         : HostConnection::get() New Host Connection established 0x7fcb3b22ee40, tid 3763
