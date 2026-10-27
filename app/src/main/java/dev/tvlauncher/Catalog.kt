@@ -115,8 +115,18 @@ object Catalog {
         return row
     }
 
+    /**
+     * New and popular: the most popular shows that started in the last 18 months, or films
+     * released in the last year, on your services. (Plain popularity filled the row with
+     * long-running shows from years ago.)
+     */
     private suspend fun topTen(type: MediaType): ContentRow {
-        val items = merged(type, "sort_by=popularity.desc&vote_count.gte=100", byRating = false)
+        val today = java.time.LocalDate.now()
+        val recent = when (type) {
+            MediaType.TV -> "first_air_date.gte=${today.minusMonths(18)}&first_air_date.lte=$today"
+            MediaType.MOVIE -> "primary_release_date.gte=${today.minusMonths(12)}&primary_release_date.lte=$today"
+        }
+        val items = merged(type, "sort_by=popularity.desc&vote_count.gte=20&$recent", byRating = false)
             .filter { it.backdropUrl != null }
             .take(10)
         return ContentRow("top", "Top 10 this week", "Most popular on your services in Ireland", ranked = true, items = items)

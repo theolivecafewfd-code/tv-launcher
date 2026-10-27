@@ -335,16 +335,9 @@ fun PosterRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
+            // Just the row's name: the notes beside it ("Most popular on…", "Because you watch…")
+            // were dropped at Wayne's request to keep the rows clean.
             Text(text = row.title, style = RowHeading)
-            if (row.note.isNotBlank()) {
-                Text(
-                    text = row.note,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(bottom = 2.dp),
-                    style = WiptvType.hint,
-                )
-            }
         }
         // A row still loading has no titles yet: it shows placeholders that can take focus. If
         // focus is on one when the titles arrive, it moves to the first title.
