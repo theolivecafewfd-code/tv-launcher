@@ -1,5 +1,6 @@
 package dev.tvlauncher
 
+import androidx.compose.ui.layout.layout
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -188,9 +189,16 @@ fun SearchScreen(
             }
 
             // Results as the player's posters, with their names underneath.
+            // The results clip at their edges, so they get room for a focused poster's outline and
+            // lift: 8 dp each side, pulled back out so the posters still line up with the box above.
             LazyVerticalGrid(
+                modifier = Modifier.layout { measurable, constraints ->
+                    val room = ResultRoom.roundToPx()
+                    val placeable = measurable.measure(constraints.copy(maxWidth = constraints.maxWidth + room * 2, minWidth = 0))
+                    layout(constraints.maxWidth, placeable.height) { placeable.place(-room, 0) }
+                },
                 columns = GridCells.Fixed(6),
-                contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(start = ResultRoom, end = ResultRoom, top = 12.dp, bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -199,9 +207,15 @@ fun SearchScreen(
                     item(key = "iptv", span = { GridItemSpan(maxLineSpan) }) {
                         Column {
                             Text(text = "On your IPTV", modifier = Modifier.padding(bottom = 2.dp), style = RowHeading)
-                            RowScrolling(start = 0.dp, end = 72.dp) {
+                            RowScrolling(start = ResultRoom, end = 72.dp) {
                                 LazyRow(
-                                    contentPadding = PaddingValues(top = 6.dp, bottom = 2.dp),
+                                    // The same room at the row's own edges, pulled back out the same way.
+                                    modifier = Modifier.layout { measurable, constraints ->
+                                        val room = ResultRoom.roundToPx()
+                                        val placeable = measurable.measure(constraints.copy(maxWidth = constraints.maxWidth + room * 2, minWidth = 0))
+                                        layout(constraints.maxWidth, placeable.height) { placeable.place(-room, 0) }
+                                    },
+                                    contentPadding = PaddingValues(start = ResultRoom, end = ResultRoom, top = 6.dp, bottom = 2.dp),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
                                     items(iptvResults, key = { "${it.type}:${it.id}" }) { found ->
@@ -234,3 +248,6 @@ fun SearchScreen(
         }
     }
 }
+
+/** Room around search results for a focused poster's outline and lift. */
+private val ResultRoom = 8.dp
