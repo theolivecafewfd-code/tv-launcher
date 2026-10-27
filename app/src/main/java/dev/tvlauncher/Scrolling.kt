@@ -43,10 +43,11 @@ private class PivotScroll(private val rowPivot: Float, private val tall: Float, 
 private val TallItem = 193.dp
 
 /**
- * A Continue watching card (156 dp, its outline drawn inside): settles like a row, heading at the
- * top, so the hero's description isn't left half on screen above it.
+ * A Continue watching card (216 dp, its outline drawn inside): settles like a row, heading at the
+ * top, so the hero's description isn't left half on screen above it. (Taller than [TallItem]
+ * now, so this is a backstop.)
  */
-private val ResumeCard = 156.dp
+private val ResumeCard = 216.dp
 
 /** Space above a focused poster: room for its row's heading. */
 private val RowPivot = 34.dp
