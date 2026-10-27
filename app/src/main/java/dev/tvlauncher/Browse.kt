@@ -552,3 +552,106 @@ internal fun IptvPosterCard(title: IptvTitle, onClick: () -> Unit, modifier: Mod
         )
     }
 }
+
+/** Continue watching cards: wide, like the player's. */
+private val ResumeWidth = 236.dp
+private val ResumeHeight = 133.dp
+
+/**
+ * Continue watching: films and episodes you've started in WIPTV Player, as wide cards with the
+ * episode still or backdrop (else the poster) and a progress bar. OK resumes in the player.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+fun ContinueRow(
+    items: List<IptvResume>,
+    onResume: (IptvResume) -> Unit,
+    requester: FocusRequester,
+    up: FocusRequester,
+    down: FocusRequester?,
+) {
+    TrackAttached(requester)
+    val upAndDown = Modifier.focusProperties {
+        up.ifAttached()?.let { this.up = it }
+        down.ifAttached()?.let { this.down = it }
+    }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(text = "Continue watching", modifier = Modifier.padding(start = Edge, end = Edge, bottom = 2.dp), style = RowHeading)
+        RowScrolling(start = Edge, end = 72.dp) {
+            LazyRow(
+                modifier = Modifier.focusRequester(requester).focusRestorer(),
+                contentPadding = PaddingValues(start = Edge - ArtFocusGap, end = Edge, top = 6.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp - ArtFocusGap * 2),
+            ) {
+                items(items, key = { it.key }) { item ->
+                    var focused by remember { mutableStateOf(false) }
+                    Column(modifier = Modifier.width(ResumeWidth + ArtFocusGap * 2)) {
+                        ArtFrame(
+                            width = ResumeWidth,
+                            height = ResumeHeight,
+                            onFocusChange = { focused = it },
+                            onClick = { onResume(item) },
+                            modifier = upAndDown,
+                        ) {
+                            val picture = item.imageUrl ?: item.posterUrl
+                            if (picture != null) {
+                                AsyncImage(
+                                    model = picture,
+                                    contentDescription = item.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            }
+                            Box(Modifier.align(Alignment.TopStart).padding(5.dp)) { IptvTag() }
+                            if (item.progress > 0f) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .height(36.dp)
+                                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))),
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 9.dp)
+                                        .height(4.dp)
+                                        .background(Color.White.copy(alpha = 0.24f), RoundedCornerShape(50)),
+                                ) {
+                                    Box(
+                                        Modifier
+                                            .fillMaxHeight()
+                                            .fillMaxWidth(item.progress.coerceIn(0f, 1f))
+                                            .background(WiptvColors.progress, RoundedCornerShape(50)),
+                                    )
+                                }
+                            }
+                        }
+                        // The title, then the episode and time left (or "OK to resume" when focused).
+                        Text(
+                            text = item.title,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp),
+                            style = TextStyle(
+                                fontSize = 14.sp,
+                                lineHeight = 18.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (focused) WiptvColors.text else WiptvColors.secondary,
+                            ),
+                        )
+                        Text(
+                            text = if (focused) listOfNotNull("OK to resume", item.left).joinToString(" · ")
+                            else listOfNotNull(item.subtitle?.substringBefore(" · ")?.takeIf { it.isNotBlank() }, item.left).joinToString(" · "),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap).height(18.dp),
+                            style = WiptvType.hint,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

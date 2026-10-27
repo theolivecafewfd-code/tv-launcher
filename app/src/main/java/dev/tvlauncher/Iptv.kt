@@ -13,6 +13,21 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
+/** Something you've started in WIPTV Player, for Continue watching. */
+data class IptvResume(
+    val key: String,
+    val type: MediaType,
+    val title: String,
+    /** For an episode, like "S2 E5 · The Long Night". */
+    val subtitle: String?,
+    val posterUrl: String?,
+    /** The episode still or the film's backdrop, when there is one. */
+    val imageUrl: String?,
+    val progress: Float,
+    /** "38 min left", when the length is known. */
+    val left: String?,
+)
+
 /** A film or series in the IPTV provider's catalogue, as WIPTV Player reports it. */
 data class IptvTitle(val type: MediaType, val id: Long, val name: String, val year: String?, val posterUrl: String?)
 
@@ -77,6 +92,45 @@ object Iptv {
         } catch (e: Exception) {
             "IPTV: couldn't ask WIPTV Player (${e.javaClass.simpleName})"
         }
+    }
+
+    /** Films and episodes you've started in the player, newest first. */
+    suspend fun continueWatching(context: Context): List<IptvResume> = withContext(Dispatchers.IO) {
+        try {
+            context.contentResolver.query(base.buildUpon().appendPath("continue").build(), null, null, null, null)?.use { c ->
+                val out = mutableListOf<IptvResume>()
+                while (c.moveToNext()) {
+                    out += IptvResume(
+                        key = c.getString(0),
+                        type = if (c.getString(1) == "MOVIE") MediaType.MOVIE else MediaType.TV,
+                        title = c.getString(2),
+                        subtitle = c.getString(3),
+                        posterUrl = c.getString(4),
+                        imageUrl = c.getString(5),
+                        progress = c.getDouble(6).toFloat(),
+                        left = c.getString(7),
+                    )
+                }
+                out
+            }.orEmpty()
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't ask the player for Continue watching", e)
+            emptyList()
+        }
+    }
+
+    /** Resumes it in WIPTV Player, from where you stopped. */
+    fun resume(context: Context, item: IptvResume): Boolean = try {
+        context.startActivity(
+            Intent(Intent.ACTION_MAIN)
+                .setClassName(PLAYER, "$PLAYER.MainActivity")
+                .putExtra("open_resume", item.key)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        )
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "Couldn't open the player", e)
+        false
     }
 
     /** Opens it in WIPTV Player: a film plays (or resumes), a series opens its page. */
