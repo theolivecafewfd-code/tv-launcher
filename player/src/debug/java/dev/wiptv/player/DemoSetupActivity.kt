@@ -38,6 +38,7 @@ class DemoSetupActivity : Activity() {
                         duration = o.getLong("duration"),
                         updated = o.getLong("updated"),
                         seriesId = o.optLong("seriesId", -1).takeIf { it >= 0 },
+                        image = o.optString("image").takeIf { it.isNotBlank() },
                     ),
                 )
             }

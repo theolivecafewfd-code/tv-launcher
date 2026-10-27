@@ -1,6 +1,5 @@
 package dev.wiptv.player
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,23 +43,56 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import dev.wiptv.design.PivotScrolling
+import dev.wiptv.design.RowScrolling
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.focusOutline
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /** What the big area at the top describes: the poster you're on. */
-private data class Hero(val title: String, val meta: String, val plot: String?, val backdrop: String?)
-
-private fun heroOf(item: VodItem) = Hero(
-    title = item.name,
-    meta = listOfNotNull(item.year, item.rating?.let { "★ %.1f".format(it) }).joinToString(" · "),
-    plot = item.plot,
-    backdrop = item.backdrop,
+private data class Hero(
+    val title: String,
+    val meta: String,
+    val plot: String?,
+    val backdrop: String?,
+    val poster: String?,
 )
+
+private fun heroOf(item: VodItem, details: MovieDetails? = null) = Hero(
+    title = item.name,
+    meta = listOfNotNull(
+        (details?.year?.ifBlank { null } ?: item.year),
+        details?.durationMinutes?.let(::runtimeOf),
+        details?.genre?.ifBlank { null }?.split(',', '/')?.take(2)?.joinToString(", ") { it.trim() },
+        scoreOf(details?.rating ?: item.rating),
+    ).joinToString(" · "),
+    plot = details?.plot?.ifBlank { null } ?: item.plot,
+    backdrop = item.backdrop ?: details?.backdrop,
+    poster = item.poster,
+)
+
+private fun heroOf(point: ResumePoint) = Hero(
+    title = point.title,
+    meta = point.subtitle ?: "",
+    plot = listOfNotNull("Resume from ${clockOf(point.position)}", timeLeft(point)).joinToString(" · "),
+    backdrop = point.image,
+    poster = point.poster,
+)
+
+/** Poster and row sizes: about six posters across, the seventh peeking in. */
+private val PosterWidth = 126.dp
+private val PosterHeight = 189.dp
+private val PosterGap = 16.dp
+private val ScreenEdge = 32.dp
+
+/** The 3 dp gap between artwork and the focus outline, so the outline never touches the picture. */
+private val FocusGap = 3.dp
 
 /**
  * Films or series, Netflix style: Continue watching and My List first, then a row per category
@@ -82,6 +114,10 @@ fun CatalogScreen(
     var attempt by remember { mutableIntStateOf(0) }
     val itemsByCategory = remember(kind) { mutableStateMapOf<String, List<VodItem>>() }
     var hero by remember(kind) { mutableStateOf<Hero?>(null) }
+    // Films' rows rarely carry a backdrop or synopsis, so once focus rests on one its details are
+    // fetched (once) to fill the top area. Never per key press: moving on cancels the wait.
+    var restingOn by remember(kind) { mutableStateOf<VodItem?>(null) }
+    val movieDetails = remember(kind) { mutableStateMapOf<Long, MovieDetails>() }
     var detail by remember { mutableStateOf<VodItem?>(null) }
     var playing by remember { mutableStateOf<ResumePoint?>(null) }
     var playingNext by remember { mutableStateOf<(() -> ResumePoint?)?>(null) }
@@ -101,6 +137,27 @@ fun CatalogScreen(
 
     val firstPoster = remember { FocusRequester() }
     val listState = rememberLazyListState()
+
+    LaunchedEffect(restingOn) {
+        val item = restingOn ?: return@LaunchedEffect
+        if (item.kind != VodKind.MOVIE || movieDetails.containsKey(item.id)) return@LaunchedEffect
+        if (item.backdrop != null && !item.plot.isNullOrBlank()) return@LaunchedEffect
+        delay(700)
+        val details = try {
+            Xtream.movieDetails(login, item)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return@LaunchedEffect
+        }
+        movieDetails[item.id] = details
+        hero = heroOf(item, details)
+    }
+
+    fun focusItem(item: VodItem) {
+        hero = heroOf(item, movieDetails[item.id])
+        restingOn = item
+    }
 
     LaunchedEffect(kind, attempt) {
         error = null
@@ -129,152 +186,129 @@ fun CatalogScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Palette.background)) {
-        // The highlighted title's backdrop, faded into the background, top right.
-        hero?.backdrop?.let { backdrop ->
-            Box(modifier = Modifier.align(Alignment.TopEnd).size(width = 560.dp, height = 315.dp)) {
-                AsyncImage(
-                    model = backdrop,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Brush.horizontalGradient(listOf(Palette.background, Color.Transparent))),
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Brush.verticalGradient(listOf(Color.Transparent, Palette.background))),
-                )
-            }
-        }
+    Box(modifier = Modifier.fillMaxSize().background(WiptvColors.background)) {
+        // The focused title's artwork, large, top right, fading into the dark behind the text.
+        CinematicBackdrop(
+            backdrop = hero?.backdrop,
+            poster = hero?.poster,
+            modifier = Modifier.align(Alignment.TopEnd).size(width = 780.dp, height = 439.dp),
+        )
 
-        Column(modifier = Modifier.fillMaxSize().padding(start = 32.dp, end = 32.dp, top = 20.dp)) {
-            tabs()
+        Column(modifier = Modifier.fillMaxSize().padding(top = 20.dp)) {
+            Box(modifier = Modifier.padding(horizontal = ScreenEdge)) { tabs() }
 
-            // What the highlighted poster is.
-            Column(modifier = Modifier.height(110.dp).width(520.dp).padding(top = 10.dp)) {
-                val h = hero
-                if (h != null) {
-                    Text(
-                        text = h.title,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Palette.text),
-                    )
-                    if (h.meta.isNotBlank()) {
-                        Text(text = h.meta, style = TextStyle(fontSize = 12.sp, color = Palette.quiet))
-                    }
-                    if (!h.plot.isNullOrBlank()) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = h.plot,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
-                        )
-                    }
-                } else {
-                    Text(
-                        text = when {
-                            error != null -> error!!
-                            categories == null -> "Loading $noun…"
-                            else -> ""
-                        },
-                        style = TextStyle(fontSize = 14.sp, color = if (error != null) Palette.warn else Palette.quiet),
-                    )
-                    if (error != null) {
-                        Spacer(Modifier.height(8.dp))
-                        PlayerButton(text = "Try again", onClick = { attempt++ })
-                    }
-                }
-            }
+            // What the focused poster is: title, year and score, a short synopsis.
+            HeroText(
+                hero = hero,
+                message = when {
+                    error != null -> error
+                    categories == null -> "Loading $noun…"
+                    else -> null
+                },
+                isError = error != null,
+                onRetry = { attempt++ },
+            )
 
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                var firstAssigned = false
-                fun firstModifier(): Modifier =
-                    if (!firstAssigned) Modifier.focusRequester(firstPoster).also { firstAssigned = true } else Modifier
+            PivotScrolling(pivot = 30.dp) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(bottom = 40.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    var firstAssigned = false
+                    fun firstModifier(): Modifier =
+                        if (!firstAssigned) Modifier.focusRequester(firstPoster).also { firstAssigned = true } else Modifier
 
-                if (resume.isNotEmpty()) {
-                    val first = firstModifier()
-                    item(key = "resume") {
-                        PosterRow(title = "Continue watching") {
-                            items(resume, key = { it.key }) { point ->
-                                PosterCard(
-                                    title = point.title,
-                                    caption = point.subtitle ?: point.title,
-                                    poster = point.poster,
-                                    progress = point.progress,
-                                    onFocus = { hero = Hero(point.title, point.subtitle ?: "Resume at ${clockOf(point.position)}", null, null) },
-                                    onClick = { playing = point; playingNext = null },
-                                    modifier = if (point == resume.first()) first else Modifier,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (myList.isNotEmpty()) {
-                    val first = firstModifier()
-                    item(key = "mylist") {
-                        PosterRow(title = "My List") {
-                            items(myList, key = { it.key }) { item ->
-                                PosterCard(
-                                    title = item.name,
-                                    caption = item.name,
-                                    poster = item.poster,
-                                    onFocus = { hero = heroOf(item) },
-                                    onClick = { detail = item },
-                                    modifier = if (item == myList.first()) first else Modifier,
-                                )
-                            }
-                        }
-                    }
-                }
-
-                val firstCategoryModifier = firstModifier()
-                shown.orEmpty().forEachIndexed { index, category ->
-                    item(key = "cat:" + category.id) {
-                        // Each row loads its own titles when it first comes on screen.
-                        LaunchedEffect(category.id) {
-                            if (itemsByCategory[category.id] == null) {
-                                itemsByCategory[category.id] = try {
-                                    Xtream.vodItems(login, kind, category.id)
-                                } catch (e: CancellationException) {
-                                    throw e
-                                } catch (e: Exception) {
-                                    emptyList()
+                    if (resume.isNotEmpty()) {
+                        val first = firstModifier()
+                        item(key = "resume") {
+                            if (resume.size == 1) {
+                                // One thing on the go: a wide card with its details beside it,
+                                // instead of a lone card in an empty row.
+                                val point = resume.first()
+                                Column {
+                                    RowTitle("Continue watching")
+                                    ResumeBanner(
+                                        point = point,
+                                        onFocus = { hero = heroOf(point); restingOn = null },
+                                        onClick = { playing = point; playingNext = null },
+                                        modifier = first,
+                                    )
+                                }
+                            } else {
+                                PosterRow(title = "Continue watching") {
+                                    items(resume, key = { it.key }) { point ->
+                                        ResumeCard(
+                                            point = point,
+                                            onFocus = { hero = heroOf(point); restingOn = null },
+                                            onClick = { playing = point; playingNext = null },
+                                            modifier = if (point == resume.first()) first else Modifier,
+                                        )
+                                    }
                                 }
                             }
                         }
-                        val rowItems = itemsByCategory[category.id]
-                        PosterRow(title = category.name, note = if (rowItems == null) "Loading…" else if (rowItems.isEmpty()) "Nothing here" else null) {
-                            items(rowItems.orEmpty(), key = { it.key }) { item ->
-                                PosterCard(
-                                    title = item.name,
-                                    caption = item.name,
-                                    poster = item.poster,
-                                    onFocus = { hero = heroOf(item) },
-                                    onClick = { detail = item },
-                                    modifier = if (index == 0 && item == rowItems?.firstOrNull()) firstCategoryModifier else Modifier,
-                                )
+                    }
+
+                    if (myList.isNotEmpty()) {
+                        val first = firstModifier()
+                        item(key = "mylist") {
+                            PosterRow(title = "My List") {
+                                items(myList, key = { it.key }) { item ->
+                                    PosterCard(
+                                        title = item.name,
+                                        poster = item.poster,
+                                        onFocus = { focusItem(item) },
+                                        onClick = { detail = item },
+                                        modifier = if (item == myList.first()) first else Modifier,
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                if (categories != null) {
-                    item(key = "edit") {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(top = 6.dp)) {
-                            PlayerButton(text = "Edit categories", onClick = { editing = true })
+                    val firstCategoryModifier = firstModifier()
+                    shown.orEmpty().forEachIndexed { index, category ->
+                        item(key = "cat:" + category.id) {
+                            // Each row loads its own titles when it first comes on screen.
+                            LaunchedEffect(category.id) {
+                                if (itemsByCategory[category.id] == null) {
+                                    itemsByCategory[category.id] = try {
+                                        Xtream.vodItems(login, kind, category.id)
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        emptyList()
+                                    }
+                                }
+                            }
+                            val rowItems = itemsByCategory[category.id]
+                            PosterRow(
+                                title = category.name,
+                                note = if (rowItems == null) "Loading…" else if (rowItems.isEmpty()) "Nothing here" else null,
+                            ) {
+                                items(rowItems.orEmpty(), key = { it.key }) { item ->
+                                    PosterCard(
+                                        title = item.name,
+                                        poster = item.poster,
+                                        onFocus = { focusItem(item) },
+                                        onClick = { detail = item },
+                                        modifier = if (index == 0 && item == rowItems?.firstOrNull()) firstCategoryModifier else Modifier,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (categories != null) {
+                        item(key = "edit") {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.padding(start = ScreenEdge, top = 4.dp),
+                            ) {
+                                PlayerButton(text = "Edit categories", onClick = { editing = true })
+                            }
                         }
                     }
                 }
@@ -351,7 +385,66 @@ fun CatalogScreen(
     }
 }
 
-/** A titled row of posters. */
+/** The title, details and synopsis of the focused poster, over the artwork. Fixed height, so the rows never move. */
+@Composable
+private fun HeroText(hero: Hero?, message: String?, isError: Boolean, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .padding(start = ScreenEdge, top = 14.dp)
+            .width(470.dp)
+            .height(150.dp),
+    ) {
+        if (hero != null) {
+            var titleLines by remember { mutableIntStateOf(1) }
+            Text(
+                text = hero.title,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                onTextLayout = { titleLines = it.lineCount },
+                style = WiptvType.hero,
+            )
+            if (hero.meta.isNotBlank()) {
+                Text(
+                    text = hero.meta,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 4.dp),
+                    style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium),
+                )
+            }
+            if (!hero.plot.isNullOrBlank()) {
+                Text(
+                    text = hero.plot,
+                    maxLines = if (titleLines > 1) 2 else 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp),
+                    style = WiptvType.metadata.copy(color = WiptvColors.text.copy(alpha = 0.86f)),
+                )
+            }
+        } else if (message != null) {
+            Text(text = message, style = WiptvType.metadata.copy(color = if (isError) WiptvColors.warning else WiptvColors.quiet))
+            if (isError) {
+                Spacer(Modifier.height(10.dp))
+                PlayerButton(text = "Try again", onClick = onRetry)
+            }
+        }
+    }
+}
+
+/** A row's heading, lined up with the posters below it. */
+@Composable
+private fun RowTitle(title: String, note: String? = null) {
+    Row(
+        modifier = Modifier.padding(start = ScreenEdge, bottom = 2.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(text = title, style = WiptvType.control.copy(fontSize = 17.sp, color = WiptvColors.text))
+        if (note != null) Text(text = note, modifier = Modifier.padding(bottom = 2.dp), style = WiptvType.hint)
+    }
+}
+
+/** A titled row of posters, running from edge to edge of the screen. */
 @Composable
 private fun PosterRow(
     title: String,
@@ -359,88 +452,222 @@ private fun PosterRow(
     content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit,
 ) {
     Column {
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(
-                text = title,
-                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
+        RowTitle(title, note)
+        RowScrolling(start = ScreenEdge, end = 72.dp) {
+            LazyRow(
+                contentPadding = PaddingValues(start = ScreenEdge - FocusGap, end = ScreenEdge, top = 6.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(PosterGap - FocusGap * 2),
+                content = content,
             )
-            if (note != null) Text(text = note, style = TextStyle(fontSize = 11.sp, color = Palette.quiet))
         }
-        LazyRow(
-            contentPadding = PaddingValues(vertical = 6.dp, horizontal = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            content = content,
+    }
+}
+
+/**
+ * The frame every card uses: artwork inset [FocusGap] inside a clear surface, so the focus
+ * outline sits just outside the picture. Focus: outline and a slight lift; no tint on the art.
+ */
+@Composable
+private fun ArtFrame(
+    width: androidx.compose.ui.unit.Dp,
+    height: androidx.compose.ui.unit.Dp,
+    onFocusChange: (Boolean) -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    art: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit,
+) {
+    val outer = RoundedCornerShape(14.dp)
+    val inner = RoundedCornerShape(11.dp)
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .size(width = width + FocusGap * 2, height = height + FocusGap * 2)
+            .onFocusChanged { onFocusChange(it.isFocused) },
+        shape = ClickableSurfaceDefaults.shape(shape = outer),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.Transparent,
+            pressedContainerColor = Color.Transparent,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
+        border = focusOutline(outer),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(FocusGap)
+                .clip(inner)
+                .background(Brush.verticalGradient(listOf(WiptvColors.elevated, WiptvColors.surface))),
+            content = art,
         )
     }
 }
 
-/** A poster with its title underneath, and a progress bar for things you've started. */
+/** A poster with its title underneath (up to two lines, brighter when focused). */
 @Composable
 private fun PosterCard(
     title: String,
-    caption: String,
     poster: String?,
     onFocus: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    progress: Float? = null,
 ) {
-    val shape = RoundedCornerShape(8.dp)
-    Column(modifier = Modifier.width(92.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Surface(
+    var focused by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.width(PosterWidth + FocusGap * 2)) {
+        ArtFrame(
+            width = PosterWidth,
+            height = PosterHeight,
+            onFocusChange = { focused = it; if (it) onFocus() },
             onClick = onClick,
-            modifier = modifier
-                .size(width = 92.dp, height = 138.dp)
-                .onFocusChanged { if (it.isFocused) onFocus() },
-            shape = ClickableSurfaceDefaults.shape(shape = shape),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Palette.tile,
-                focusedContainerColor = Palette.tileFocused,
-            ),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
-            border = ClickableSurfaceDefaults.border(
-                focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-            ),
+            modifier = modifier,
         ) {
-            Box(modifier = Modifier.fillMaxSize().clip(shape)) {
-                // Title as a fallback, under the picture, for posters that don't load.
-                Text(
-                    text = title,
-                    maxLines = 4,
-                    modifier = Modifier.align(Alignment.Center).padding(6.dp),
-                    style = TextStyle(fontSize = 10.sp, color = Palette.quiet),
+            // The title, for posters that are missing or still loading.
+            Text(
+                text = title,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center).padding(12.dp),
+                style = WiptvType.metadata.copy(color = WiptvColors.secondary),
+            )
+            if (poster != null) {
+                AsyncImage(
+                    model = poster,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
                 )
-                if (poster != null) {
-                    AsyncImage(
-                        model = poster,
-                        contentDescription = title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-                if (progress != null) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .fillMaxWidth()
-                            .height(4.dp)
-                            .background(Color.Black.copy(alpha = 0.6f)),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(progress)
-                                .background(Palette.glow),
-                        )
-                    }
-                }
             }
         }
         Text(
-            text = caption,
-            maxLines = 1,
+            text = title,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            style = TextStyle(fontSize = 10.sp, color = Palette.quiet),
+            modifier = Modifier.padding(start = FocusGap, end = FocusGap, top = 6.dp).height(36.dp),
+            style = TextStyle(
+                fontSize = 14.sp,
+                lineHeight = 18.sp,
+                fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
+                color = if (focused) WiptvColors.text else WiptvColors.secondary,
+            ),
         )
+    }
+}
+
+/** Wide picture for something you've started: the episode still or backdrop, else the poster. */
+@Composable
+private fun ResumeArt(point: ResumePoint, showProgress: Boolean = true) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        when {
+            point.image != null -> AsyncImage(
+                model = point.image,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            point.poster != null -> {
+                // A soft wash of the poster behind the poster itself.
+                AsyncImage(
+                    model = coil.request.ImageRequest.Builder(LocalContext.current).data(point.poster).size(12, 18).build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    alpha = 0.55f,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                AsyncImage(
+                    model = point.poster,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart).padding(start = 12.dp, top = 10.dp, bottom = 10.dp),
+                )
+            }
+        }
+        if (showProgress && point.progress > 0f) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(36.dp)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))),
+            )
+            ProgressLine(
+                progress = point.progress,
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
+            )
+        }
+    }
+}
+
+/** "S2 E5 · 38 min left", or just the time left for a film. */
+private fun resumeLine(point: ResumePoint): String =
+    listOfNotNull(point.subtitle?.substringBefore(" · ")?.takeIf { it.isNotBlank() }, timeLeft(point) ?: "Resume from ${clockOf(point.position)}")
+        .joinToString(" · ")
+
+/** A Continue watching card: wide artwork with its progress, the title and how much is left. */
+@Composable
+private fun ResumeCard(point: ResumePoint, onFocus: () -> Unit, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    var focused by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.width(ResumeWidth + FocusGap * 2)) {
+        ArtFrame(
+            width = ResumeWidth,
+            height = ResumeHeight,
+            onFocusChange = { focused = it; if (it) onFocus() },
+            onClick = onClick,
+            modifier = modifier,
+        ) { ResumeArt(point) }
+        Column(modifier = Modifier.padding(start = FocusGap, end = FocusGap, top = 6.dp)) {
+            Text(
+                text = point.title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = TextStyle(
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (focused) WiptvColors.text else WiptvColors.secondary,
+                ),
+            )
+            Text(text = resumeLine(point), maxLines = 1, overflow = TextOverflow.Ellipsis, style = WiptvType.hint)
+        }
+    }
+}
+
+private val ResumeWidth = 236.dp
+private val ResumeHeight = 133.dp
+
+/** Continue watching with a single item: a bigger card with its details alongside. */
+@Composable
+private fun ResumeBanner(point: ResumePoint, onFocus: () -> Unit, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = Modifier.padding(start = ScreenEdge - FocusGap, top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(22.dp),
+    ) {
+        ArtFrame(
+            width = 268.dp,
+            height = 151.dp,
+            onFocusChange = { if (it) onFocus() },
+            onClick = onClick,
+            modifier = modifier,
+        ) { ResumeArt(point, showProgress = false) }
+        Column(modifier = Modifier.width(380.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = point.title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = WiptvType.section,
+            )
+            point.subtitle?.let {
+                Text(text = it, maxLines = 1, overflow = TextOverflow.Ellipsis, style = WiptvType.metadata)
+            }
+            Row(
+                modifier = Modifier.padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (point.progress > 0f) ProgressLine(progress = point.progress, modifier = Modifier.width(180.dp))
+                Text(text = timeLeft(point) ?: "Resume from ${clockOf(point.position)}", style = WiptvType.metadata)
+            }
+            Text(text = "Press OK to resume", modifier = Modifier.padding(top = 6.dp), style = WiptvType.hint)
+        }
     }
 }
