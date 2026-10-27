@@ -160,6 +160,8 @@ fun GuideRow(
     playing: Boolean = false,
     favourite: Boolean = false,
     onMenu: (() -> Unit)? = null,
+    /** Right on the row: the channel's schedule (yesterday to tomorrow, with catch-up). */
+    onSchedule: (() -> Unit)? = null,
 ) {
     val shape = WiptvShapes.small
     val interaction = remember { MutableInteractionSource() }
@@ -177,10 +179,12 @@ fun GuideRow(
             // The remote's Menu (≡) button: adds the channel to Favourites, or takes it off.
             // (Holding OK didn't reach the app reliably on the Fire Stick.)
             .onPreviewKeyEvent { event ->
-                if (onMenu == null || event.nativeKeyEvent.keyCode != android.view.KeyEvent.KEYCODE_MENU) {
-                    return@onPreviewKeyEvent false
-                }
-                if (event.type == KeyEventType.KeyUp) onMenu()
+                val action = when (event.nativeKeyEvent.keyCode) {
+                    android.view.KeyEvent.KEYCODE_MENU -> onMenu
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> onSchedule
+                    else -> null
+                } ?: return@onPreviewKeyEvent false
+                if (event.type == KeyEventType.KeyUp) action()
                 true
             }
             // A hairline under each row instead of a filled box.
@@ -397,7 +401,7 @@ fun NowPanel(channel: Channel?, programmes: List<Programme>?, now: Long, modifie
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (channel == null) {
             Text(
-                text = "OK on a channel previews it here. OK again, or Play/Pause, watches it full screen. Menu (≡) adds a favourite.",
+                text = "OK on a channel previews it here. OK again, or Play/Pause, watches it full screen. Right shows its schedule and catch-up. Menu (≡) adds a favourite.",
                 style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
             )
             return@Column

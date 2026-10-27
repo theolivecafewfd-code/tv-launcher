@@ -63,7 +63,16 @@ data class Channel(
 )
 
 /** One programme in the TV guide. Times are in milliseconds since 1970. */
-data class Programme(val title: String, val description: String, val start: Long, val end: Long) {
+data class Programme(
+    val title: String,
+    val description: String,
+    val start: Long,
+    val end: Long,
+    /** The provider has a recording of it (catch-up). Only known from the full guide. */
+    val archived: Boolean = false,
+    /** Its start as the provider writes it ("2026-10-27 18:00:00", the server's own time). */
+    val serverStart: String? = null,
+) {
     fun isOn(now: Long) = now in start until end
 }
 
@@ -260,6 +269,33 @@ object Xtream {
         }.sortedBy { it.start }
     }
 
+    /**
+     * A channel's whole guide as the provider keeps it, usually a day or more back and a few days
+     * ahead, with which programmes can be replayed. Asked for one channel at a time, when you open
+     * its schedule.
+     */
+    suspend fun fullGuide(login: Login, channelId: Long): List<Programme> = withContext(Dispatchers.IO) {
+        val text = get("${api(login)}&action=get_simple_data_table&stream_id=$channelId")
+        val listings = runCatching { JSONObject(text).optJSONArray("epg_listings") }.getOrNull()
+            ?: return@withContext emptyList()
+        (0 until listings.length()).mapNotNull { i ->
+            val item = listings.optJSONObject(i) ?: return@mapNotNull null
+            val start = number(item, "start_timestamp") ?: return@mapNotNull null
+            val end = number(item, "stop_timestamp") ?: number(item, "end_timestamp") ?: return@mapNotNull null
+            if (end <= start) return@mapNotNull null
+            Programme(
+                title = decodeText(item.optString("title")).ifBlank { "No title" },
+                description = decodeText(item.optString("description")),
+                start = start * 1000,
+                end = end * 1000,
+                archived = number(item, "has_archive") == 1L,
+                serverStart = item.optString("start").trim().takeIf { SERVER_TIME.matches(it) },
+            )
+        }.sortedBy { it.start }
+    }
+
+    private val SERVER_TIME = Regex("""\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?""")
+
     /** Guide text usually arrives base64-encoded; some panels send it plain. */
     private fun decodeText(text: String): String {
         val trimmed = text.trim()
@@ -400,6 +436,19 @@ object Xtream {
     }
 
     private fun yearOf(date: String?): String? = date?.let { Regex("(19|20)\\d{2}").find(it)?.value }
+
+    /**
+     * Where a past programme replays from (the provider's catch-up). The start is in the server's
+     * own time, as the guide gives it, or worked out from [timezone] when the guide doesn't say.
+     */
+    fun catchUpUrl(login: Login, channel: Channel, programme: Programme, timezone: String?): String {
+        val start = programme.serverStart?.let { "${it.substring(0, 10)}:${it.substring(11, 13)}-${it.substring(14, 16)}" }
+            ?: java.text.SimpleDateFormat("yyyy-MM-dd:HH-mm", java.util.Locale.ROOT).apply {
+                timeZone = timezone?.let { java.util.TimeZone.getTimeZone(it) } ?: java.util.TimeZone.getDefault()
+            }.format(java.util.Date(programme.start))
+        val minutes = ((programme.end - programme.start + 59_999) / 60_000).coerceAtLeast(1)
+        return "${login.server}/timeshift/${pathPart(login.username)}/${pathPart(login.password)}/$minutes/$start/${channel.id}.ts"
+    }
 
     /** The address a live channel plays from. */
     fun liveUrl(login: Login, channel: Channel, format: String): String =

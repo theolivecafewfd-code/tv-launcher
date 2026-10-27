@@ -70,6 +70,8 @@ fun VodPlayerScreen(
     store: VodStore,
     onFinished: () -> Unit,
     onClose: () -> Unit,
+    /** False for catch-up: nothing goes into Continue watching. */
+    rememberPosition: Boolean = true,
 ) {
     val context = LocalContext.current
     val finished by rememberUpdatedState(onFinished)
@@ -84,6 +86,7 @@ fun VodPlayerScreen(
     val focus = remember { FocusRequester() }
 
     fun save() {
+        if (!rememberPosition) return
         val pos = player.currentPosition.takeIf { it > 0 } ?: return
         val length = player.duration.takeIf { it > 0 } ?: duration
         store.savePosition(start.copy(position = pos, duration = length, updated = System.currentTimeMillis()))
