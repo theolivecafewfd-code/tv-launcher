@@ -5,7 +5,15 @@ import dev.wiptv.update.Updater
 import dev.wiptv.update.label
 import dev.wiptv.update.loud
 import androidx.compose.foundation.BorderStroke
+import dev.wiptv.design.ArtFocusGap
+import dev.wiptv.design.ArtFrame
+import dev.wiptv.design.CinematicBackdrop
 import dev.wiptv.design.GlassPill
+import dev.wiptv.design.RowScrolling
+import dev.wiptv.design.WiptvShapes
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.graphicsLayer
 import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvType
 import dev.wiptv.design.focusOutline
@@ -80,6 +88,12 @@ private const val OWNER_NAME = "Wayne"
 // Sizes are in dp on the TV's 960 x 540 layout grid (a 1080p TV at the standard TV density),
 // which is three-quarters of the 1280 x 720 mockups.
 // Colours come from the shared WIPTV glass tokens (the design module), same as the player.
+/** The left and right margin, the same as the player's. */
+internal val Edge = 32.dp
+
+/** A row's heading: the player's row title. */
+internal val RowHeading = WiptvType.control.copy(fontSize = 17.sp, color = WiptvColors.text)
+
 internal object Palette {
     val background = WiptvColors.background
     val text = WiptvColors.text
@@ -94,7 +108,6 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     val context = LocalContext.current
     var apps by remember { mutableStateOf<List<TvApp>>(emptyList()) }
     var now by remember { mutableStateOf(LocalTime.now()) }
-    var backdrop by remember { mutableStateOf<String?>(null) }
     var weather by remember { mutableStateOf<WeatherNow?>(null) }
 
     // Weather for the header, refreshed every 30 minutes.
@@ -158,9 +171,6 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
             rows = loaded
         }
     }
-    LaunchedEffect(featured.getOrNull(featuredIndex)?.key) {
-        backdrop = featured.getOrNull(featuredIndex)?.backdropUrl
-    }
     val titleScope = rememberCoroutineScope()
     // OK on a title opens its details; holding OK plays it straight away.
     var detailFor by remember { mutableStateOf<Title?>(null) }
@@ -200,6 +210,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
 
     // Check GitHub for a newer build when the screen opens, then at most every 30 minutes.
     val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
     var update by remember { mutableStateOf<UpdateState>(UpdateState.Checking) }
     var lastUpdateCheck by remember { mutableLongStateOf(0L) }
     val checkNow: () -> Unit = {
@@ -255,55 +266,75 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                 .fillMaxSize()
                 .wiptvBackground(),
         ) {
-            // The featured title's backdrop now sits inside the featured area (glass design), so
-            // there's no second full-screen image to decode.
             // While choosing apps, the editor replaces the home screen so the remote can't
             // wander onto the tiles underneath. Everything scrolls as one list: header, the
             // featured title and your apps first, then the rows below.
+            // The featured title's artwork, large and 16:9 like the player's, top right. It scrolls
+            // up with the top of the list (the apps and rows pass over its faded lower edge).
+            if (!editing) {
+                val shownTitle = featured.getOrNull(featuredIndex.coerceIn(0, (featured.size - 1).coerceAtLeast(0)))
+                CinematicBackdrop(
+                    backdrop = shownTitle?.backdropUrl,
+                    poster = shownTitle?.posterUrl,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(width = 780.dp, height = 439.dp)
+                        .graphicsLayer {
+                            translationY = if (listState.firstVisibleItemIndex == 0) {
+                                -listState.firstVisibleItemScrollOffset.toFloat()
+                            } else {
+                                -2000f // scrolled away
+                            }
+                        },
+                )
+            }
             if (!editing) PivotScrolling { LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 24.dp, bottom = 32.dp),
+                contentPadding = PaddingValues(bottom = 32.dp),
             ) {
-                item(key = "header") {
-                    Header(now = now, weather = weather, update = update, onUpdateClick = onUpdateClick)
-                }
-                item(key = "switch") {
-                    Box(Modifier.padding(top = 10.dp, bottom = 12.dp)) {
-                        TypeSwitch(selected = mediaType, onSelect = { mediaType = it }, onSearch = { searchOpen = true }, onSurprise = { surprise() })
-                    }
-                }
-                item(key = "featured") {
-                    when {
-                        !Catalog.hasKey -> RowMessage("Add your TMDB key to GitHub secrets as TMDB_API_KEY to see shows and films here.")
-                        featured.isNotEmpty() -> Featured(
-                            titles = featured,
-                            index = featuredIndex.coerceIn(0, featured.size - 1),
-                            onIndexChange = { featuredIndex = it },
-                            onOpen = openTitle,
-                            onPlay = playTitle,
-                        )
-                        rowsFailed -> RowMessage("Couldn't reach TMDB. Check the internet connection.")
-                        else -> RowMessage("Loading ${mediaType.label.lowercase()}…")
+                // The top of the screen, like the player's Movies and Series: the featured title's
+                // artwork large on the right, fading into the dark behind the header and its text.
+                item(key = "top") {
+                    Box(Modifier.fillMaxWidth()) {
+                        // Anywhere up here (the switch, the featured title, the update pill)
+                        // brings the whole top back into view, header included.
+                        Column(
+                            Modifier
+                                .onFocusChanged { if (it.hasFocus) scope.launch { listState.animateScrollToItem(0) } }
+                                .padding(top = 20.dp),
+                        ) {
+                            Header(now = now, weather = weather, update = update, onUpdateClick = onUpdateClick)
+                            Box(Modifier.padding(top = 12.dp, bottom = 14.dp)) {
+                                TypeSwitch(selected = mediaType, onSelect = { mediaType = it }, onSearch = { searchOpen = true }, onSurprise = { surprise() })
+                            }
+                            when {
+                                !Catalog.hasKey -> RowMessage("Add your TMDB key to GitHub secrets as TMDB_API_KEY to see shows and films here.")
+                                featured.isNotEmpty() -> Featured(
+                                    titles = featured,
+                                    index = featuredIndex.coerceIn(0, featured.size - 1),
+                                    onIndexChange = { featuredIndex = it },
+                                    onOpen = openTitle,
+                                    onPlay = playTitle,
+                                )
+                                rowsFailed -> RowMessage("Couldn't reach TMDB. Check the internet connection.")
+                                else -> RowMessage("Loading ${mediaType.label.lowercase()}…")
+                            }
+                        }
                     }
                 }
                 item(key = "apps") {
-                    Column(Modifier.padding(top = 16.dp)) {
+                    Column(Modifier.padding(top = 10.dp)) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 40.dp, end = 40.dp),
+                                .padding(start = Edge, end = Edge, bottom = 2.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.Bottom,
                         ) {
-                            Text(
-                                text = "Your apps",
-                                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
-                            )
+                            Text(text = "Your apps", style = RowHeading)
                             // Which build is installed, so it's easy to tell whether an update landed.
-                            Text(
-                                text = "Build ${BuildConfig.VERSION_CODE}",
-                                style = TextStyle(fontSize = 11.sp, color = Palette.quiet.copy(alpha = 0.7f)),
-                            )
+                            Text(text = "Build ${BuildConfig.VERSION_CODE}", style = WiptvType.hint)
                         }
                         if (apps.isEmpty()) {
                             RowMessage("Loading apps…")
@@ -322,7 +353,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                     }
                 }
                 itemsIndexed(allRows, key = { _, row -> "row:${mediaType.path}:${row.key}" }) { i, row ->
-                    Box(Modifier.padding(top = 10.dp)) {
+                    Box(Modifier.padding(top = 14.dp)) {
                         PosterRow(
                             row = row,
                             onOpen = openTitle,
@@ -336,8 +367,8 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                 item(key = "credit") {
                     Text(
                         text = "Show and film data from TMDB. This app uses the TMDB API but is not endorsed or certified by TMDB.",
-                        modifier = Modifier.padding(horizontal = 40.dp, vertical = 16.dp),
-                        style = TextStyle(fontSize = 10.sp, color = Palette.quiet.copy(alpha = 0.6f)),
+                        modifier = Modifier.padding(horizontal = Edge, vertical = 16.dp),
+                        style = TextStyle(fontSize = 10.sp, color = WiptvColors.quiet.copy(alpha = 0.6f)),
                     )
                 }
             } }
@@ -433,60 +464,71 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
 /** Focus key for the "Edit apps" tile at the end of the dock. */
 private const val EDIT_TILE_KEY = "__edit_apps__"
 
+/**
+ * The top line: the W badge and greeting on the left; on the right the weather and clock in one
+ * quiet glass capsule, then the update pill. Waterford and the outlook sit underneath, smaller.
+ */
 @Composable
 private fun Header(now: LocalTime, weather: WeatherNow?, update: UpdateState, onUpdateClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 40.dp),
+            .padding(horizontal = Edge),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top,
     ) {
         // The W badge and the greeting.
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.height(40.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
             Box(
-                modifier = Modifier.size(28.dp).background(WiptvColors.focus, RoundedCornerShape(8.dp)),
+                modifier = Modifier.size(26.dp).background(WiptvColors.focus, RoundedCornerShape(7.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "W", style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WiptvColors.onLight))
+                Text(text = "W", style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = WiptvColors.onLight))
             }
-            Text(
-                text = "${greeting(now)}, $OWNER_NAME",
-                style = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
-            )
+            Text(text = "${greeting(now)}, $OWNER_NAME", style = WiptvType.screen)
         }
         Column(horizontalAlignment = Alignment.End) {
             Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (weather != null) {
-                    WeatherIcon(sky = weather.sky, color = WiptvColors.text, size = 18.dp)
+                Row(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .glass(WiptvShapes.pill)
+                        .padding(horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (weather != null) {
+                        WeatherIcon(sky = weather.sky, color = WiptvColors.text, size = 16.dp)
+                        Text(
+                            text = "${weather.temperature}°",
+                            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
+                        )
+                        Text(text = weather.description, maxLines = 1, style = TextStyle(fontSize = 13.sp, color = WiptvColors.secondary))
+                        Box(
+                            Modifier
+                                .width(1.dp)
+                                .height(14.dp)
+                                .background(Color.White.copy(alpha = 0.18f)),
+                        )
+                    }
                     Text(
-                        text = "${weather.temperature}°",
-                        style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
-                    )
-                    Text(
-                        text = weather.description,
-                        style = TextStyle(fontSize = 14.sp, color = WiptvColors.secondary),
-                    )
-                    Box(
-                        Modifier
-                            .width(1.dp)
-                            .height(16.dp)
-                            .background(Color.White.copy(alpha = 0.16f)),
+                        text = now.format(DateTimeFormatter.ofPattern("HH:mm")),
+                        style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
                     )
                 }
-                Text(
-                    text = now.format(DateTimeFormatter.ofPattern("HH:mm")),
-                    style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
-                )
                 UpdateButton(update = update, onClick = onUpdateClick)
             }
             if (weather != null) {
                 Text(
                     text = "${Weather.placeName} · ${weather.outlook}",
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 4.dp, end = 4.dp),
                     style = WiptvType.hint,
                 )
             }
@@ -543,13 +585,13 @@ private fun AppDock(
     }
 
     val toNextRow = Modifier.focusProperties { if (down != null) this.down = down }
-    NormalScrolling {
+    RowScrolling(start = Edge, end = 72.dp) {
     LazyRow(
         modifier = Modifier
             .focusRequester(rowRequester)
             .focusRestorer(),
-        contentPadding = PaddingValues(horizontal = 40.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(start = Edge - ArtFocusGap, end = Edge, top = 6.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp - ArtFocusGap * 2),
     ) {
         items(apps, key = { it.packageName }) { app ->
             AppTile(
@@ -578,37 +620,28 @@ private fun AppDock(
 /** The last tile in the dock: opens the screen for choosing which apps show. */
 @Composable
 private fun EditAppsTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(12.dp)
-    Surface(
-        onClick = onClick,
-        modifier = modifier
-            .width(144.dp)
-            .height(81.dp)
-            .glass(shape),
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = Palette.quiet,
-            focusedContainerColor = Palette.tileFocused,
-            focusedContentColor = Palette.text,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
-        border = focusOutline(shape),
-    ) {
+    var focused by remember { mutableStateOf(false) }
+    ArtFrame(width = TileWidth, height = TileHeight, onFocusChange = { focused = it }, onClick = onClick, modifier = modifier) {
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text(text = "+", style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Medium))
-            Text(text = "Edit apps", style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold))
+            val colour = if (focused) WiptvColors.text else WiptvColors.secondary
+            Text(text = "+", style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Medium, color = colour))
+            Text(text = "Edit apps", style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colour))
         }
     }
 }
 
+/** App tiles: the 16:9 size of an Android TV banner, so banners show whole. */
+internal val TileWidth = 144.dp
+internal val TileHeight = 81.dp
+
 /**
- * One app tile. [shown] is only set on the "Choose your apps" screen: a tick when the app shows
- * in the dock, dimmed when it's hidden.
+ * One app tile, in the same frame as the posters: its TV banner, or else its icon and name. Focus
+ * is the shared outline just outside the tile and a slight lift. [shown] is only set on the
+ * "Choose your apps" screen: a tick when the app shows in the dock, dimmed when it's hidden.
  */
 @Composable
 internal fun AppTile(
@@ -618,27 +651,14 @@ internal fun AppTile(
     onLongClick: (() -> Unit)? = null,
     shown: Boolean? = null,
 ) {
-    val shape = RoundedCornerShape(12.dp)
-    Surface(
+    ArtFrame(
+        width = TileWidth,
+        height = TileHeight,
+        onFocusChange = {},
         onClick = onClick,
         onLongClick = onLongClick,
-        modifier = modifier
-            .width(144.dp)
-            .height(81.dp)
-            .alpha(if (shown == false) 0.4f else 1f),
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Palette.tile,
-            contentColor = Palette.text,
-            focusedContainerColor = Palette.tileFocused,
-            focusedContentColor = Palette.text,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-        ),
+        modifier = modifier.alpha(if (shown == false) 0.4f else 1f),
     ) {
-      Box(Modifier.fillMaxSize()) {
         val image = app.image
         if (image != null && app.isBanner) {
             Image(
@@ -659,6 +679,7 @@ internal fun AppTile(
                     Image(
                         bitmap = image,
                         contentDescription = null,
+                        contentScale = ContentScale.Fit,
                         modifier = Modifier.size(32.dp),
                     )
                     Spacer(Modifier.height(6.dp))
@@ -667,7 +688,7 @@ internal fun AppTile(
                     text = app.label,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
+                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
                 )
             }
         }
@@ -677,15 +698,14 @@ internal fun AppTile(
                     .align(Alignment.TopEnd)
                     .padding(6.dp)
                     .size(20.dp)
-                    .background(if (shown) Palette.glow else Palette.background.copy(alpha = 0.8f), RoundedCornerShape(50)),
+                    .background(if (shown) WiptvColors.focus else WiptvColors.background.copy(alpha = 0.8f), RoundedCornerShape(50)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = if (shown) "✓" else "–",
-                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (shown) Palette.background else Palette.quiet),
+                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (shown) WiptvColors.onLight else WiptvColors.secondary),
                 )
             }
         }
-      }
     }
 }

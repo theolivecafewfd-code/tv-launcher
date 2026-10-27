@@ -50,6 +50,8 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import dev.wiptv.design.CinematicBackdrop
+import dev.wiptv.design.DisplayTitles
 import dev.wiptv.design.Glass
 import dev.wiptv.design.PivotScrolling
 import dev.wiptv.design.WiptvColors
@@ -188,7 +190,7 @@ fun VodDetailScreen(
         else -> listOfNotNull(item.year, scoreOf(item.rating))
     }
     // The year shows in the details line, so a matching "(1987)" comes off the name.
-    val title = VodTitles.withoutYear(item.name, m?.year?.ifBlank { null } ?: s?.year?.ifBlank { null } ?: item.year)
+    val title = DisplayTitles.withoutYear(item.name, m?.year?.ifBlank { null } ?: s?.year?.ifBlank { null } ?: item.year)
     val cast = (m?.cast ?: s?.cast)?.ifBlank { null }
     val director = m?.director?.ifBlank { null }
     var plotCut by remember { mutableStateOf(false) }

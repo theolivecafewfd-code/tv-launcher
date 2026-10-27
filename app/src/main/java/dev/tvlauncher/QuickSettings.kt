@@ -1,5 +1,11 @@
 package dev.tvlauncher
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import dev.wiptv.design.ArtFrame
+import dev.wiptv.design.WiptvColors
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
@@ -62,36 +68,26 @@ enum class QuickSetting(val label: String, val actions: List<String>) {
     }
 }
 
-/** A small square tile at the end of Your apps for one quick setting. */
+/** A small tile at the end of Your apps for one quick setting, in the same frame as the apps. */
 @Composable
 fun QuickSettingTile(setting: QuickSetting, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val shape = RoundedCornerShape(12.dp)
-    Surface(
+    var focused by remember { mutableStateOf(false) }
+    ArtFrame(
+        width = 92.dp,
+        height = TileHeight,
+        onFocusChange = { focused = it },
         onClick = { setting.open(context) },
-        modifier = modifier
-            .width(92.dp)
-            .height(81.dp)
-            .glass(shape),
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = Palette.quiet,
-            focusedContainerColor = Palette.tileFocused,
-            focusedContentColor = Palette.text,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-        ),
+        modifier = modifier,
     ) {
+        val colour = if (focused) WiptvColors.text else WiptvColors.secondary
         Column(
             modifier = Modifier.fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         ) {
-            SettingIcon(setting, color = Palette.text, size = 22.dp)
-            Text(text = setting.label, style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.SemiBold))
+            SettingIcon(setting, color = colour, size = 22.dp)
+            Text(text = setting.label, style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = colour))
         }
     }
 }

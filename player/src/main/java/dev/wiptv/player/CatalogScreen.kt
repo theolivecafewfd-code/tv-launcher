@@ -51,6 +51,10 @@ import dev.wiptv.design.PivotScrolling
 import dev.wiptv.design.RowScrolling
 import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvType
+import dev.wiptv.design.ArtFocusGap
+import dev.wiptv.design.ArtFrame
+import dev.wiptv.design.CinematicBackdrop
+import dev.wiptv.design.DisplayTitles
 import dev.wiptv.design.focusOutline
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -67,7 +71,7 @@ private data class Hero(
 private fun heroOf(item: VodItem, details: MovieDetails? = null): Hero {
     val year = details?.year?.ifBlank { null } ?: item.year
     return Hero(
-        title = VodTitles.withoutYear(item.name, year),
+        title = DisplayTitles.withoutYear(item.name, year),
         meta = listOfNotNull(
             year,
             details?.durationMinutes?.let(::runtimeOf),
@@ -103,8 +107,8 @@ private val PosterHeight = 189.dp
 private val PosterGap = 16.dp
 private val ScreenEdge = 32.dp
 
-/** The 3 dp gap between artwork and the focus outline, so the outline never touches the picture. */
-private val FocusGap = 3.dp
+/** The gap between artwork and the focus outline (the shared [ArtFrame]'s). */
+private val FocusGap = ArtFocusGap
 
 /**
  * Films or series, Netflix style: Continue watching and My List first, then a row per category
@@ -501,46 +505,6 @@ private fun PosterRow(
                 content = content,
             )
         }
-    }
-}
-
-/**
- * The frame every card uses: artwork inset [FocusGap] inside a clear surface, so the focus
- * outline sits just outside the picture. Focus: outline and a slight lift; no tint on the art.
- */
-@Composable
-private fun ArtFrame(
-    width: androidx.compose.ui.unit.Dp,
-    height: androidx.compose.ui.unit.Dp,
-    onFocusChange: (Boolean) -> Unit,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    art: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit,
-) {
-    val outer = RoundedCornerShape(14.dp)
-    val inner = RoundedCornerShape(11.dp)
-    Surface(
-        onClick = onClick,
-        modifier = modifier
-            .size(width = width + FocusGap * 2, height = height + FocusGap * 2)
-            .onFocusChanged { onFocusChange(it.isFocused) },
-        shape = ClickableSurfaceDefaults.shape(shape = outer),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            focusedContainerColor = Color.Transparent,
-            pressedContainerColor = Color.Transparent,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
-        border = focusOutline(outer),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(FocusGap)
-                .clip(inner)
-                .background(Brush.verticalGradient(listOf(WiptvColors.elevated, WiptvColors.surface))),
-            content = art,
-        )
     }
 }
 
