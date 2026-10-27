@@ -47,6 +47,9 @@ jobs:
           fi
           cp app/build/outputs/apk/release/app-release.apk tv-launcher.apk
           cp player/build/outputs/apk/release/player-release.apk wiptv-player.apk
+          # The update pill reads these instead of GitHub's API, which allows only 60 checks an hour.
+          echo "${{ github.run_number }}" > tv-launcher.build.txt
+          echo "${{ github.run_number }}" > wiptv-player.build.txt
 
       - name: Keep the app files with this run
         uses: actions/upload-artifact@v5
@@ -78,5 +81,27 @@ jobs:
           name: WIPTV Player build ${{ github.run_number }}
           body: The IPTV player. Install with Downloader, then it updates itself from the pill in the corner.
           files: wiptv-player.apk
+          overwrite_files: true
+          make_latest: "false"
+
+      # Each build number goes up only after its app is uploaded, so the pill never finds a
+      # number whose app isn't there yet.
+      - name: Publish build numbers
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: TV Launcher build ${{ github.run_number }}
+          files: tv-launcher.build.txt
+          make_latest: "true"
+
+      - name: Publish player build number
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: player
+          name: WIPTV Player build ${{ github.run_number }}
+          body: The IPTV player. Install with Downloader, then it updates itself from the pill in the corner.
+          files: wiptv-player.build.txt
           overwrite_files: true
           make_latest: "false"
