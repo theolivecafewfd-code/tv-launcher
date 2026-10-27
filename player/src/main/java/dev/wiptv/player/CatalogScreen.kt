@@ -209,7 +209,9 @@ fun CatalogScreen(
                 onRetry = { attempt++ },
             )
 
-            PivotScrolling(pivot = 30.dp) {
+            // The focused row always moves to the top of the list, one row per press, so the row
+            // above never shows its leftover captions.
+            PivotScrolling(pivot = 34.dp, alwaysAlign = true) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -269,7 +271,9 @@ fun CatalogScreen(
                     }
 
                     val firstCategoryModifier = firstModifier()
-                    shown.orEmpty().forEachIndexed { index, category ->
+                    // Rows that turned out empty are left out, so Down never lands on nothing.
+                    val visibleCategories = shown.orEmpty().filter { itemsByCategory[it.id]?.isEmpty() != true }
+                    visibleCategories.forEachIndexed { index, category ->
                         item(key = "cat:" + category.id) {
                             // Each row loads its own titles when it first comes on screen.
                             LaunchedEffect(category.id) {
@@ -284,18 +288,39 @@ fun CatalogScreen(
                                 }
                             }
                             val rowItems = itemsByCategory[category.id]
-                            PosterRow(
-                                title = category.name,
-                                note = if (rowItems == null) "Loading…" else if (rowItems.isEmpty()) "Nothing here" else null,
-                            ) {
-                                items(rowItems.orEmpty(), key = { it.key }) { item ->
-                                    PosterCard(
-                                        title = item.name,
-                                        poster = item.poster,
-                                        onFocus = { focusItem(item) },
-                                        onClick = { detail = item },
-                                        modifier = if (index == 0 && item == rowItems?.firstOrNull()) firstCategoryModifier else Modifier,
-                                    )
+                            // While a row loads it shows placeholder posters that can take focus, so
+                            // Down moves exactly one row instead of jumping to the next loaded one.
+                            // If focus is on a placeholder when the titles arrive, it moves to the first.
+                            val firstInRow = remember { FocusRequester() }
+                            var waiting by remember { mutableStateOf(false) }
+                            LaunchedEffect(rowItems) {
+                                if (rowItems.isNullOrEmpty() || !waiting) return@LaunchedEffect
+                                repeat(20) {
+                                    if (runCatching { firstInRow.requestFocus() }.isSuccess) return@LaunchedEffect
+                                    delay(25)
+                                }
+                            }
+                            PosterRow(title = category.name) {
+                                if (rowItems == null) {
+                                    items(6) { i ->
+                                        PosterPlaceholder(
+                                            onFocusChange = { focused -> if (focused) waiting = true },
+                                            modifier = if (index == 0 && i == 0) firstCategoryModifier else Modifier,
+                                        )
+                                    }
+                                } else {
+                                    items(rowItems, key = { it.key }) { item ->
+                                        val first = item == rowItems.firstOrNull()
+                                        PosterCard(
+                                            title = item.name,
+                                            poster = item.poster,
+                                            onFocus = { waiting = false; focusItem(item) },
+                                            onClick = { detail = item },
+                                            modifier = if (first) {
+                                                Modifier.focusRequester(firstInRow).then(if (index == 0) firstCategoryModifier else Modifier)
+                                            } else Modifier,
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -500,6 +525,21 @@ private fun ArtFrame(
                 .background(Brush.verticalGradient(listOf(WiptvColors.elevated, WiptvColors.surface))),
             content = art,
         )
+    }
+}
+
+/** A grey poster shown while a row loads. It can take focus, so the remote moves one row at a time. */
+@Composable
+private fun PosterPlaceholder(onFocusChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = Modifier.width(PosterWidth + FocusGap * 2)) {
+        ArtFrame(
+            width = PosterWidth,
+            height = PosterHeight,
+            onFocusChange = onFocusChange,
+            onClick = {},
+            modifier = modifier,
+        ) {}
+        Spacer(Modifier.padding(top = 6.dp).height(36.dp))
     }
 }
 

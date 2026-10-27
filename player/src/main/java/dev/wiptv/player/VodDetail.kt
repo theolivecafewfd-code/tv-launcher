@@ -527,7 +527,7 @@ private fun SeasonTab(text: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * One episode: a small still (or the series artwork with the episode number), the clean title,
+ * One episode: a small still (or the series artwork, softened), the clean title,
  * a quieter description, and on the right its length and how far you've got. No box at rest,
  * just a hairline underneath; focus is a light wash and outline across the row.
  */
@@ -584,7 +584,7 @@ private fun EpisodeRow(
                         modifier = Modifier.fillMaxSize(),
                     )
                 } else {
-                    // No still: the series artwork, softened, with the episode number on it.
+                    // No still: the series artwork, softened.
                     if (fallbackArt != null) {
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current).data(fallbackArt).size(48, 27).build(),
@@ -594,11 +594,6 @@ private fun EpisodeRow(
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
-                    Text(
-                        text = episode.number.toString(),
-                        modifier = Modifier.align(Alignment.Center),
-                        style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text.copy(alpha = 0.9f)),
-                    )
                 }
                 if (watched && progress == null) {
                     Text(
