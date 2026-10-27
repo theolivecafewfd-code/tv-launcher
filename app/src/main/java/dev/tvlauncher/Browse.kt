@@ -22,7 +22,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.items
 import dev.wiptv.design.RowScrolling
-import dev.wiptv.design.NavCapsule
+import dev.wiptv.design.DiceIcon
+import dev.wiptv.design.SearchIcon
 import dev.wiptv.design.NavItem
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
@@ -97,13 +98,12 @@ private fun Source.colours(): Pair<Color, Color> = when (this) {
 }
 
 /**
- * The top navigation under the greeting, in one glass capsule: TV Shows · Movies · Live TV · Apps,
- * then search and Surprise me as icons. TV Shows and Movies are the destinations (the current one
- * keeps its underline); Live TV opens the player's Live TV, Apps opens the Apps tray, and the
- * icons open search and a surprise pick. Focus alone never does anything; OK does.
+ * The launcher's items for the shared header's navigation capsule: TV Shows · Movies · Live TV ·
+ * Apps, then search and Surprise me as icons. TV Shows and Movies are the destinations (the
+ * current one keeps its underline); Live TV opens the player's Live TV, Apps opens the Apps tray,
+ * and the icons open search and a surprise pick. Focus alone never does anything; OK does.
  */
-@Composable
-fun TypeSwitch(
+fun launcherNav(
     selected: MediaType,
     onSelect: (MediaType) -> Unit,
     onLiveTv: () -> Unit,
@@ -112,46 +112,20 @@ fun TypeSwitch(
     onSurprise: () -> Unit,
     appsRequester: FocusRequester,
     searchRequester: FocusRequester,
-) {
-    NavCapsule(
-        modifier = Modifier.padding(start = Edge),
-        items = MediaType.entries.map { type ->
-            NavItem(label = type.label, selected = type == selected, onClick = { if (type != selected) onSelect(type) })
-        } + listOf(
-            NavItem(label = "Live TV", onClick = onLiveTv),
-            NavItem(label = "Apps", modifier = Modifier.focusRequester(appsRequester), onClick = onApps),
-            NavItem(
-                icon = { colour -> SearchIcon(color = colour, size = 20.dp) },
-                description = "Search",
-                modifier = Modifier.focusRequester(searchRequester),
-                onClick = onSearch,
-            ),
-            NavItem(icon = { colour -> DiceIcon(color = colour, size = 20.dp) }, description = "Surprise me", onClick = onSurprise),
-        ),
-    )
-}
+): List<NavItem> = MediaType.entries.map { type ->
+    NavItem(label = type.label, selected = type == selected, onClick = { if (type != selected) onSelect(type) })
+} + listOf(
+    NavItem(label = "Live TV", onClick = onLiveTv),
+    NavItem(label = "Apps", modifier = Modifier.focusRequester(appsRequester), onClick = onApps),
+    NavItem(
+        icon = { colour -> SearchIcon(color = colour, size = 20.dp) },
+        description = "Search",
+        modifier = Modifier.focusRequester(searchRequester),
+        onClick = onSearch,
+    ),
+    NavItem(icon = { colour -> DiceIcon(color = colour, size = 20.dp) }, description = "Surprise me", onClick = onSurprise),
+)
 
-/** A line-drawn magnifying glass. */
-@Composable
-fun SearchIcon(color: Color, size: androidx.compose.ui.unit.Dp) {
-    androidx.compose.foundation.Canvas(Modifier.size(size)) {
-        val w = this.size.width
-        val stroke = w * 0.13f
-        drawCircle(
-            color = color,
-            radius = w * 0.3f,
-            center = androidx.compose.ui.geometry.Offset(w * 0.42f, w * 0.42f),
-            style = Stroke(width = stroke),
-        )
-        drawLine(
-            color = color,
-            start = androidx.compose.ui.geometry.Offset(w * 0.65f, w * 0.65f),
-            end = androidx.compose.ui.geometry.Offset(w * 0.92f, w * 0.92f),
-            strokeWidth = stroke,
-            cap = androidx.compose.ui.graphics.StrokeCap.Round,
-        )
-    }
-}
 
 /**
  * The featured title, over the big artwork behind the top of the screen (drawn by the home

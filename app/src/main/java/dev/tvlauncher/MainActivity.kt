@@ -16,11 +16,16 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 
 class MainActivity : ComponentActivity() {
 
     /** Bumped every time the home screen comes back into view, so newly installed apps show up. */
     private val refreshKey = mutableIntStateOf(0)
+
+    /** WIPTV Player's header asking for the Apps tray or search ("apps", "search"); see [take]. */
+    private val request = mutableStateOf<String?>(null)
+    private val requestTick = mutableIntStateOf(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,12 +39,33 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        take(intent)
         setContent {
             HomeScreen(
                 refreshKey = refreshKey.intValue,
                 onLaunch = ::launch,
+                request = request.value,
+                requestTick = requestTick.intValue,
             )
         }
+    }
+
+    // singleTask: the player's Apps and Search come back here as a new intent.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        take(intent)
+    }
+
+    private fun take(intent: Intent?) {
+        val wanted = intent?.getStringExtra(EXTRA_OPEN) ?: return
+        intent.removeExtra(EXTRA_OPEN)
+        request.value = wanted
+        requestTick.intValue++
+    }
+
+    companion object {
+        /** "apps" or "search": what WIPTV Player's header asked to open. */
+        const val EXTRA_OPEN = "wiptv_open"
     }
 
     override fun onResume() {

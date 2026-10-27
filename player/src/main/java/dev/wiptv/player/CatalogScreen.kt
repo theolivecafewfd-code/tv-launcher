@@ -135,6 +135,9 @@ fun CatalogScreen(
     openResume: String? = null,
     /** Called when that title is closed, so the player can hand back to the launcher. */
     onOpenFinished: () -> Unit = {},
+    /** A surprise pick (the header's dice): its details page opens, and [onSurpriseShown] clears it. */
+    surpriseId: Long? = null,
+    onSurpriseShown: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val noun = if (kind == VodKind.MOVIE) "films" else "series"
@@ -263,6 +266,22 @@ fun CatalogScreen(
             duration = saved?.duration ?: 0,
             updated = System.currentTimeMillis(),
             image = details.backdrop,
+        )
+    }
+
+    LaunchedEffect(surpriseId) {
+        val id = surpriseId ?: return@LaunchedEffect
+        val entry = withContext(Dispatchers.IO) { CatalogIndex.find(context, kind, id) }
+        onSurpriseShown()
+        detail = VodItem(
+            kind = kind,
+            id = id,
+            name = entry?.name.orEmpty(),
+            poster = entry?.poster,
+            categoryId = entry?.categoryId.orEmpty(),
+            rating = null,
+            extension = entry?.extension,
+            year = entry?.year,
         )
     }
 
