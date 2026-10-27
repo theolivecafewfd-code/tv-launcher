@@ -36,7 +36,33 @@ import androidx.tv.material3.Surface
 import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.tv.material3.Text
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // The cinematic pieces shared by the player's Movies and Series and the launcher's home screen.
 
@@ -182,5 +208,115 @@ object DisplayTitles {
         val rest = match.groupValues[1].trimEnd(' ', '-', '–', '|', ':')
         if (found != year || rest.none { it.isLetterOrDigit() }) return name
         return rest
+    }
+}
+
+/**
+ * A details-page action. Only the focused button is light (with the outline 3 dp outside it), so
+ * focus is never confused with emphasis. At rest the primary one (Play, Resume) has a brighter
+ * wash and bolder label; the rest are quiet glass.
+ */
+@Composable
+fun ActionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = false) {
+    var focused by remember { mutableStateOf(false) }
+    val outer = RoundedCornerShape(15.dp)
+    val inner = RoundedCornerShape(12.dp)
+    Surface(
+        onClick = onClick,
+        modifier = modifier.onFocusChanged { focused = it.isFocused },
+        shape = ClickableSurfaceDefaults.shape(shape = outer),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.Transparent,
+            pressedContainerColor = Color.Transparent,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
+        border = focusOutline(outer),
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(3.dp)
+                .height(42.dp)
+                .background(
+                    when {
+                        focused -> WiptvColors.focus
+                        primary -> WiptvColors.focus.copy(alpha = 0.30f)
+                        else -> Color.White.copy(alpha = 0.07f)
+                    },
+                    inner,
+                )
+                .border(1.dp, if (focused) Color.Transparent else Color.White.copy(alpha = if (primary) 0.5f else 0.14f), inner)
+                .padding(horizontal = 20.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = text,
+                maxLines = 1,
+                style = TextStyle(
+                    fontSize = 15.sp,
+                    fontWeight = if (primary) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (focused) WiptvColors.onLight else WiptvColors.text,
+                ),
+            )
+        }
+    }
+}
+
+/**
+ * More info: the whole synopsis and credits in a dark panel on the right, about 42% of the screen
+ * wide and only as tall as its text (long text scrolls within the screen). Up and Down scroll
+ * it; Back closes it, and the caller puts focus back on its More info button. [sections] are
+ * label and text pairs, such as "Starring" and the cast.
+ */
+@Composable
+fun InfoSheet(title: String, meta: String, body: String?, sections: List<Pair<String, String>>, onClose: () -> Unit) {
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val focus = remember { FocusRequester() }
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)).padding(24.dp)) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .width(400.dp)
+                    .glass(WiptvShapes.panel, Glass.Sheet)
+                    .focusRequester(focus)
+                    .focusable()
+                    .onKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                        val step = when (event.key) {
+                            Key.DirectionDown -> 160f
+                            Key.DirectionUp -> -160f
+                            else -> return@onKeyEvent false
+                        }
+                        scope.launch { scroll.animateScrollBy(step) }
+                        true
+                    }
+                    .verticalScroll(scroll)
+                    .padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(text = title, style = WiptvType.screen)
+                if (meta.isNotBlank()) Text(text = meta, style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium))
+                if (!body.isNullOrBlank()) {
+                    Text(
+                        text = body,
+                        modifier = Modifier.padding(top = 6.dp),
+                        style = WiptvType.body.copy(lineHeight = 25.sp),
+                    )
+                }
+                sections.forEachIndexed { i, (label, text) ->
+                    Text(text = label, modifier = Modifier.padding(top = if (i == 0) 10.dp else 6.dp), style = WiptvType.hint)
+                    Text(text = text, style = WiptvType.metadata.copy(color = WiptvColors.text))
+                }
+                Text(text = "Back to close", modifier = Modifier.padding(top = 14.dp), style = WiptvType.hint)
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        repeat(20) {
+            if (runCatching { focus.requestFocus() }.isSuccess) return@LaunchedEffect
+            delay(50)
+        }
     }
 }

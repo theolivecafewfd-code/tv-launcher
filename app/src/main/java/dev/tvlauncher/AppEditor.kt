@@ -1,5 +1,23 @@
 package dev.tvlauncher
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.tv.material3.Border
+import androidx.tv.material3.Glow
+import dev.wiptv.design.Glass
+import dev.wiptv.design.WiptvButton
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.glass
+import dev.wiptv.design.wiptvBackground
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -70,25 +88,23 @@ fun AppEditor(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.background),
+            .wiptvBackground(),
     ) {
-        Column(modifier = Modifier.padding(top = 28.dp, start = 40.dp, end = 40.dp)) {
+        Column(modifier = Modifier.padding(top = 28.dp, start = Edge, end = Edge)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column {
-                    Text(
-                        text = "Choose your apps",
-                        style = TextStyle(fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Palette.text),
-                    )
+                    Text(text = "Choose your apps", style = WiptvType.screen)
                     Text(
                         text = "Press OK to show or hide an app. $shownCount of ${apps.size} showing. Back when you're done.",
-                        style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
+                        modifier = Modifier.padding(top = 2.dp),
+                        style = WiptvType.metadata,
                     )
                 }
-                PillButton(text = "Done", onClick = onDone)
+                WiptvButton(text = "Done", onClick = onDone, primary = true, compact = true)
             }
             Spacer(Modifier.height(14.dp))
             LazyVerticalGrid(
@@ -152,15 +168,15 @@ fun AppMenu(
                     }
                 }
                 .width(300.dp)
-                .background(Palette.tile, RoundedCornerShape(18.dp))
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .glass(WiptvShapes.panel, Glass.Sheet)
+                .padding(vertical = 18.dp, horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
                 text = app.label,
-                style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Palette.text),
+                modifier = Modifier.padding(start = 14.dp, bottom = 8.dp),
+                style = WiptvType.section,
             )
-            Spacer(Modifier.height(4.dp))
             MenuItem("Hide from Your apps", onHide, Modifier.focusRequester(first))
             if (canMoveLeft) MenuItem("Move left", onMoveLeft)
             if (canMoveRight) MenuItem("Move right", onMoveRight)
@@ -169,45 +185,56 @@ fun AppMenu(
     }
 }
 
+/**
+ * A choice in the menu, styled like the player's lists: no box at rest; focus is a soft fill
+ * across the row and a short bright bar at its left edge, with no outline or scaling.
+ */
 @Composable
 private fun MenuItem(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val fill by animateColorAsState(
+        targetValue = if (focused) WiptvColors.rowFocus else WiptvColors.rowFocus.copy(alpha = 0f),
+        animationSpec = tween(120),
+        label = "menuFill",
+    )
+    val marker by animateFloatAsState(if (focused) 1f else 0f, animationSpec = tween(120), label = "menuMarker")
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
-        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(10.dp)),
+        tonalElevation = 0.dp,
+        shape = ClickableSurfaceDefaults.shape(shape = WiptvShapes.small),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Palette.tileFocused,
-            contentColor = Palette.text,
-            focusedContainerColor = Palette.glow,
-            focusedContentColor = Palette.background,
+            containerColor = Color.Transparent,
+            contentColor = WiptvColors.secondary,
+            focusedContainerColor = Color.Transparent,
+            focusedContentColor = WiptvColors.text,
+            pressedContainerColor = Color.Transparent,
+            pressedContentColor = WiptvColors.text,
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
+        scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1f, pressedScale = 1f),
+        border = ClickableSurfaceDefaults.border(border = Border.None, focusedBorder = Border.None, pressedBorder = Border.None),
+        glow = ClickableSurfaceDefaults.glow(glow = Glow.None, focusedGlow = Glow.None, pressedGlow = Glow.None),
+        interactionSource = interaction,
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-        )
-    }
-}
-
-@Composable
-private fun PillButton(text: String, onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(50)),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Palette.glow,
-            contentColor = Palette.background,
-            focusedContainerColor = Color.White,
-            focusedContentColor = Palette.background,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
+            modifier = Modifier
+                .fillMaxWidth()
+                .drawBehind {
+                    drawRoundRect(fill, cornerRadius = CornerRadius(8.dp.toPx()))
+                    if (marker > 0f) {
+                        val h = 24.dp.toPx()
+                        drawRoundRect(
+                            color = WiptvColors.rowFocusMarker.copy(alpha = marker),
+                            topLeft = Offset(3.dp.toPx(), (size.height - h) / 2),
+                            size = Size(3.dp.toPx(), h),
+                            cornerRadius = CornerRadius(1.5.dp.toPx()),
+                        )
+                    }
+                }
+                .padding(horizontal = 14.dp, vertical = 11.dp),
+            style = WiptvType.control.copy(fontSize = 15.sp),
         )
     }
 }

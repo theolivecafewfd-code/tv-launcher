@@ -85,23 +85,14 @@ import java.time.format.DateTimeFormatter
 /** Your name for the greeting. Moves to a settings screen in a later phase. */
 private const val OWNER_NAME = "Wayne"
 
-// Sizes are in dp on the TV's 960 x 540 layout grid (a 1080p TV at the standard TV density),
-// which is three-quarters of the 1280 x 720 mockups.
-// Colours come from the shared WIPTV glass tokens (the design module), same as the player.
+// Sizes are in dp on the TV's 960 x 540 layout grid (a 1080p TV at the standard TV density).
+// Colours, type and shapes come from the shared WIPTV tokens (the design module), as in the player.
 /** The left and right margin, the same as the player's. */
 internal val Edge = 32.dp
 
 /** A row's heading: the player's row title. */
 internal val RowHeading = WiptvType.control.copy(fontSize = 17.sp, color = WiptvColors.text)
 
-internal object Palette {
-    val background = WiptvColors.background
-    val text = WiptvColors.text
-    val quiet = WiptvColors.secondary
-    val tile = WiptvColors.surface
-    val tileFocused = WiptvColors.elevated
-    val glow = WiptvColors.focus
-}
 
 @Composable
 fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
