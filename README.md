@@ -45,4 +45,5 @@ Uninstall either app like any other: **Settings → Applications → Manage inst
 ## Docs
 
 - [Project plan](docs/PLAN.md): status, roadmap, Fire Stick notes and the player's phases.
+- [Handover](docs/HANDOVER.md) and [CLAUDE.md](CLAUDE.md): where things stand and the working rules, for Claude Code.
 - [Player design](docs/PLAYER_DESIGN.md): the glass design specification, with [references, tokens and the acceptance record](docs/player-design/).
