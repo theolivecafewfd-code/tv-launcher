@@ -28,6 +28,9 @@ data class IptvResume(
     val left: String?,
 )
 
+/** A live channel you've starred in WIPTV Player. */
+data class IptvChannel(val id: Long, val name: String, val logoUrl: String?)
+
 /** A film or series in the IPTV provider's catalogue, as WIPTV Player reports it. */
 data class IptvTitle(
     val type: MediaType,
@@ -166,6 +169,34 @@ object Iptv {
             Log.w(TAG, "Couldn't change the player's My List", e)
             false
         }
+    }
+
+    /** The live channels you've starred in the player (Menu ≡ in Live TV), in its order. */
+    suspend fun favouriteChannels(context: Context): List<IptvChannel> = withContext(Dispatchers.IO) {
+        try {
+            context.contentResolver.query(base.buildUpon().appendPath("channels").build(), null, null, null, null)?.use { c ->
+                val out = mutableListOf<IptvChannel>()
+                while (c.moveToNext()) out += IptvChannel(id = c.getLong(0), name = c.getString(1), logoUrl = c.getString(2))
+                out
+            }.orEmpty()
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't ask the player for its channels", e)
+            emptyList()
+        }
+    }
+
+    /** Plays the channel full screen in the player; Back there goes to its group in Live TV. */
+    fun watchChannel(context: Context, channel: IptvChannel): Boolean = try {
+        context.startActivity(
+            Intent(Intent.ACTION_MAIN)
+                .setClassName(PLAYER, "$PLAYER.MainActivity")
+                .putExtra("open_channel", channel.id)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        )
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "Couldn't open the player", e)
+        false
     }
 
     /** Films and episodes you've started in the player, newest first. */

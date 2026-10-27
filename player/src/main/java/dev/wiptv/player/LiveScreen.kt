@@ -30,6 +30,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -67,7 +68,10 @@ import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.ui.draw.clip
 
 /** Remembers the last group and channel watched, so the app opens where you left off. */
@@ -97,6 +101,8 @@ fun LiveScreen(
     login: Login,
     update: UpdateHandle,
     onSignOut: () -> Unit,
+    /** A favourite channel to open full screen straight away (from the launcher). */
+    openChannel: Long? = null,
     header: @Composable () -> Unit = {
         Text(
             text = "Live TV",
@@ -208,9 +214,12 @@ fun LiveScreen(
     fun groupName(id: String?): String =
         if (id == FAVOURITES_ID) "Favourites" else groups?.firstOrNull { it.id == id }?.name.orEmpty()
 
+    // Opening a channel from the launcher: nothing else starts playing meanwhile.
+    var opening by remember { mutableStateOf(openChannel != null) }
+
     // When the app opens, the preview picks up the last channel you watched.
     LaunchedEffect(channels) {
-        if (live.channel != null) return@LaunchedEffect
+        if (live.channel != null || opening) return@LaunchedEffect
         val last = LastWatched.channel(context)
         val list = channels ?: return@LaunchedEffect
         list.firstOrNull { it.id == last }?.let {
@@ -225,6 +234,31 @@ fun LiveScreen(
         val (groupId, list) = previewSource?.takeIf { (_, l) -> l.any { it.id == current.id } }
             ?: (current.groupId to listOf(current))
         watching = WatchList(list, groupId, groupName(groupId), list.indexOfFirst { it.id == current.id }.coerceAtLeast(0))
+    }
+
+    // From the launcher's channel row: that channel full screen, changing channel within its own
+    // group. Back from full screen lands here in Live TV, on that group and channel.
+    LaunchedEffect(openChannel) {
+        val id = openChannel ?: return@LaunchedEffect
+        val channel = favourites.firstOrNull { it.id == id }
+        if (channel == null) {
+            opening = false
+            return@LaunchedEffect
+        }
+        selectedGroup = channel.groupId
+        pendingFocus = channel.id
+        // The stream format comes with the account; give it a moment.
+        withTimeoutOrNull(4_000) { snapshotFlow { account }.filterNotNull().first() }
+        val list = try {
+            channelsByGroup[channel.groupId] ?: Xtream.liveChannels(login, channel.groupId).also { channelsByGroup[channel.groupId] = it }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }?.takeIf { l -> l.any { it.id == id } } ?: listOf(channel)
+        previewSource = channel.groupId to list
+        watching = WatchList(list, channel.groupId, groupName(channel.groupId), list.indexOfFirst { it.id == id }.coerceAtLeast(0))
+        opening = false
     }
 
     // Whatever's in the preview: load its guide for the panel, and remember it for next time.

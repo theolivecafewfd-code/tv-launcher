@@ -37,6 +37,8 @@ class MainActivity : ComponentActivity() {
             else -> intent.getStringExtra(EXTRA_OPEN_KIND)?.let { k -> VodKind.entries.firstOrNull { it.name == k } }
                 ?.let { kind -> intent.getLongExtra(EXTRA_OPEN_ID, -1).takeIf { it >= 0 }?.let { OpenTitle(kind, it) } }
         }
+        // The launcher's channel row: that channel full screen; Back goes to its group in Live TV.
+        val channel = intent.getLongExtra(EXTRA_OPEN_CHANNEL, -1).takeIf { it >= 0 }
         setContent {
             PlayerRoot(
                 initialSection = when (open?.kind) {
@@ -45,6 +47,7 @@ class MainActivity : ComponentActivity() {
                     null -> section ?: Section.LIVE
                 },
                 open = open,
+                openChannel = channel.takeIf { open == null },
                 onOpenFinished = { finish() },
             )
         }
@@ -60,6 +63,9 @@ class MainActivity : ComponentActivity() {
 
         /** A Continue watching key ("movie:…" or "episode:…") to resume straight away. */
         const val EXTRA_OPEN_RESUME = "open_resume"
+
+        /** A favourite channel's id: Live TV opens with it full screen. */
+        const val EXTRA_OPEN_CHANNEL = "open_channel"
     }
 
     /** A plain (non-Compose) screen showing the last crash, so it still works if Compose crashed. */

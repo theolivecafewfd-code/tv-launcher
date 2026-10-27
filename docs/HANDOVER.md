@@ -24,9 +24,10 @@ Everything up to **PR #64 is merged**, and both apps are released from `main` at
 ## How the launcher link works
 
 - The player keeps the provider's films and series in a small SQLite list on the TV (`CatalogIndex`: names, years, posters, ids, never stream addresses or the login), refreshed about daily. The whole-catalogue download is streamed (`Xtream.forEachVod`) and may take up to two minutes to start.
-- `CatalogProvider` (authority `dev.wiptv.player.catalog`) answers `match`, `search`, `status`, `continue` (Continue watching) and `mylist` (My List; insert and delete too). It's guarded by the signature permission `dev.wiptv.permission.CATALOG` for reads and writes, declared in both apps so install order doesn't matter.
+- `CatalogProvider` (authority `dev.wiptv.player.catalog`) answers `match`, `search`, `status`, `continue` (Continue watching), `mylist` (My List; insert and delete too) and `channels` (starred live channels). It's guarded by the signature permission `dev.wiptv.permission.CATALOG` for reads and writes, declared in both apps so install order doesn't matter.
 - Titles match by TMDB id when the provider has one, else by a normalised name (no language tags, years, quality labels) and a year within one.
 - The launcher opens a title with `open_kind`/`open_id` extras on the player's `MainActivity`, or resumes with `open_resume` (new, cleared task); when that title is closed, the player finishes and you're back in the launcher.
+- A starred channel opens with `open_channel`: full screen in its own group, and Back goes to that group in Live TV (not back to the launcher).
 - Home refreshes Continue watching and the player's My List each time you come back; the player re-reads My List when it returns to the front.
 - If IPTV results don't show, the search screen's "IPTV: …" line says why.
 
@@ -37,7 +38,7 @@ The `design` module now holds what both apps use: tokens (`WiptvColors` includin
 ## What's next (in Wayne's order)
 
 1. Any fixes from Wayne's check of build 159 (shared My List, details header).
-2. **Favourite channels row on the launcher:** only the live channels Wayne has starred in the player (Menu ≡), as a launcher row; OK plays the channel in the player. Keep about four rows.
+2. **Your channels row (#65, waiting for Wayne's check):** only the live channels Wayne has starred in the player (Menu ≡), logo and name, no what's-on; OK plays it full screen in the player, Back goes to its group in Live TV.
 3. **Catch-up** in the player, for channels with `tv_archive`.
 4. **Playback overlays and remaining screens** (design stage 4): live info bar and lists, film progress overlay, login, account, editors and updater in the glass style.
 5. **Live Categories drawer** (design stage 2): on hold while Wayne looks at another option.

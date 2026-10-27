@@ -622,6 +622,93 @@ internal fun IptvPosterCard(title: IptvTitle, onClick: () -> Unit, modifier: Mod
     }
 }
 
+/** Channel tiles: 16:9, smaller than the posters, the logo on a faint panel. */
+internal val ChannelTileWidth = 192.dp
+internal val ChannelTileHeight = 108.dp
+
+/**
+ * Your channels: the live channels you've starred in WIPTV Player, in its order. OK plays one full
+ * screen in the player; Back there goes to the channel's group in Live TV.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+fun ChannelRow(
+    channels: List<IptvChannel>,
+    onWatch: (IptvChannel) -> Unit,
+    requester: FocusRequester,
+    up: FocusRequester,
+    down: FocusRequester?,
+) {
+    TrackAttached(requester)
+    val upAndDown = Modifier.focusProperties {
+        up.ifAttached()?.let { this.up = it }
+        down.ifAttached()?.let { this.down = it }
+    }
+    // The whole row is one section: moving between channels keeps it bright.
+    var active by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth().onFocusChanged { active = it.hasFocus }) {
+      CompositionLocalProvider(LocalSectionActive provides active) {
+        Box(Modifier.padding(start = Edge, end = Edge, bottom = 2.dp)) { SectionHeading("Your channels", active) }
+        RowScrolling(start = Edge, end = 72.dp) {
+            LazyRow(
+                modifier = Modifier.focusRequester(requester).focusRestorer(),
+                contentPadding = PaddingValues(start = Edge - ArtFocusGap, end = Edge, top = 6.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp - ArtFocusGap * 2),
+            ) {
+                items(channels, key = { it.id }) { channel ->
+                    ChannelTile(channel = channel, onClick = { onWatch(channel) }, modifier = upAndDown)
+                }
+            }
+        }
+      }
+    }
+}
+
+@Composable
+private fun ChannelTile(channel: IptvChannel, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    var focused by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.width(ChannelTileWidth + ArtFocusGap * 2)) {
+        ArtFrame(
+            width = ChannelTileWidth,
+            height = ChannelTileHeight,
+            onFocusChange = { focused = it },
+            onClick = onClick,
+            modifier = modifier,
+        ) {
+            Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.07f)))
+            if (channel.logoUrl != null) {
+                AsyncImage(
+                    model = channel.logoUrl,
+                    contentDescription = channel.name,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 16.dp),
+                )
+            } else {
+                Text(
+                    text = channel.name,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.align(Alignment.Center).padding(10.dp),
+                    style = WiptvType.metadata.copy(color = WiptvColors.secondary),
+                )
+            }
+            SectionDim()
+        }
+        Text(
+            text = channel.name,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp),
+            style = TextStyle(
+                fontSize = 14.sp,
+                lineHeight = 18.sp,
+                fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
+                color = sectionCaption(),
+            ),
+        )
+    }
+}
+
 /**
  * Continue watching card sizes: portrait (2:3) at rest; the card you settle on widens to 16:9
  * at the same height, pushing its neighbours along. Captions sit in a fixed space underneath,
