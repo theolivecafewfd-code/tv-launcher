@@ -20,6 +20,10 @@ import android.net.Uri
  *   title, subtitle, poster, image, progress (0–1), left ("38 min left"). Never the stream address.
  * - `content://dev.wiptv.player.catalog/status`: one row: signed_in, films, series, refreshed,
  *   refreshing, error.
+ * - `content://dev.wiptv.player.catalog/mylist`: My List, newest first: kind, id, name, year,
+ *   poster, backdrop. The launcher shows it as its own My List, so there's one list for both.
+ *   Insert (values kind, id) adds a title from the provider's list; delete with `?kind=…&id=…`
+ *   takes one off.
  *
  * Rows: kind, id, name, year, poster.
  */
@@ -34,6 +38,13 @@ class CatalogProvider : ContentProvider() {
         val status = uri.lastPathSegment == "status"
         val login = if (status || CatalogIndex.isStale(context)) LoginStore.load(context) else null
         login?.let { CatalogIndex.refreshIfStale(context, it) }
+        if (uri.lastPathSegment == "mylist") {
+            val cursor = MatrixCursor(arrayOf("kind", "id", "name", "year", "poster", "backdrop"))
+            VodStore(context).favourites().forEach { f ->
+                cursor.addRow(arrayOf<Any?>(f.kind.name, f.id, f.name, f.year, f.poster, f.backdrop))
+            }
+            return cursor
+        }
         if (uri.lastPathSegment == "continue") {
             val cursor = MatrixCursor(arrayOf("key", "kind", "title", "subtitle", "poster", "image", "progress", "left"))
             VodStore(context).resumePoints().take(20).forEach { p ->
@@ -81,7 +92,34 @@ class CatalogProvider : ContentProvider() {
     }
 
     override fun getType(uri: Uri): String? = null
-    override fun insert(uri: Uri, values: ContentValues?): Uri? = null
-    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
+
+    override fun insert(uri: Uri, values: ContentValues?): Uri? {
+        val context = context ?: return null
+        if (uri.lastPathSegment != "mylist" || values == null) return null
+        val kind = VodKind.entries.firstOrNull { it.name == values.getAsString("kind") } ?: return null
+        val id = values.getAsLong("id") ?: return null
+        val title = CatalogIndex.find(context, kind, id) ?: return null
+        VodStore(context).addFavourite(
+            VodItem(
+                kind = kind,
+                id = id,
+                name = title.name,
+                poster = title.poster,
+                categoryId = title.categoryId,
+                rating = null,
+                extension = title.extension,
+                year = title.year,
+            ),
+        )
+        return uri
+    }
+
+    override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int {
+        val context = context ?: return 0
+        if (uri.lastPathSegment != "mylist") return 0
+        val kind = VodKind.entries.firstOrNull { it.name == uri.getQueryParameter("kind") } ?: return 0
+        val id = uri.getQueryParameter("id")?.toLongOrNull() ?: return 0
+        return if (VodStore(context).removeFavourite("${kind.name.lowercase()}:$id")) 1 else 0
+    }
     override fun update(uri: Uri, values: ContentValues?, selection: String?, selectionArgs: Array<out String>?): Int = 0
 }

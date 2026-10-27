@@ -29,7 +29,31 @@ data class IptvResume(
 )
 
 /** A film or series in the IPTV provider's catalogue, as WIPTV Player reports it. */
-data class IptvTitle(val type: MediaType, val id: Long, val name: String, val year: String?, val posterUrl: String?)
+data class IptvTitle(
+    val type: MediaType,
+    val id: Long,
+    val name: String,
+    val year: String?,
+    val posterUrl: String?,
+    /** Only known for My List entries the player has opened. */
+    val backdropUrl: String? = null,
+) {
+    /** As a title for the home rows; opening it goes to the player. */
+    fun asTitle() = Title(
+        id = 0,
+        type = type,
+        name = name,
+        year = year.orEmpty(),
+        overview = "",
+        rating = 0.0,
+        popularity = 0.0,
+        genreIds = emptyList(),
+        backdropUrl = backdropUrl,
+        posterUrl = posterUrl,
+        sources = emptyList(),
+        iptv = this,
+    )
+}
 
 /**
  * Asks WIPTV Player about your IPTV provider's films and series. The player keeps the list
@@ -91,6 +115,56 @@ object Iptv {
             "IPTV: not allowed to ask WIPTV Player (reinstall both apps)"
         } catch (e: Exception) {
             "IPTV: couldn't ask WIPTV Player (${e.javaClass.simpleName})"
+        }
+    }
+
+    /**
+     * The player's My List, newest first. It's the one My List for both apps: titles your
+     * provider has are kept there (see [setInMyList]); the launcher's own list holds the rest.
+     */
+    suspend fun myList(context: Context): List<IptvTitle> = withContext(Dispatchers.IO) {
+        try {
+            context.contentResolver.query(base.buildUpon().appendPath("mylist").build(), null, null, null, null)?.use { c ->
+                val out = mutableListOf<IptvTitle>()
+                while (c.moveToNext()) {
+                    out += IptvTitle(
+                        type = if (c.getString(0) == "MOVIE") MediaType.MOVIE else MediaType.TV,
+                        id = c.getLong(1),
+                        name = c.getString(2),
+                        year = c.getString(3),
+                        posterUrl = c.getString(4),
+                        backdropUrl = c.getString(5),
+                    )
+                }
+                out
+            }.orEmpty()
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't ask the player for My List", e)
+            emptyList()
+        }
+    }
+
+    /** Adds it to, or takes it off, the player's My List; false when the player couldn't. */
+    suspend fun setInMyList(context: Context, title: IptvTitle, add: Boolean): Boolean = withContext(Dispatchers.IO) {
+        val uri = base.buildUpon().appendPath("mylist").build()
+        try {
+            if (add) {
+                val values = android.content.ContentValues().apply {
+                    put("kind", kindOf(title.type))
+                    put("id", title.id)
+                }
+                context.contentResolver.insert(uri, values) != null
+            } else {
+                context.contentResolver.delete(
+                    uri.buildUpon().appendQueryParameter("kind", kindOf(title.type)).appendQueryParameter("id", title.id.toString()).build(),
+                    null,
+                    null,
+                )
+                true
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't change the player's My List", e)
+            false
         }
     }
 

@@ -206,8 +206,20 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
             }
         }
     }
-    val openTitle: (Title) -> Unit = { detailFor = it }
+    val openTitle: (Title) -> Unit = { title ->
+        // From the player's My List: it opens there (a film plays, a series opens its page).
+        val iptv = title.iptv
+        if (iptv == null) {
+            detailFor = title
+        } else if (!Iptv.open(context, iptv)) {
+            Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
+        }
+    }
     fun watch(title: Title, only: Source? = null) {
+        if (title.iptv != null) {
+            openTitle(title)
+            return
+        }
         titleScope.launch {
             // Holding OK plays in the first place it's on: your IPTV provider first, if it has it.
             if (only == null) {
@@ -223,11 +235,18 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     }
     val playTitle: (Title) -> Unit = { watch(it) }
 
-    // My List, shown as a row once you've added something.
+    // My List, shown as a row once you've added something. It's one list with the player's:
+    // titles your provider has live in the player's My List, the rest in the launcher's.
     val library = remember { Library(context) }
     var myList by remember { mutableStateOf(library.myList()) }
-    val allRows = remember(rows, myList, mediaType, recommendedRow, recommendedLoading) {
-        val mine = myList.filter { it.type == mediaType }
+    var playerList by remember { mutableStateOf<List<IptvTitle>>(emptyList()) }
+    var listChanges by remember { mutableIntStateOf(0) }
+    LaunchedEffect(refreshKey, listChanges) { playerList = Iptv.myList(context) }
+    val allRows = remember(rows, myList, playerList, mediaType, recommendedRow, recommendedLoading) {
+        // A title in both lists (added before they were joined) shows once, as the launcher's.
+        val launcherNames = myList.map { it.type to sameName(it.name) }.toSet()
+        val mine = playerList.filter { it.type == mediaType && (it.type to sameName(it.name)) !in launcherNames }.map { it.asTitle() } +
+            myList.filter { it.type == mediaType }
         val withList = if (mine.isEmpty()) rows else {
             val top = rows.filter { it.key == "top" }
             top + ContentRow("mylist", "My List", "", ranked = false, items = mine) + rows.filter { it.key != "top" }
@@ -451,7 +470,10 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                     },
                     onAnother = if (surpriseMode) ({ surprise() }) else null,
                     onPlayOther = playTitle,
-                    onLibraryChange = { myList = library.myList() },
+                    onLibraryChange = {
+                        myList = library.myList()
+                        listChanges++
+                    },
                     onClose = {
                         detailFor = null
                         surpriseMode = false
@@ -763,3 +785,11 @@ internal fun AppTile(
         }
     }
 }
+
+/**
+ * A name for spotting the same title in both My Lists: no language tag ("EN - "), year or
+ * punctuation, lower case.
+ */
+private fun sameName(name: String): String =
+    name.replace(Regex("""^\s*(\|[^|]*\||\[[^\]]*])\s*"""), "").replace(Regex("""^\s*[A-Z]{2,3}\s*[-:|]\s+"""), "")
+        .lowercase().replace(Regex("""[(\[]\s*(19|20)\d{2}\s*[)\]]"""), " ").replace(Regex("[^a-z0-9]+"), " ").trim().removePrefix("the ")

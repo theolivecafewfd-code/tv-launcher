@@ -538,7 +538,7 @@ internal fun PosterCard(
             )
             PosterArtwork(title = title, wide = wide)
             // Where it's on: IPTV first when your provider has it, then your first service.
-            val onIptv = IptvBadges.has(title)
+            val onIptv = if (title.iptv != null) true else IptvBadges.has(title)
             val source = title.sources.firstOrNull()
             if (onIptv || source != null) {
                 Row(
