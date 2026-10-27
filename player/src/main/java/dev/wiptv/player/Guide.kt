@@ -274,7 +274,7 @@ fun GuideRow(
             // Programmes, across the same width as the time ruler above.
             BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 val windowEnd = windowStart + WINDOW_MS
-                val shown = programmes.orEmpty().filter { it.end > windowStart && it.start < windowEnd }
+                val shown = withoutOverlaps(programmes.orEmpty()).filter { it.end > windowStart && it.start < windowEnd }
 
                 // The "now" line, drawn first so it passes behind the programme text.
                 val nowAt = (now - windowStart).toFloat() / WINDOW_MS
@@ -369,6 +369,19 @@ internal fun QualityBadge(text: String) {
             .padding(horizontal = 4.dp, vertical = 1.dp),
         style = TextStyle(fontSize = 9.sp, lineHeight = 11.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.secondary),
     )
+}
+
+/**
+ * The provider's guide sometimes lists two programmes in the same slot (both "11:00"), which drew
+ * one title on top of the other. Keeps the first of any that start before the previous one ends.
+ */
+internal fun withoutOverlaps(programmes: List<Programme>): List<Programme> {
+    val kept = ArrayList<Programme>(programmes.size)
+    for (p in programmes.sortedBy { it.start }) {
+        val last = kept.lastOrNull()
+        if (last == null || p.start >= last.end) kept += p
+    }
+    return kept
 }
 
 @Composable
