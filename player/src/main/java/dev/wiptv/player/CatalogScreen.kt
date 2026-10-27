@@ -567,7 +567,7 @@ private fun ResumeArt(point: ResumePoint, showProgress: Boolean = true) {
             point.poster != null -> {
                 // A soft wash of the poster behind the poster itself.
                 AsyncImage(
-                    model = coil.request.ImageRequest.Builder(LocalContext.current).data(point.poster).size(36, 54).build(),
+                    model = coil.request.ImageRequest.Builder(LocalContext.current).data(point.poster).size(12, 18).build(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     alpha = 0.55f,

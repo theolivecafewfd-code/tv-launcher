@@ -103,7 +103,7 @@ fun CinematicBackdrop(
 private suspend fun loadArt(context: Context, url: String, soft: Boolean): Art? {
     val request = ImageRequest.Builder(context)
         .data(url)
-        .size(if (soft) 36 else 1280, if (soft) 54 else 720)
+        .size(if (soft) 12 else 1280, if (soft) 18 else 720)
         .build()
     val drawable = (context.imageLoader.execute(request) as? SuccessResult)?.drawable ?: return null
     val bitmap = (drawable as? BitmapDrawable)?.bitmap ?: drawable.toBitmap()
