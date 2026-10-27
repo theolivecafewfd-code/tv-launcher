@@ -3,13 +3,9 @@ name: Screenshots
 # Native screenshots of the player against a pretend provider with invented titles and artwork,
 # taken on an Android 9 emulator (like Fire OS 7) at the Fire Stick's 1080p TV size. Pushed to a branch named
 # screenshots/<PR branch> so they can be viewed (and linked from the PR).
+# Runs only when started by hand (Actions → Screenshots → Run workflow, choosing a branch),
+# so ordinary PRs don't wait on it.
 on:
-  pull_request:
-    paths:
-      - "player/**"
-      - "design/**"
-      - "tools/screenshots/**"
-      - ".github/workflows/screenshots.yml"
   workflow_dispatch:
 
 permissions:
