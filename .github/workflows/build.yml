@@ -9,6 +9,12 @@ on:
 permissions:
   contents: write
 
+# One build at a time per branch. When several PRs are merged in a row, their builds queue
+# instead of publishing at once (two at once can delete each other's player file).
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
