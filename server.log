@@ -1,0 +1,51 @@
+127.0.0.1 - - [27/Oct/2026 08:57:15] "GET /player_api.php?username=demo&password=demo HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:58:37] "GET /demo/seed.json?scenario=many HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:58:38] "GET /player_api.php?username=demo&password=demo&action=get_vod_categories HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:58:38] "GET /img/poster-2002.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:58:38] "GET /img/poster-2001.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:58:38] "GET /img/poster-2003.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:58:38] "GET /img/poster-2005.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:58:38] "GET /img/poster-2009.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:58:38] "GET /img/poster-2007.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:24] code 404, message File not found
+127.0.0.1 - - [27/Oct/2026 08:59:24] "GET /movie/demo/demo/2005.mp4 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Oct/2026 08:59:24] code 404, message File not found
+127.0.0.1 - - [27/Oct/2026 08:59:24] "GET /movie/demo/demo/2005.mp4 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Oct/2026 08:59:25] code 404, message File not found
+127.0.0.1 - - [27/Oct/2026 08:59:25] "GET /movie/demo/demo/2005.mp4 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Oct/2026 08:59:27] code 404, message File not found
+127.0.0.1 - - [27/Oct/2026 08:59:27] "GET /movie/demo/demo/2005.mp4 HTTP/1.1" 404 -
+127.0.0.1 - - [27/Oct/2026 08:59:33] "GET /demo/seed.json?scenario=single HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:34] "GET /player_api.php?username=demo&password=demo&action=get_series_categories HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:35] "GET /img/poster-3005.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:35] "GET /img/poster-3001.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:49] "GET /player_api.php?username=demo&password=demo&action=get_series&category_id=20 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:49] "GET /player_api.php?username=demo&password=demo&action=get_series&category_id=21 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:49] "GET /player_api.php?username=demo&password=demo&action=get_series&category_id=22 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:49] "GET /img/poster-3002.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:49] "GET /img/poster-3006.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:49] "GET /img/poster-3003.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:49] "GET /img/poster-3004.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 08:59:55] "GET /img/backdrop-3004.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:02] "GET /player_api.php?username=demo&password=demo&action=get_series_info&series_id=3003 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:22] "GET /demo/seed.json?scenario=single HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:22] "GET /img/poster-2001.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:22] "GET /img/poster-2002.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:22] "GET /img/poster-2007.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:22] "GET /player_api.php?username=demo&password=demo&action=get_vod_categories HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:36] "GET /demo/seed.json?scenario=many HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:37] "GET /player_api.php?username=demo&password=demo HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:37] "GET /player_api.php?username=demo&password=demo&action=get_live_categories HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /player_api.php?username=demo&password=demo&action=get_live_streams&category_id=1 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /img/logo-3.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /img/logo-2.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /img/logo-1.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /img/logo-4.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /img/logo-6.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /img/logo-5.png HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /player_api.php?username=demo&password=demo&action=get_short_epg&stream_id=503&limit=8 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /player_api.php?username=demo&password=demo&action=get_short_epg&stream_id=502&limit=8 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /player_api.php?username=demo&password=demo&action=get_short_epg&stream_id=504&limit=8 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /player_api.php?username=demo&password=demo&action=get_short_epg&stream_id=501&limit=8 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /player_api.php?username=demo&password=demo&action=get_short_epg&stream_id=505&limit=8 HTTP/1.1" 200 -
+127.0.0.1 - - [27/Oct/2026 09:00:38] "GET /player_api.php?username=demo&password=demo&action=get_short_epg&stream_id=506&limit=8 HTTP/1.1" 200 -
