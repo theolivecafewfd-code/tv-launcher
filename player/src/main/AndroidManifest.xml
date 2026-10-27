@@ -8,6 +8,12 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <!-- Only apps signed with our key (the launcher) may ask the player about its titles.
+         Declared in both apps, so it works whichever was installed first. -->
+    <permission
+        android:name="dev.wiptv.permission.CATALOG"
+        android:protectionLevel="signature" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Lets the player install its own updates (the user still confirms each install). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -34,5 +40,12 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- The launcher's "Watch on IPTV" and search ask this about the provider's titles. -->
+        <provider
+            android:name=".CatalogProvider"
+            android:authorities="dev.wiptv.player.catalog"
+            android:exported="true"
+            android:readPermission="dev.wiptv.permission.CATALOG" />
     </application>
 </manifest>

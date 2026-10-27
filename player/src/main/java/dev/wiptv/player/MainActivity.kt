@@ -28,12 +28,30 @@ class MainActivity : ComponentActivity() {
 
         // Another app (or the screenshot run) can open straight to Movies or Series.
         val section = intent.getStringExtra(EXTRA_SECTION)?.let { name -> Section.entries.firstOrNull { it.name == name } }
-        setContent { PlayerRoot(initialSection = section ?: Section.LIVE) }
+        // The launcher's "Watch on IPTV" opens one title: a film plays, a series opens its page.
+        // When you're done with it, the player closes and you're back in the launcher.
+        val open = intent.getStringExtra(EXTRA_OPEN_KIND)?.let { k -> VodKind.entries.firstOrNull { it.name == k } }
+            ?.let { kind -> intent.getLongExtra(EXTRA_OPEN_ID, -1).takeIf { it >= 0 }?.let { OpenTitle(kind, it) } }
+        setContent {
+            PlayerRoot(
+                initialSection = when (open?.kind) {
+                    VodKind.MOVIE -> Section.MOVIES
+                    VodKind.SERIES -> Section.SERIES
+                    null -> section ?: Section.LIVE
+                },
+                open = open,
+                onOpenFinished = { finish() },
+            )
+        }
     }
 
     companion object {
         /** "LIVE", "MOVIES" or "SERIES": the section to open on. */
         const val EXTRA_SECTION = "section"
+
+        /** "MOVIE" or "SERIES", with [EXTRA_OPEN_ID]: a title to open straight away. */
+        const val EXTRA_OPEN_KIND = "open_kind"
+        const val EXTRA_OPEN_ID = "open_id"
     }
 
     /** A plain (non-Compose) screen showing the last crash, so it still works if Compose crashed. */

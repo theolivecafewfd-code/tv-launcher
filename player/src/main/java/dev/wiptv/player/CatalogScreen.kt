@@ -57,7 +57,9 @@ import dev.wiptv.design.CinematicBackdrop
 import dev.wiptv.design.DisplayTitles
 import dev.wiptv.design.focusOutline
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 /** What the big area at the top describes: the poster you're on. */
 private data class Hero(
@@ -122,6 +124,10 @@ fun CatalogScreen(
     update: UpdateHandle,
     store: VodStore,
     tabs: @Composable () -> Unit,
+    /** A title the launcher asked for: a film plays at once, a series opens its page. */
+    openId: Long? = null,
+    /** Called when that title is closed, so the player can hand back to the launcher. */
+    onOpenFinished: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val noun = if (kind == VodKind.MOVIE) "films" else "series"
@@ -190,6 +196,50 @@ fun CatalogScreen(
         hero = heroOf(point, item, item?.let { movieDetails[it.id] })
         restingPoint = point
         restingOn = item
+    }
+
+    // Opened from the launcher: once that film or series page is closed, go back there.
+    var openedFromLauncher by remember { mutableStateOf(false) }
+    LaunchedEffect(openId) {
+        val id = openId ?: return@LaunchedEffect
+        val entry = withContext(Dispatchers.IO) { CatalogIndex.find(context, kind, id) }
+        val item = VodItem(
+            kind = kind,
+            id = id,
+            name = entry?.name.orEmpty(),
+            poster = entry?.poster,
+            categoryId = entry?.categoryId.orEmpty(),
+            rating = null,
+            extension = entry?.extension,
+            year = entry?.year,
+        )
+        openedFromLauncher = true
+        if (kind == VodKind.SERIES) {
+            detail = item
+            return@LaunchedEffect
+        }
+        // A film plays straight away, from where you stopped if you'd started it.
+        val details = try {
+            Xtream.movieDetails(login, item)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            detail = item // its page explains what's wrong and offers Play
+            return@LaunchedEffect
+        }
+        val saved = store.resumePoint("movie:$id")
+        playingNext = null
+        playing = ResumePoint(
+            key = "movie:$id",
+            title = item.name,
+            subtitle = null,
+            poster = item.poster,
+            url = Xtream.movieUrl(login, id, details.extension),
+            position = saved?.position ?: 0,
+            duration = saved?.duration ?: 0,
+            updated = System.currentTimeMillis(),
+            image = details.backdrop,
+        )
     }
 
     LaunchedEffect(kind, attempt) {
@@ -371,7 +421,10 @@ fun CatalogScreen(
                 playingNext = next
             },
             onListChanged = { refresh++ },
-            onClose = { detail = null },
+            onClose = {
+                detail = null
+                if (openedFromLauncher) onOpenFinished()
+            },
         )
     }
 
@@ -385,10 +438,13 @@ fun CatalogScreen(
                     val next = playingNext?.invoke()
                     playing = next
                     refresh++
+                    // A film opened from the launcher: back there when it ends.
+                    if (next == null && detail == null && openedFromLauncher) onOpenFinished()
                 },
                 onClose = {
                     playing = null
                     refresh++
+                    if (detail == null && openedFromLauncher) onOpenFinished()
                 },
             )
         }

@@ -203,6 +203,11 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     val openTitle: (Title) -> Unit = { detailFor = it }
     fun watch(title: Title, only: Source? = null) {
         titleScope.launch {
+            // Holding OK plays in the first place it's on: your IPTV provider first, if it has it.
+            if (only == null) {
+                val iptv = Iptv.match(context, title)
+                if (iptv != null && Iptv.open(context, iptv)) return@launch
+            }
             val message = TitleOpener.open(context, title, apps, only)
             if (message != null) Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
