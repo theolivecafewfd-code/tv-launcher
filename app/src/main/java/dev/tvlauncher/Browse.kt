@@ -5,6 +5,12 @@ import androidx.tv.material3.LocalContentColor
 import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.ArtFrame
 import dev.wiptv.design.DisplayTitles
+import dev.wiptv.design.MetaLine
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import dev.wiptv.design.RowScrolling
 import dev.wiptv.design.SectionCapsule
 import androidx.compose.animation.Crossfade
@@ -180,7 +186,7 @@ fun Featured(
         modifier = Modifier
             .padding(start = Edge - 12.dp)
             .width(500.dp)
-            .height(176.dp)
+            .height(190.dp)
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when {
@@ -249,12 +255,9 @@ fun Featured(
                         modifier = Modifier.padding(top = 2.dp),
                         style = WiptvType.hero,
                     )
-                    Text(
-                        text = metaLine(shown),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium),
-                    )
+                    // Up to two lines of details, wrapping between items, then at most three of synopsis.
+                    // The block's fixed height leaves room for both, clear of Your apps below.
+                    MetaLine(items = metaItems(shown), style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium))
                     if (shown.overview.isNotBlank()) {
                         Text(
                             text = shown.overview,
@@ -270,12 +273,12 @@ fun Featured(
     }
 }
 
-private fun metaLine(title: Title): String = buildList {
+private fun metaItems(title: Title): List<String> = buildList {
     add(if (title.type == MediaType.TV) "Series" else "Film")
     if (title.year.isNotBlank()) add(title.year)
     title.genreIds.mapNotNull { Catalog.genreName(it) }.take(2).takeIf { it.isNotEmpty() }?.let { add(it.joinToString(", ")) }
     if (title.rating > 0) add("TMDB " + String.format(Locale.UK, "%.1f", title.rating))
-}.joinToString(" · ")
+}
 
 @Composable
 private fun SourceTag(source: Source) {
@@ -376,6 +379,7 @@ fun PosterRow(
  * lift), with its title underneath, brighter when focused. [compact] is the smaller poster
  * without a caption, for search results and "More like this".
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun PosterCard(
     title: Title,
@@ -387,11 +391,17 @@ internal fun PosterCard(
     var focused by remember { mutableStateOf(false) }
     val width = if (compact) 84.dp else PosterWidth
     val height = if (compact) 126.dp else PosterHeight
-    Column(modifier = Modifier.width(width + ArtFocusGap * 2)) {
+    // On focus, the whole card, caption included, comes on screen (not just the picture).
+    val wholeCard = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    Column(modifier = Modifier.width(width + ArtFocusGap * 2).bringIntoViewRequester(wholeCard)) {
         ArtFrame(
             width = width,
             height = height,
-            onFocusChange = { focused = it },
+            onFocusChange = {
+                focused = it
+                if (it && !compact) scope.launch { wholeCard.bringIntoView() }
+            },
             onClick = onClick,
             onLongClick = onLongClick,
             modifier = modifier,

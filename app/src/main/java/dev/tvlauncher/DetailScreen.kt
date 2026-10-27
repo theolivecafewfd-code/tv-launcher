@@ -16,6 +16,7 @@ import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.CinematicBackdrop
 import dev.wiptv.design.DisplayTitles
 import dev.wiptv.design.InfoSheet
+import dev.wiptv.design.MetaLine
 import dev.wiptv.design.PivotScrolling
 import dev.wiptv.design.RowScrolling
 import dev.wiptv.design.WiptvColors
@@ -132,8 +133,11 @@ fun DetailScreen(
                 poster = title.posterUrl,
                 modifier = Modifier.fillMaxSize(),
                 delayMillis = 0,
-                leftFade = 0.98f,
-                textScrim = 0.58f,
+                // Darker than the player's: the text and the whole row of buttons run further
+                // across here, so the left two-thirds stay dark and the picture shows on the right.
+                leftFade = 1f,
+                textScrim = 0.66f,
+                textScrimAlpha = 0.88f,
             )
 
             PivotScrolling(pivot = 110.dp) {
@@ -182,10 +186,8 @@ fun DetailScreen(
                                     overflow = TextOverflow.Ellipsis,
                                     style = WiptvType.hero.copy(fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.SemiBold),
                                 )
-                                Text(
-                                    text = metaLine(title, details),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                                MetaLine(
+                                    items = metaItems(title, details),
                                     modifier = Modifier.padding(top = 8.dp),
                                     style = WiptvType.metadata.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium),
                                 )
@@ -294,7 +296,8 @@ fun DetailScreen(
     if (showMore) {
         InfoSheet(
             title = name,
-            meta = metaLine(title, details),
+            meta = "",
+            metaItems = metaItems(title, details),
             body = title.overview,
             sections = listOfNotNull(
                 details?.madeBy?.let { made -> made.substringBefore(" by ") + " by" to made.substringAfter(" by ") },
@@ -311,7 +314,7 @@ fun DetailScreen(
 /** "Prime Video" in full on the details page. */
 private val Source.longName: String get() = if (this == Source.PRIME) "Prime Video" else label
 
-private fun metaLine(title: Title, details: TitleDetails?): String = buildList {
+private fun metaItems(title: Title, details: TitleDetails?): List<String> = buildList {
     add(if (title.type == MediaType.TV) "Series" else "Film")
     if (title.year.isNotBlank()) add(title.year)
     details?.length?.let { add(it) }
@@ -319,4 +322,4 @@ private fun metaLine(title: Title, details: TitleDetails?): String = buildList {
         ?: title.genreIds.mapNotNull { Catalog.genreName(it) }
     if (genres.isNotEmpty()) add(genres.take(3).joinToString(", "))
     if (title.rating > 0) add("TMDB " + String.format(Locale.UK, "%.1f", title.rating))
-}.joinToString("  ·  ")
+}
