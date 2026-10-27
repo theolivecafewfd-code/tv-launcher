@@ -29,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -274,10 +276,25 @@ fun GuideRow(
                 val windowEnd = windowStart + WINDOW_MS
                 val shown = programmes.orEmpty().filter { it.end > windowStart && it.start < windowEnd }
 
+                // The "now" line, drawn first so it passes behind the programme text.
+                val nowAt = (now - windowStart).toFloat() / WINDOW_MS
+                if (nowAt in 0f..1f) {
+                    Box(
+                        modifier = Modifier
+                            .offset(x = maxWidth * nowAt)
+                            .width(2.dp)
+                            .fillMaxHeight()
+                            .padding(vertical = 4.dp)
+                            .background(WiptvColors.focus.copy(alpha = 0.55f), WiptvShapes.pill),
+                    )
+                }
                 when {
                     programmes == null -> GuideNote("Loading guide…")
                     shown.isEmpty() -> GuideNote("Programme information unavailable")
                 }
+                // A soft edge in the row's own colour around programme text, so the now line fades
+                // out where it crosses the letters instead of cutting through them.
+                val halo = Shadow(color = lerp(WiptvColors.background, WiptvColors.rowFocus, marker), blurRadius = 8f)
                 for (p in shown) {
                     val from = (maxOf(p.start, windowStart) - windowStart).toFloat() / WINDOW_MS
                     val to = (minOf(p.end, windowEnd) - windowStart).toFloat() / WINDOW_MS
@@ -315,6 +332,7 @@ fun GuideRow(
                                         lineHeight = 17.sp,
                                         fontWeight = if (on) FontWeight.Medium else FontWeight.Normal,
                                         color = if (on) WiptvColors.text else WiptvColors.secondary,
+                                        shadow = halo,
                                     ),
                                 )
                                 // The time only when it fits: the full range for what's on, the start for later ones.
@@ -328,24 +346,12 @@ fun GuideRow(
                                         text = time,
                                         maxLines = 1,
                                         softWrap = false,
-                                        style = TextStyle(fontSize = 12.sp, lineHeight = 14.sp, color = WiptvColors.quiet),
+                                        style = TextStyle(fontSize = 12.sp, lineHeight = 14.sp, color = WiptvColors.quiet, shadow = halo),
                                     )
                                 }
                             }
                         }
                     }
-                }
-                // The "now" line.
-                val nowAt = (now - windowStart).toFloat() / WINDOW_MS
-                if (nowAt in 0f..1f) {
-                    Box(
-                        modifier = Modifier
-                            .offset(x = maxWidth * nowAt)
-                            .width(2.dp)
-                            .fillMaxHeight()
-                            .padding(vertical = 4.dp)
-                            .background(WiptvColors.focus.copy(alpha = 0.55f), WiptvShapes.pill),
-                    )
                 }
             }
         }
