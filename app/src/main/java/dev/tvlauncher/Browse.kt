@@ -1,5 +1,9 @@
 package dev.tvlauncher
 
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
@@ -318,9 +322,41 @@ internal val PosterWidth = 126.dp
 internal val PosterHeight = 189.dp
 
 /**
- * One row of posters, e.g. Comedy, laid out like the player's rows. Top 10 rows get a big
- * outlined number beside each poster.
+ * Whether the row (section) around a card has the remote's focus. The focused row is at full
+ * strength; the others are softer (greyer heading and captions, artwork gently dimmed), so it's
+ * clear which row you're in. Screens without rows (search, details) leave it on.
  */
+val LocalSectionActive = compositionLocalOf { true }
+
+/** Heading and caption colour for a section that doesn't have focus. */
+private val InactiveText = Color(0xFFAAB4C4)
+
+/** How dark an unfocused section's artwork goes (a plain black wash, no blur). */
+private const val INACTIVE_DIM = 0.14f
+private const val EMPHASIS_MS = 150
+
+/** A row's heading in the section's emphasis. */
+@Composable
+private fun SectionHeading(text: String, active: Boolean) {
+    val colour by animateColorAsState(if (active) WiptvColors.text else InactiveText, tween(EMPHASIS_MS), label = "heading")
+    Text(text = text, style = RowHeading.copy(color = colour))
+}
+
+/** The dark wash over a card's artwork in an unfocused section. */
+@Composable
+private fun BoxScope.SectionDim() {
+    val dim by animateFloatAsState(if (LocalSectionActive.current) 0f else INACTIVE_DIM, tween(EMPHASIS_MS), label = "dim")
+    if (dim > 0f) Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = dim)))
+}
+
+/** Caption colour: bright in the focused section, softer elsewhere. */
+@Composable
+private fun sectionCaption(): Color {
+    val colour by animateColorAsState(if (LocalSectionActive.current) WiptvColors.text else InactiveText, tween(EMPHASIS_MS), label = "caption")
+    return colour
+}
+
+/** One row of posters, laid out like the player's rows. Top 10 numbers sit inside the posters. */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PosterRow(
@@ -331,7 +367,10 @@ fun PosterRow(
     up: FocusRequester,
     down: FocusRequester?,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    // The whole row is one section: moving between its posters keeps it bright.
+    var active by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth().onFocusChanged { active = it.hasFocus }) {
+      CompositionLocalProvider(LocalSectionActive provides active) {
         Row(
             modifier = Modifier.padding(start = Edge, end = Edge, bottom = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -339,7 +378,7 @@ fun PosterRow(
         ) {
             // Just the row's name: the notes beside it ("Most popular on…", "Because you watch…")
             // were dropped at Wayne's request to keep the rows clean.
-            Text(text = row.title, style = RowHeading)
+            SectionHeading(row.title, active)
         }
         // A row still loading has no titles yet: it shows placeholders that can take focus. If
         // focus is on one when the titles arrive, it moves to the first title.
@@ -366,7 +405,7 @@ fun PosterRow(
                 .focusRequester(requester)
                 .focusRestorer(),
             contentPadding = PaddingValues(start = Edge - ArtFocusGap, end = Edge, top = 6.dp, bottom = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy((if (row.ranked) 20.dp else 16.dp) - ArtFocusGap * 2),
+            horizontalArrangement = Arrangement.spacedBy(16.dp - ArtFocusGap * 2),
         ) {
             if (row.items.isEmpty()) {
                 items(6) {
@@ -383,36 +422,17 @@ fun PosterRow(
                 }
             }
             itemsIndexed(row.items, key = { _, t -> t.key }) { i, title ->
-                Row(verticalAlignment = Alignment.Top) {
-                    if (row.ranked) {
-                        // The number sits against the poster's lower edge.
-                        Box(
-                            modifier = Modifier.height(PosterHeight + ArtFocusGap * 2),
-                            contentAlignment = Alignment.BottomEnd,
-                        ) {
-                            Text(
-                                text = "${i + 1}",
-                                modifier = Modifier.padding(end = 2.dp),
-                                style = TextStyle(
-                                    fontSize = 92.sp,
-                                    lineHeight = 92.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = WiptvColors.secondary.copy(alpha = 0.6f),
-                                    drawStyle = Stroke(width = 3f),
-                                ),
-                            )
-                        }
-                    }
-                    PosterCard(
-                        title = title,
-                        onClick = { onOpen(title) },
-                        onLongClick = { onPlay(title) },
-                        modifier = upAndDown,
-                    )
-                }
+                PosterCard(
+                    title = title,
+                    onClick = { onOpen(title) },
+                    onLongClick = { onPlay(title) },
+                    modifier = upAndDown,
+                    rank = if (row.ranked) i + 1 else null,
+                )
             }
         }
         }
+      }
     }
 }
 
@@ -429,6 +449,8 @@ internal fun PosterCard(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     compact: Boolean = false,
+    /** Top 10 position, shown inside the poster's lower left corner. */
+    rank: Int? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val width = if (compact) 84.dp else PosterWidth
@@ -464,6 +486,22 @@ internal fun PosterCard(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
+            // Top 10: the number inside the lower left, on a soft dark gradient so it reads on
+            // light and dark posters alike.
+            if (rank != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))),
+                )
+                Text(
+                    text = "$rank",
+                    modifier = Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 8.dp),
+                    style = TextStyle(fontSize = 26.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFF2F4FA)),
+                )
+            }
             // Where it's on: IPTV first when your provider has it, then your first service.
             val onIptv = IptvBadges.has(title)
             val source = title.sources.firstOrNull()
@@ -476,6 +514,7 @@ internal fun PosterCard(
                     source?.let { SourceTag(it) }
                 }
             }
+            SectionDim()
         }
         if (!compact) {
             Text(
@@ -487,7 +526,7 @@ internal fun PosterCard(
                     fontSize = 14.sp,
                     lineHeight = 18.sp,
                     fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
-                    color = if (focused) WiptvColors.text else WiptvColors.secondary,
+                    color = sectionCaption(),
                 ),
             )
         }
@@ -553,10 +592,10 @@ internal fun IptvPosterCard(title: IptvTitle, onClick: () -> Unit, modifier: Mod
  * at the same height, pushing its neighbours along. Captions sit in a fixed space underneath,
  * so the row's height never changes.
  */
-private val CardHeight = 156.dp
-private val CardNarrow = 104.dp
-private val CardWide = 277.dp
-private val CardGap = 12.dp
+private val CardHeight = 216.dp
+private val CardNarrow = 144.dp
+private val CardWide = 384.dp
+private val CardGap = 14.dp
 private val CaptionHeight = 58.dp
 
 /** How long focus has to rest on a card before it widens, and how long widening takes. */
@@ -597,8 +636,11 @@ fun ContinueRow(
         delay(SETTLE_MS)
         wideKey = key
     }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(text = "Continue watching", modifier = Modifier.padding(start = Edge, end = Edge, bottom = 2.dp), style = RowHeading)
+    // The whole row is one section: moving between cards keeps it bright.
+    var active by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth().onFocusChanged { active = it.hasFocus }) {
+      CompositionLocalProvider(LocalSectionActive provides active) {
+        Box(Modifier.padding(start = Edge, end = Edge, bottom = 2.dp)) { SectionHeading("Continue watching", active) }
         RowScrolling(start = Edge, end = 72.dp) {
             LazyRow(
                 // focusRestorer: coming back to the row lands on the card you were last on.
@@ -620,6 +662,7 @@ fun ContinueRow(
                 }
             }
         }
+      }
     }
 }
 
@@ -668,6 +711,7 @@ private fun ContinueCard(
         ) {
             Box(Modifier.fillMaxSize().clip(shape)) {
                 ContinueArtwork(item = item, wide = wide)
+                SectionDim()
                 // Where it's from, top left, clear of the progress bar.
                 Box(Modifier.align(Alignment.TopStart).padding(6.dp)) { IptvTag() }
                 if (item.progress > 0f) {
@@ -707,7 +751,7 @@ private fun ContinueCard(
                     fontSize = 14.sp,
                     lineHeight = 18.sp,
                     fontWeight = FontWeight.Medium,
-                    color = if (focused) WiptvColors.text else WiptvColors.secondary,
+                    color = sectionCaption(),
                 ),
             )
             if (focused) {
