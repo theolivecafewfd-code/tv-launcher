@@ -54,16 +54,35 @@ object CatalogIndex {
         scope.launch {
             try {
                 for (kind in VodKind.entries) refresh(context, login, kind)
-                prefs.edit().putLong("refreshed", System.currentTimeMillis()).apply()
+                prefs.edit().putLong("refreshed", System.currentTimeMillis()).remove("error").apply()
             } catch (e: CancellationException) {
                 throw e
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 // Keep the last good list; the next open of the player or the launcher tries again.
+                // The reason is kept for the launcher's status line (never a server address).
                 Log.w(TAG, "Refresh failed", e)
+                val reason = if (e is XtreamException) e.message else e.javaClass.simpleName
+                prefs.edit().putString("error", reason ?: "unknown error").apply()
             } finally {
                 refreshing = false
             }
         }
+    }
+
+    /** How the list stands, for the launcher's IPTV status line. */
+    data class Status(val films: Int, val series: Int, val refreshed: Long, val refreshing: Boolean, val error: String?)
+
+    fun status(context: Context): Status {
+        val prefs = context.getSharedPreferences("catalog-index", Context.MODE_PRIVATE)
+        fun count(kind: VodKind): Int =
+            db(context).rawQuery("SELECT COUNT(*) FROM titles WHERE kind = ?", arrayOf(kind.name)).use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+        return Status(
+            films = count(VodKind.MOVIE),
+            series = count(VodKind.SERIES),
+            refreshed = prefs.getLong("refreshed", 0),
+            refreshing = refreshing,
+            error = prefs.getString("error", null),
+        )
     }
 
     /** Replaces one kind's titles. If the download fails part-way, the old ones stay. */

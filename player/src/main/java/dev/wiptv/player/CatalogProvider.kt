@@ -16,6 +16,9 @@ import android.net.Uri
  *   entry for one title, or no rows.
  * - `content://dev.wiptv.player.catalog/search?q=…`: films and series whose name contains q.
  *
+ * - `content://dev.wiptv.player.catalog/status`: one row: signed_in, films, series, refreshed,
+ *   refreshing, error.
+ *
  * Rows: kind, id, name, year, poster.
  */
 class CatalogProvider : ContentProvider() {
@@ -24,7 +27,14 @@ class CatalogProvider : ContentProvider() {
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? {
         val context = context ?: return null
-        LoginStore.load(context)?.let { CatalogIndex.refreshIfStale(context, it) }
+        val login = LoginStore.load(context)
+        login?.let { CatalogIndex.refreshIfStale(context, it) }
+        if (uri.lastPathSegment == "status") {
+            val s = CatalogIndex.status(context)
+            return MatrixCursor(arrayOf("signed_in", "films", "series", "refreshed", "refreshing", "error")).apply {
+                addRow(arrayOf<Any?>(if (login != null) 1 else 0, s.films, s.series, s.refreshed, if (s.refreshing) 1 else 0, s.error))
+            }
+        }
         val rows = when (uri.lastPathSegment) {
             "match" -> {
                 val kind = uri.getQueryParameter("kind")?.let { k -> VodKind.entries.firstOrNull { it.name == k } } ?: return null

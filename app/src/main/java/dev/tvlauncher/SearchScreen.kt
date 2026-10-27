@@ -70,6 +70,7 @@ fun SearchScreen(
     var results by remember { mutableStateOf<List<Title>>(emptyList()) }
     // Your IPTV provider's films and series, from WIPTV Player's list on the TV.
     var iptvResults by remember { mutableStateOf<List<IptvTitle>>(emptyList()) }
+    var iptvStatus by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     var searching by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
@@ -103,6 +104,7 @@ fun SearchScreen(
         delay(450)
         failed = false
         iptvResults = Iptv.search(context, text)
+        iptvStatus = Iptv.status(context)
         results = try {
             Catalog.search(text)
         } catch (e: Exception) {
@@ -180,6 +182,10 @@ fun SearchScreen(
                 },
                 style = WiptvType.hint,
             )
+            // How WIPTV Player's list stands, so it's clear why IPTV results do or don't appear.
+            if (query.trim().length >= 2 && !searching) {
+                iptvStatus?.let { Text(text = it, modifier = Modifier.padding(top = 2.dp), style = WiptvType.hint) }
+            }
 
             // Results as the player's posters, with their names underneath.
             LazyVerticalGrid(

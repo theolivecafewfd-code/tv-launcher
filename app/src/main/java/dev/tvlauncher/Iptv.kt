@@ -36,6 +36,43 @@ object Iptv {
         query(context, base.buildUpon().appendPath("search").appendQueryParameter("q", text).build())
     }
 
+    /**
+     * A line saying how the player's list stands, for the search screen: how many films and
+     * series it has, or why there's nothing (not installed, not signed in, still fetching, an
+     * error).
+     */
+    suspend fun status(context: Context): String = withContext(Dispatchers.IO) {
+        try {
+            context.packageManager.getPackageInfo(PLAYER, 0)
+        } catch (e: Exception) {
+            return@withContext "IPTV: WIPTV Player isn't installed"
+        }
+        try {
+            context.contentResolver.query(base.buildUpon().appendPath("status").build(), null, null, null, null)?.use { c ->
+                if (!c.moveToFirst()) return@withContext "IPTV: no answer from WIPTV Player"
+                val signedIn = c.getInt(0) == 1
+                val films = c.getInt(1)
+                val series = c.getInt(2)
+                val refreshed = c.getLong(3)
+                val refreshing = c.getInt(4) == 1
+                val error = c.getString(5)
+                when {
+                    !signedIn -> "IPTV: sign in to WIPTV Player first"
+                    films + series > 0 -> "IPTV: $films films and $series series" +
+                        (if (refreshed > 0) " · updated " + java.text.SimpleDateFormat("d MMM HH:mm", java.util.Locale.UK).format(java.util.Date(refreshed)) else "") +
+                        (if (refreshing) " · updating" else "")
+                    refreshing -> "IPTV: WIPTV Player is fetching your provider's list, try again in a minute"
+                    error != null -> "IPTV: the list couldn't be fetched ($error)"
+                    else -> "IPTV: no list yet, open WIPTV Player and wait a minute"
+                }
+            } ?: "IPTV: WIPTV Player needs updating"
+        } catch (e: SecurityException) {
+            "IPTV: not allowed to ask WIPTV Player (reinstall both apps)"
+        } catch (e: Exception) {
+            "IPTV: couldn't ask WIPTV Player (${e.javaClass.simpleName})"
+        }
+    }
+
     /** Opens it in WIPTV Player: a film plays (or resumes), a series opens its page. */
     fun open(context: Context, title: IptvTitle): Boolean = try {
         context.startActivity(
