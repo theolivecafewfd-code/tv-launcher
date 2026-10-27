@@ -253,9 +253,10 @@ object DisplayTitles {
 }
 
 /**
- * A details-page action. Only the focused button is light (with the outline 3 dp outside it), so
- * focus is never confused with emphasis. At rest the primary one (Play, Resume) has a brighter
- * wash and bolder label; the rest are quiet glass.
+ * A details-page action. The primary one (Play, Resume, Watch on) is a pale fill with dark text;
+ * the others rest on dark translucent slate with a subtle edge and turn pale when focused. Focus
+ * always adds the thin outline 3 dp outside the button and a slight lift, so it's never confused
+ * with emphasis.
  */
 @Composable
 fun ActionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = false) {
@@ -279,14 +280,10 @@ fun ActionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifie
                 .padding(3.dp)
                 .height(42.dp)
                 .background(
-                    when {
-                        focused -> WiptvColors.focus
-                        primary -> WiptvColors.focus.copy(alpha = 0.30f)
-                        else -> Color.White.copy(alpha = 0.07f)
-                    },
+                    if (focused || primary) WiptvColors.primaryFill else WiptvColors.surface.copy(alpha = 0.72f),
                     inner,
                 )
-                .border(1.dp, if (focused) Color.Transparent else Color.White.copy(alpha = if (primary) 0.5f else 0.14f), inner)
+                .border(1.dp, if (focused || primary) Color.Transparent else WiptvColors.border, inner)
                 .padding(horizontal = 20.dp),
             contentAlignment = Alignment.Center,
         ) {
@@ -296,7 +293,7 @@ fun ActionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifie
                 style = TextStyle(
                     fontSize = 15.sp,
                     fontWeight = if (primary) FontWeight.SemiBold else FontWeight.Medium,
-                    color = if (focused) WiptvColors.onLight else WiptvColors.text,
+                    color = if (focused || primary) WiptvColors.onPrimary else WiptvColors.text,
                 ),
             )
         }

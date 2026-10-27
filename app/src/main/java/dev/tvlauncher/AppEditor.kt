@@ -11,6 +11,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.tv.material3.Border
 import androidx.tv.material3.Glow
+import dev.wiptv.design.wiptvBackground
 import dev.wiptv.design.Glass
 import dev.wiptv.design.WiptvButton
 import dev.wiptv.design.WiptvColors
@@ -87,7 +88,7 @@ fun AppEditor(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .launcherBackground(),
+            .wiptvBackground(),
     ) {
         Column(modifier = Modifier.padding(top = 28.dp, start = Edge, end = Edge)) {
             Row(

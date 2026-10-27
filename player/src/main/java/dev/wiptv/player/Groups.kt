@@ -1,5 +1,6 @@
 package dev.wiptv.player
 
+import dev.wiptv.design.wiptvBackground
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -101,7 +102,7 @@ fun GroupEditor(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Palette.background)
+                .wiptvBackground()
                 .padding(top = 24.dp, start = 48.dp, end = 48.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

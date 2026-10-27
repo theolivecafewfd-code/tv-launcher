@@ -70,12 +70,19 @@ enum class QuickSetting(val label: String, val actions: List<String>) {
 
 /** A small tile at the end of Your apps for one quick setting, in the same frame as the apps. */
 @Composable
-fun QuickSettingTile(setting: QuickSetting, modifier: Modifier = Modifier) {
+fun QuickSettingTile(
+    setting: QuickSetting,
+    modifier: Modifier = Modifier,
+    width: Dp = 92.dp,
+    height: Dp = TileHeight,
+    /** Off in the Apps tray, where the name sits under the tile. */
+    showLabel: Boolean = true,
+) {
     val context = LocalContext.current
     var focused by remember { mutableStateOf(false) }
     ArtFrame(
-        width = 92.dp,
-        height = TileHeight,
+        width = width,
+        height = height,
         onFocusChange = { focused = it },
         onClick = { setting.open(context) },
         modifier = modifier,
@@ -86,8 +93,8 @@ fun QuickSettingTile(setting: QuickSetting, modifier: Modifier = Modifier) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         ) {
-            SettingIcon(setting, color = colour, size = 22.dp)
-            Text(text = setting.label, style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = colour))
+            SettingIcon(setting, color = colour, size = if (showLabel) 22.dp else 26.dp)
+            if (showLabel) Text(text = setting.label, style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = colour))
         }
     }
 }

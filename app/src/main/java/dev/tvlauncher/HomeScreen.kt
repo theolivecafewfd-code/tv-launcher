@@ -5,6 +5,7 @@ import dev.wiptv.update.Updater
 import dev.wiptv.update.label
 import dev.wiptv.update.loud
 import androidx.compose.foundation.BorderStroke
+import dev.wiptv.design.wiptvBackground
 import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.ArtFrame
 import dev.wiptv.design.CinematicBackdrop
@@ -61,6 +62,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
@@ -91,7 +93,7 @@ private const val OWNER_NAME = "Wayne"
 internal val Edge = 32.dp
 
 /** A row's heading: the player's row title. */
-internal val RowHeading = WiptvType.control.copy(fontSize = 17.sp, color = WiptvColors.text)
+internal val RowHeading = WiptvType.sectionHeading
 
 
 @Composable
@@ -154,8 +156,11 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     var rows by remember { mutableStateOf<List<ContentRow>>(emptyList()) }
     var rowsFailed by remember { mutableStateOf(false) }
     var featuredIndex by remember { mutableIntStateOf(0) }
-    // One focus target per row, so up and down move exactly one row.
-    val appsRow = remember { FocusRequester() }
+    // One focus target per row, so up and down move exactly one row. The featured title is the
+    // top of the rows; Apps at the top opens the tray.
+    val featuredFocus = remember { FocusRequester() }
+    val appsButton = remember { FocusRequester() }
+    var trayOpen by remember { mutableStateOf(false) }
     val rowFocus = remember { mutableMapOf<String, FocusRequester>() }
     fun rowRequester(key: String) = rowFocus.getOrPut(key) { FocusRequester() }
     val featured = rows.firstOrNull { it.key == "top" }?.items.orEmpty()
@@ -265,6 +270,28 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
         }
     }
 
+    /** The first row under the featured title: Continue watching, Your channels, or the first poster row. */
+    fun firstRowBelowTop(): FocusRequester? = continueRow.takeIf { continueItems.isNotEmpty() }
+        ?: channelRow.takeIf { channels.isNotEmpty() }
+        ?: allRows.firstOrNull()?.let { rowRequester(it.key) }
+
+    // When the home screen opens, focus starts on the featured title (or on Apps if there's none).
+    var placedFocus by remember { mutableStateOf(false) }
+    LaunchedEffect(featured.isNotEmpty()) {
+        if (placedFocus) return@LaunchedEffect
+        val target = if (featured.isNotEmpty()) featuredFocus else {
+            delay(3_000)
+            appsButton
+        }
+        repeat(20) {
+            if (runCatching { target.requestFocus() }.isSuccess) {
+                placedFocus = true
+                return@LaunchedEffect
+            }
+            delay(50)
+        }
+    }
+
     // Check GitHub for a newer build when the screen opens, then at most every 30 minutes.
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -321,11 +348,11 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .launcherBackground(),
+                .wiptvBackground(),
         ) {
             // While choosing apps, the editor replaces the home screen so the remote can't
-            // wander onto the tiles underneath. Everything scrolls as one list: header, the
-            // featured title and your apps first, then the rows below.
+            // wander onto the tiles underneath. Everything scrolls as one list: header and the
+            // featured title first, then the rows below. Your apps are in the Apps tray.
             // The featured title's artwork, large and 16:9 like the player's, top right. It scrolls
             // up with the top of the list (the apps and rows pass over its faded lower edge).
             if (!editing) {
@@ -365,49 +392,33 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                         Column(Modifier.padding(top = 20.dp)) {
                             Header(now = now, weather = weather, update = update, onUpdateClick = onUpdateClick)
                             Box(Modifier.padding(top = 12.dp, bottom = 14.dp)) {
-                                TypeSwitch(selected = mediaType, onSelect = { mediaType = it }, onSearch = { searchOpen = true }, onSurprise = { surprise() })
+                                TypeSwitch(
+                                    selected = mediaType,
+                                    onSelect = { mediaType = it },
+                                    onSearch = { searchOpen = true },
+                                    onSurprise = { surprise() },
+                                    onApps = { trayOpen = true },
+                                    appsRequester = appsButton,
+                                )
                             }
                             when {
                                 !Catalog.hasKey -> RowMessage("Add your TMDB key to GitHub secrets as TMDB_API_KEY to see shows and films here.")
-                                featured.isNotEmpty() -> Featured(
-                                    titles = featured,
-                                    index = featuredIndex.coerceIn(0, featured.size - 1),
-                                    onIndexChange = { featuredIndex = it },
-                                    onOpen = openTitle,
-                                    onPlay = playTitle,
-                                )
+                                featured.isNotEmpty() -> {
+                                    TrackAttached(featuredFocus)
+                                    Featured(
+                                        titles = featured,
+                                        index = featuredIndex.coerceIn(0, featured.size - 1),
+                                        onIndexChange = { featuredIndex = it },
+                                        onOpen = openTitle,
+                                        onPlay = playTitle,
+                                        modifier = Modifier
+                                            .focusRequester(featuredFocus)
+                                            .focusProperties { firstRowBelowTop().ifAttached()?.let { down = it } },
+                                    )
+                                }
                                 rowsFailed -> RowMessage("Couldn't reach TMDB. Check the internet connection.")
                                 else -> RowMessage("Loading ${mediaType.label.lowercase()}…")
                             }
-                        }
-                    }
-                }
-                item(key = "apps") {
-                    Column(Modifier.padding(top = 10.dp)) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = Edge, end = Edge, bottom = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Bottom,
-                        ) {
-                            Text(text = "Your apps", style = RowHeading)
-                        }
-                        if (apps.isEmpty()) {
-                            RowMessage("Loading apps…")
-                        } else {
-                            AppDock(
-                                apps = dockApps,
-                                onLaunch = onLaunch,
-                                onLongPress = { menuFor = it },
-                                onEdit = { editing = true },
-                                focusKey = focusKey,
-                                focusTick = focusTick,
-                                rowRequester = appsRow,
-                                down = continueRow.takeIf { continueItems.isNotEmpty() }
-                                    ?: channelRow.takeIf { channels.isNotEmpty() }
-                                    ?: allRows.firstOrNull()?.let { rowRequester(it.key) },
-                            )
                         }
                     }
                 }
@@ -422,7 +433,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                                     }
                                 },
                                 requester = continueRow,
-                                up = appsRow,
+                                up = featuredFocus,
                                 down = channelRow.takeIf { channels.isNotEmpty() } ?: allRows.firstOrNull()?.let { rowRequester(it.key) },
                             )
                         }
@@ -439,7 +450,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                                     }
                                 },
                                 requester = channelRow,
-                                up = continueRow.takeIf { continueItems.isNotEmpty() } ?: appsRow,
+                                up = continueRow.takeIf { continueItems.isNotEmpty() } ?: featuredFocus,
                                 down = allRows.firstOrNull()?.let { rowRequester(it.key) },
                             )
                         }
@@ -453,7 +464,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                             onPlay = playTitle,
                             requester = rowRequester(row.key),
                             up = if (i > 0) rowRequester(allRows[i - 1].key) else channelRow.takeIf { channels.isNotEmpty() }
-                                ?: continueRow.takeIf { continueItems.isNotEmpty() } ?: appsRow,
+                                ?: continueRow.takeIf { continueItems.isNotEmpty() } ?: featuredFocus,
                             down = allRows.getOrNull(i + 1)?.let { rowRequester(it.key) },
                         )
                     }
@@ -466,6 +477,26 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                     )
                 }
             } }
+
+            // Apps: the tray over the bottom of the home screen. Back puts focus back on Apps, and
+            // the home screen stays scrolled where it was.
+            AppsTray(
+                open = trayOpen && !editing,
+                apps = dockApps,
+                onLaunch = onLaunch,
+                onLongPress = { menuFor = it },
+                onEdit = { editing = true },
+                focusKey = focusKey,
+                focusTick = focusTick,
+                backEnabled = menuFor == null,
+                onClose = {
+                    trayOpen = false
+                    titleScope.launch {
+                        delay(50)
+                        runCatching { appsButton.requestFocus() }
+                    }
+                },
+            )
 
             // Search, over the home screen. A details page opened from it sits on top.
             if (searchOpen) {
@@ -557,9 +588,6 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
         }
     }
 }
-
-/** Focus key for the "Edit apps" tile at the end of the dock. */
-private const val EDIT_TILE_KEY = "__edit_apps__"
 
 /**
  * The top line: the W badge and greeting on the left; on the right the weather and clock in one
@@ -658,83 +686,6 @@ private fun greeting(now: LocalTime): String = when (now.hour) {
     else -> "Good evening"
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
-@Composable
-private fun AppDock(
-    apps: List<TvApp>,
-    onLaunch: (TvApp) -> Unit,
-    onLongPress: (TvApp) -> Unit,
-    onEdit: () -> Unit,
-    focusKey: String?,
-    focusTick: Int,
-    rowRequester: FocusRequester,
-    down: FocusRequester?,
-) {
-    val requesters = remember { mutableMapOf<String, FocusRequester>() }
-    fun requesterFor(key: String) = requesters.getOrPut(key) { FocusRequester() }
-
-    // Put the remote's focus on the first app when the screen opens, and back on the right
-    // tile after the menu or editor closes. Tiles may not be laid out on the first frame,
-    // so retry briefly.
-    LaunchedEffect(focusKey, focusTick) {
-        val key = focusKey ?: apps.firstOrNull()?.packageName ?: EDIT_TILE_KEY
-        repeat(20) {
-            if (runCatching { requesterFor(key).requestFocus() }.isSuccess) return@LaunchedEffect
-            delay(50)
-        }
-    }
-
-    TrackAttached(rowRequester)
-    val toNextRow = Modifier.focusProperties { down.ifAttached()?.let { this.down = it } }
-    RowScrolling(start = Edge, end = 72.dp) {
-    LazyRow(
-        modifier = Modifier
-            .focusRequester(rowRequester)
-            .focusRestorer(),
-        contentPadding = PaddingValues(start = Edge - ArtFocusGap, end = Edge, top = 6.dp, bottom = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp - ArtFocusGap * 2),
-    ) {
-        items(apps, key = { it.packageName }) { app ->
-            AppTile(
-                app = app,
-                onClick = { onLaunch(app) },
-                onLongClick = { onLongPress(app) },
-                modifier = Modifier.focusRequester(requesterFor(app.packageName)).then(toNextRow),
-            )
-        }
-        items(QuickSetting.entries, key = { it.key }) { setting ->
-            QuickSettingTile(
-                setting = setting,
-                modifier = Modifier.focusRequester(requesterFor(setting.key)).then(toNextRow),
-            )
-        }
-        item(key = EDIT_TILE_KEY) {
-            EditAppsTile(
-                onClick = onEdit,
-                modifier = Modifier.focusRequester(requesterFor(EDIT_TILE_KEY)).then(toNextRow),
-            )
-        }
-    }
-    }
-}
-
-/** The last tile in the dock: opens the screen for choosing which apps show. */
-@Composable
-private fun EditAppsTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    var focused by remember { mutableStateOf(false) }
-    ArtFrame(width = TileWidth, height = TileHeight, onFocusChange = { focused = it }, onClick = onClick, modifier = modifier) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            val colour = if (focused) WiptvColors.text else WiptvColors.secondary
-            Text(text = "+", style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Medium, color = colour))
-            Text(text = "Edit apps", style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colour))
-        }
-    }
-}
-
 /** App tiles: the 16:9 size of an Android TV banner, so banners show whole. */
 internal val TileWidth = 144.dp
 internal val TileHeight = 81.dp
@@ -751,10 +702,14 @@ internal fun AppTile(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     shown: Boolean? = null,
+    width: Dp = TileWidth,
+    height: Dp = TileHeight,
+    /** Off in the Apps tray, where the name sits under the tile: an icon tile shows just its icon. */
+    labelInside: Boolean = true,
 ) {
     ArtFrame(
-        width = TileWidth,
-        height = TileHeight,
+        width = width,
+        height = height,
         onFocusChange = {},
         onClick = onClick,
         onLongClick = onLongClick,
@@ -779,18 +734,20 @@ internal fun AppTile(
                 if (image != null) {
                     Image(
                         bitmap = image,
-                        contentDescription = null,
+                        contentDescription = if (labelInside) null else app.label,
                         contentScale = ContentScale.Fit,
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(if (labelInside) 32.dp else 44.dp),
                     )
-                    Spacer(Modifier.height(6.dp))
+                    if (labelInside) Spacer(Modifier.height(6.dp))
                 }
-                Text(
-                    text = app.label,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
-                )
+                if (labelInside || image == null) {
+                    Text(
+                        text = app.label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
+                    )
+                }
             }
         }
         if (shown != null) {

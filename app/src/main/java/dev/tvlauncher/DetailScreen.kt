@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import dev.wiptv.design.wiptvBackground
 import dev.wiptv.design.ActionButton
 import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.CinematicBackdrop
@@ -141,7 +142,7 @@ fun DetailScreen(
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        Box(modifier = Modifier.fillMaxSize().launcherBackground()) {
+        Box(modifier = Modifier.fillMaxSize().wiptvBackground()) {
             // Full-screen artwork, faded on the left and at the bottom, as in the player's details.
             CinematicBackdrop(
                 backdrop = title.backdropUrl,

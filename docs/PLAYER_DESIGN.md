@@ -56,26 +56,36 @@ Centralize these as native theme values before restyling screens. Values below a
 
 ### Colour
 
+Version 0.2 (charcoal glass). These are the values in `WiptvColors` (`design/.../Wiptv.kt`), the one place both apps take their colours from; [tokens.json](player-design/tokens.json) mirrors them.
+
 | Token | Value | Use |
 | --- | --- | --- |
-| Background | `#111624` | Root canvas |
-| Background top | `#182537` | Subtle static backdrop gradient |
-| Solid surface | `#202B42` | Reliable card and guide base |
-| Elevated surface | `#33425B` | Raised panel or emphasis |
-| Panel base | `#25354E` | Drawers, dialogs, fallback glass |
-| Primary text | `#F5F7FF` | Main labels and programme titles |
-| Secondary text | `#C0C9DC` | Times, metadata and helper text |
-| Quiet text | `#AEBBD0` | Non-critical supporting labels |
-| Focus ring | `#E7EEFF` | Remote focus |
-| Focus fill | `#E7EEFF` | Small focused controls |
-| Text on light fill | `#202C42` | Focused small control labels |
+| Background | `#0B111B` | Root canvas, below the gradient |
+| Raised background (`backgroundTop`) | `#111A27` | Top of the static backdrop gradient, quiet side panels |
+| Panel surface (`surface`) | `#192332` | Glass, trays, dialogs, sheets, placeholders |
+| Elevated surface | `#233041` | A focused list row's fill; artwork placeholders |
+| Primary text | `#F2F4F8` | Main labels and programme titles |
+| Secondary text | `#AFB8C7` | Times, metadata, captions, inactive headings |
+| Muted text (`quiet`) | `#8793A5` | Hints and non-critical labels |
+| Focus accent | `#DCE7FA` | Focus outline, focused small controls, list focus bar |
+| Primary button fill | `#DCE7FA` | Primary actions (Play, Resume, Watch on) |
+| Primary button text (`onLight`) | `#101724` | Text on pale fills |
+| Subtle border | White at 12% | Edges of panels and quiet buttons |
 | Positive | `#B4EED6` | Live dot or saved confirmation |
 | Warning | `#FFD09B` | Recoverable warnings |
 | Error | `#FFB8B4` | Failure labels, with explanatory text |
-| Progress | `#DFEAFF` | Playback and watched progress |
-| Scrim | Black at 60–85% | Readability over images/video |
+| Progress | `#DCE7FA` | Playback and watched progress |
+| Scrim | Black at 25–85% | 25% behind the Apps tray; more over images and video |
 
-Borders use white at 16% by default, 28% for elevated material and 40% for the restrained top highlight. Use text, icons and state shapes alongside colour. A green dot alone cannot explain a state.
+The result is near-black charcoal with a restrained navy undertone: no broad saturated blue fills or bright gradients. Branded tiles, posters, backdrops and video keep their own colours; theme overlays sit only on background layers.
+
+**Background.** `Modifier.wiptvBackground()`: a vertical gradient from `#111A27` at the top to `#0B111B` by just over halfway, under a static monochrome grain tile at 2% (one bundled 128 px PNG, repeated). Screens with cinematic artwork fade it into this base.
+
+**Type.** Platform sans-serif in both apps. Semantic styles in `WiptvType`: `pageTitle` (24 sp semibold), `sectionHeading` (17 sp medium), `body` (16 sp), `metadata` (14 sp, secondary), `caption` (14 sp, secondary, names under posters and tiles), plus `hero`, `control` and `hint`.
+
+**Focus.** Posters and app tiles: a thin pale outline (2 dp) just outside the art and a slight lift. Guide and episode rows: the elevated fill and a slim pale bar at the leading edge, no outline. Primary actions: pale fill and dark text at rest, with the outline when focused. Secondary actions: dark translucent slate with a 12% edge at rest, pale with dark text when focused. Focus stays different from selected (soft wash and underline), playing (▶) and favourite (★).
+
+Borders use white at 12% by default; glass edges fade from about 16% at the top to 5% at the bottom. Use text, icons and state shapes alongside colour. A green dot alone cannot explain a state.
 
 Target text contrast of at least 4.5:1 for ordinary text; focus and essential boundaries should remain clear at 3:1 against adjacent colours. Check the composited result, including artwork and video, rather than just token pairs. Increase the panel opacity when contrast fails.
 
@@ -365,6 +375,9 @@ Kept up to date as stages land. "Built" means the GitHub build passed; "emulator
 | 4 — Playback + remaining surfaces | Not started | | | |
 
 **Agreed deviations from version 0.1**
+
+- **Charcoal glass (version 0.2).** The palette above replaces the blue-grey one: background `#0B111B`, surfaces `#192332` and `#233041`, text `#F2F4F8` / `#AFB8C7` / `#8793A5`, accent `#DCE7FA`. Glass edges and washes are fainter. Primary actions now rest on the pale fill (the old rule was "only the focused action is light"); focus still adds the outline (#67).
+- **Launcher Apps tray (#67).** "Your apps" is no longer a row on the home screen. Apps sits in the top navigation after Surprise me; OK on it (not focus) opens a tray floating 24 dp above the bottom of the screen: 24 dp padding and corner radius, `Glass.Tray` slate with a faint edge and a soft shadow, "Your apps" (20 sp) at the top left and "Back to close" with a circled back arrow at the top right, one scrolling row of 16:9 app tiles sized so about six fit across (about 131 × 74 dp on the 960 × 540 grid, never larger than 156 × 88) with names centred underneath, as in Wayne's mockup, then the quick settings and Edit apps. The home screen dims behind a 25% black scrim (no blur) and keeps its scroll position. Focus opens on the last app you were on (or the first) and can't leave the tray; holding OK opens the app's menu (hide, move); Back closes it and puts focus back on Apps. It slides and fades in over 200 ms. Home focus now starts on the featured title.
 
 - **Quiet glass.** A lighter `Glass.Quiet` recipe (45% tint, faint edge) for side panels on a plain background, such as the Live TV categories, after Wayne found the panels too blue (#35).
 - **Guide rows.** No programme boxes or fills: programmes sit on the row, with a very faint line where each starts and an 8% hairline between rows. Focus is a soft #30405A fill across the whole row and a 3 × 24 dp #DDE8FF bar at its left edge, with no outline, glow or scaling. The playing channel keeps its green ▶ (no bar); favourites an amber ★. The now line runs behind programme text, and only one programme shows per time slot (#35, #43, #44).

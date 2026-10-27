@@ -18,6 +18,8 @@ Everything up to **PR #64 is merged**, and both apps are released from `main` at
 - **#62:** charcoal-navy launcher background (#101620 with a static #1A2533 → #0B1018 glow) and a 2% grain tile; Top 10 numbers removed.
 - **#63:** every home row widens the poster you rest on to its 16:9 backdrop (126 → 336 dp), like Continue watching.
 
+**Charcoal glass and the Apps tray (#67, waiting for Wayne's check):** both apps on the version 0.2 tokens; the launcher's Your apps row replaced by an Apps tray opened from the top navigation (see PLAYER_DESIGN.md §16).
+
 **Merged, waiting for Wayne's check (build 159)**
 - **#64:** on details pages (both apps), landing on the buttons or season tabs near the top scrolls the whole header back on screen. **One My List for both apps:** titles your provider has live in the player's My List and show in the launcher's My List row (they open in the player); the launcher's "+ My List" adds to or removes from the player's list; titles the provider doesn't have stay in the launcher's own list. Each title shows once.
 
@@ -33,7 +35,7 @@ Everything up to **PR #64 is merged**, and both apps are released from `main` at
 
 ## Shared design pieces
 
-The `design` module now holds what both apps use: tokens (`WiptvColors` including `rowFocus`, `rowFocusMarker`, `panelQuiet`, `sheet`), `Glass` recipes (`Quiet`, `Sheet`), `CinematicBackdrop`, `ArtFrame` (poster/tile frame with the focus gap), `ActionButton`, `InfoSheet` (More info), `MetaLine` (details line that wraps between items), `DisplayTitles.withoutYear`, and the scrolling helpers. It depends on Coil and core-ktx, which both apps already had. Change these carefully: the player's look is the accepted baseline.
+The `design` module is the single source of the look for both apps: the charcoal-glass tokens (`WiptvColors`: background `#0B111B`, raised `#111A27`, surface `#192332`, elevated `#233041`, text `#F2F4F8` / `#AFB8C7` / `#8793A5`, accent and primary fill `#DCE7FA` with `#101724` text, 12% white border), semantic type (`WiptvType.pageTitle`, `sectionHeading`, `body`, `metadata`, `caption`), the background (`wiptvBackground()`: gradient plus the 2% grain tile in the design module's resources), `Glass` recipes (`Nav`, `Drawer`, `Quiet`, `Sheet`, `Tray`), `CinematicBackdrop`, `ArtFrame` (poster/tile frame with the focus gap), `ActionButton`, `InfoSheet` (More info), `MetaLine` (details line that wraps between items), `DisplayTitles.withoutYear`, and the scrolling helpers. It depends on Coil and core-ktx, which both apps already had. Change these carefully: the player's look is the accepted baseline.
 
 ## What's next (in Wayne's order)
 

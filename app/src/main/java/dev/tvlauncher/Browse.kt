@@ -95,9 +95,19 @@ private fun Source.colours(): Pair<Color, Color> = when (this) {
     Source.PRIME -> Color(0xFF3EC1D3) to Color(0xFF0B1A1F)
 }
 
-/** The TV Shows | Movies capsule under the header, with search and Surprise me beside it (glass). */
+/**
+ * The top navigation under the header: the TV Shows | Movies capsule, then search, Surprise me
+ * and Apps (glass). OK on Apps opens the Apps tray; focus alone never does.
+ */
 @Composable
-fun TypeSwitch(selected: MediaType, onSelect: (MediaType) -> Unit, onSearch: () -> Unit, onSurprise: () -> Unit) {
+fun TypeSwitch(
+    selected: MediaType,
+    onSelect: (MediaType) -> Unit,
+    onSearch: () -> Unit,
+    onSurprise: () -> Unit,
+    onApps: () -> Unit,
+    appsRequester: FocusRequester,
+) {
     Row(
         modifier = Modifier.padding(start = Edge),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -123,16 +133,44 @@ fun TypeSwitch(selected: MediaType, onSelect: (MediaType) -> Unit, onSearch: () 
                 Text(text = "Surprise me", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium))
             }
         }
+        // Apps: a grid of four squares and its label.
+        GlassIconButton(onClick = onApps, modifier = Modifier.focusRequester(appsRequester)) {
+            Row(
+                modifier = Modifier.padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AppsIcon(color = LocalContentColor.current, size = 14.dp)
+                Text(text = "Apps", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium))
+            }
+        }
+    }
+}
+
+/** Four small rounded squares, for Apps. */
+@Composable
+private fun AppsIcon(color: Color, size: androidx.compose.ui.unit.Dp) {
+    androidx.compose.foundation.Canvas(Modifier.size(size)) {
+        val gap = this.size.width * 0.16f
+        val cell = (this.size.width - gap) / 2
+        for (row in 0..1) for (col in 0..1) {
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(col * (cell + gap), row * (cell + gap)),
+                size = Size(cell, cell),
+                cornerRadius = CornerRadius(cell * 0.25f),
+            )
+        }
     }
 }
 
 /** A round glass button for an icon (or an icon and a short label). */
 @Composable
-private fun GlassIconButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun GlassIconButton(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val shape = WiptvShapes.pill
     Surface(
         onClick = onClick,
-        modifier = Modifier.height(40.dp).glass(shape),
+        modifier = modifier.height(40.dp).glass(shape),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
@@ -186,6 +224,7 @@ fun Featured(
     onIndexChange: (Int) -> Unit,
     onOpen: (Title) -> Unit,
     onPlay: (Title) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val title = titles.getOrNull(index) ?: return
     val interaction = remember { MutableInteractionSource() }
@@ -194,7 +233,7 @@ fun Featured(
     Surface(
         onClick = { onOpen(title) },
         onLongClick = { onPlay(title) },
-        modifier = Modifier
+        modifier = modifier
             .padding(start = Edge - 12.dp)
             .width(500.dp)
             .height(190.dp)
@@ -298,7 +337,7 @@ internal fun IptvTag() {
     Text(
         text = "IPTV",
         modifier = Modifier
-            .background(Color(0xE6111624), RoundedCornerShape(50))
+            .background(WiptvColors.background.copy(alpha = 0.9f), RoundedCornerShape(50))
             .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(50))
             .padding(horizontal = 7.dp, vertical = 2.dp),
         style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White),
@@ -365,7 +404,7 @@ private fun rememberWideCard(): WideCard {
 val LocalSectionActive = compositionLocalOf { true }
 
 /** Heading and caption colour for a section that doesn't have focus. */
-private val InactiveText = Color(0xFFAAB4C4)
+private val InactiveText = WiptvColors.secondary
 
 /** How dark an unfocused section's artwork goes (a plain black wash, no blur). */
 private const val INACTIVE_DIM = 0.14f
