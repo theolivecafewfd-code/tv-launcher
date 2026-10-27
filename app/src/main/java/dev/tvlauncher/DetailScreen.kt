@@ -249,9 +249,6 @@ private fun ActionButton(
             focusedContentColor = Palette.background,
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
-        glow = ClickableSurfaceDefaults.glow(
-            focusedGlow = Glow(elevationColor = Palette.glow.copy(alpha = 0.5f), elevation = 10.dp),
-        ),
     ) {
         Text(
             text = text,

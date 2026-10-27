@@ -1,12 +1,20 @@
 package dev.tvlauncher
 
 import androidx.compose.foundation.BorderStroke
+import androidx.tv.material3.LocalContentColor
+import dev.wiptv.design.SectionCapsule
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.focusOutline
+import dev.wiptv.design.glass
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -53,75 +61,56 @@ private fun Source.colours(): Pair<Color, Color> = when (this) {
     Source.PRIME -> Color(0xFF3EC1D3) to Color(0xFF0B1A1F)
 }
 
-/** The TV Shows | Movies switch under the header. */
+/** The TV Shows | Movies capsule under the header, with search and Surprise me beside it (glass). */
 @Composable
 fun TypeSwitch(selected: MediaType, onSelect: (MediaType) -> Unit, onSearch: () -> Unit, onSurprise: () -> Unit) {
     Row(
-        modifier = Modifier
-            .padding(start = 40.dp)
-            .background(Color.White.copy(alpha = 0.07f), RoundedCornerShape(50))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.padding(start = 40.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        MediaType.entries.forEach { type ->
-            val isSelected = type == selected
-            Surface(
-                onClick = { onSelect(type) },
-                shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(50)),
-                colors = ClickableSurfaceDefaults.colors(
-                    containerColor = if (isSelected) Palette.glow else Color.Transparent,
-                    contentColor = if (isSelected) Palette.background else Palette.text,
-                    focusedContainerColor = if (isSelected) Color.White else Palette.tileFocused,
-                    focusedContentColor = if (isSelected) Palette.background else Palette.text,
-                ),
-                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-            ) {
-                Text(
-                    text = type.label,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 7.dp),
-                    style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
-                )
-            }
+        SectionCapsule(
+            labels = MediaType.entries.map { it.label },
+            selected = MediaType.entries.indexOf(selected),
+            onSelect = { onSelect(MediaType.entries[it]) },
+        )
+        // Search: a magnifying glass in a glass circle.
+        GlassIconButton(onClick = onSearch) {
+            SearchIcon(color = LocalContentColor.current, size = 16.dp)
         }
-        // Search: a magnifying glass after TV Shows and Movies.
-        Surface(
-            onClick = onSearch,
-            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(50)),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color.Transparent,
-                contentColor = Palette.text,
-                focusedContainerColor = Palette.tileFocused,
-                focusedContentColor = Palette.text,
-            ),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-        ) {
-            Box(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                SearchIcon(color = Palette.text, size = 16.dp)
-            }
-        }
-        // Surprise Me: a die after search.
-        Surface(
-            onClick = onSurprise,
-            shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(50)),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color.Transparent,
-                contentColor = Palette.text,
-                focusedContainerColor = Palette.tileFocused,
-                focusedContentColor = Palette.text,
-            ),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-        ) {
+        // Surprise me: a die and its label.
+        GlassIconButton(onClick = onSurprise) {
             Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                modifier = Modifier.padding(horizontal = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                DiceIcon(color = Palette.text, size = 15.dp)
-                Text(text = "Surprise me", style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold))
+                DiceIcon(color = LocalContentColor.current, size = 15.dp)
+                Text(text = "Surprise me", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium))
             }
+        }
+    }
+}
+
+/** A round glass button for an icon (or an icon and a short label). */
+@Composable
+private fun GlassIconButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+    val shape = WiptvShapes.pill
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.height(40.dp).glass(shape),
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            contentColor = WiptvColors.text,
+            focusedContainerColor = WiptvColors.focus,
+            focusedContentColor = WiptvColors.onLight,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        border = focusOutline(shape),
+    ) {
+        Box(modifier = Modifier.height(40.dp).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+            content()
         }
     }
 }
@@ -161,76 +150,88 @@ fun Featured(
     onPlay: (Title) -> Unit,
 ) {
     val title = titles.getOrNull(index) ?: return
-    val shape = RoundedCornerShape(16.dp)
-    Row(
-        modifier = Modifier.padding(horizontal = 40.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    val shape = WiptvShapes.panel
+    Surface(
+        onClick = { onOpen(title) },
+        onLongClick = { onPlay(title) },
+        modifier = Modifier
+            .padding(horizontal = 40.dp)
+            .fillMaxWidth()
+            .height(188.dp)
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when {
+                    event.key == Key.DirectionLeft && index > 0 -> { onIndexChange(index - 1); true }
+                    event.key == Key.DirectionRight && index < titles.size - 1 -> { onIndexChange(index + 1); true }
+                    else -> false
+                }
+            },
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.White.copy(alpha = 0.04f),
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        border = focusOutline(shape),
     ) {
-        Surface(
-            onClick = { onOpen(title) },
-            onLongClick = { onPlay(title) },
-            modifier = Modifier
-                .width(570.dp)
-                .height(188.dp)
-                .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    when {
-                        event.key == Key.DirectionLeft && index > 0 -> { onIndexChange(index - 1); true }
-                        event.key == Key.DirectionRight && index < titles.size - 1 -> { onIndexChange(index + 1); true }
-                        else -> false
-                    }
-                },
-            shape = ClickableSurfaceDefaults.shape(shape = shape),
-            colors = ClickableSurfaceDefaults.colors(containerColor = Palette.tile, focusedContainerColor = Palette.tile),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
-            border = ClickableSurfaceDefaults.border(
-                focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-            ),
-            glow = ClickableSurfaceDefaults.glow(
-                focusedGlow = Glow(elevationColor = Palette.glow.copy(alpha = 0.45f), elevation = 12.dp),
-            ),
-        ) {
-            Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize()) {
+            // The backdrop on the right, fading left and down into the screen.
+            Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.64f)) {
                 AsyncImage(
                     model = title.backdropUrl,
-                    contentDescription = title.name,
+                    contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                 )
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .background(Brush.verticalGradient(0.3f to Color.Transparent, 1f to Color(0xE60A080E))),
+                        .background(
+                            Brush.horizontalGradient(
+                                0f to WiptvColors.background,
+                                0.45f to WiptvColors.background.copy(alpha = 0.45f),
+                                1f to Color.Transparent,
+                            ),
+                        ),
                 )
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(horizontal = 18.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(5.dp),
-                ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to WiptvColors.background)),
+                )
+            }
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .width(460.dp)
+                    .padding(start = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = title.name,
-                        maxLines = 1,
+                        text = "${index + 1} of ${titles.size}",
+                        modifier = Modifier.glass(WiptvShapes.pill).padding(horizontal = 9.dp, vertical = 2.dp),
+                        style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WiptvColors.text),
+                    )
+                    title.sources.forEach { SourceTag(it) }
+                }
+                Text(
+                    text = title.name,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = WiptvType.hero,
+                )
+                Text(text = metaLine(title), maxLines = 1, style = WiptvType.metadata)
+                if (title.overview.isNotBlank()) {
+                    Text(
+                        text = title.overview,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White),
+                        style = WiptvType.metadata,
                     )
-                    Text(
-                        text = metaLine(title),
-                        maxLines = 1,
-                        style = TextStyle(fontSize = 11.sp, color = Color(0xFFE6E1EE)),
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(text = "Watch on", style = TextStyle(fontSize = 11.sp, color = Color(0xFFE6E1EE)))
-                        title.sources.forEach { SourceTag(it) }
-                    }
                 }
             }
         }
-        titles.getOrNull(index + 1)?.let { SidePoster(it) }
-        titles.getOrNull(index + 2)?.let { SidePoster(it) }
     }
 }
 
@@ -240,26 +241,6 @@ private fun metaLine(title: Title): String = buildList {
     title.genreIds.mapNotNull { Catalog.genreName(it) }.take(2).takeIf { it.isNotEmpty() }?.let { add(it.joinToString(", ")) }
     if (title.rating > 0) add("TMDB " + String.format(Locale.UK, "%.1f", title.rating))
 }.joinToString("  ·  ")
-
-@Composable
-private fun SidePoster(title: Title) {
-    Box(
-        modifier = Modifier
-            .size(width = 126.dp, height = 188.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Palette.tile),
-    ) {
-        AsyncImage(
-            model = title.posterUrl,
-            contentDescription = title.name,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-        title.sources.firstOrNull()?.let {
-            Box(Modifier.align(Alignment.TopStart).padding(6.dp)) { SourceTag(it) }
-        }
-    }
-}
 
 @Composable
 private fun SourceTag(source: Source) {
@@ -361,9 +342,6 @@ internal fun PosterCard(
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
         border = ClickableSurfaceDefaults.border(
             focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-        ),
-        glow = ClickableSurfaceDefaults.glow(
-            focusedGlow = Glow(elevationColor = Palette.glow.copy(alpha = 0.45f), elevation = 10.dp),
         ),
     ) {
         Box(Modifier.fillMaxSize()) {
