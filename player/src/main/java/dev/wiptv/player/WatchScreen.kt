@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
@@ -67,7 +68,8 @@ class ChannelGroup(val id: String, val name: String, val channels: List<Channel>
  * - Left opens the group's channel list over the picture; Left again shows the groups, so you can
  *   pick a channel from any group. OK on a channel switches to it.
  * - Right jumps back to the channel you were on before, whichever group it's in.
- * - OK shows the channel info. Back returns to the guide with the channel still in the preview.
+ * - OK shows the channel info. Menu (≡) adds the channel (or the one highlighted in the list) to
+ *   Favourites, or takes it off. Back returns to the guide with the channel still in the preview.
  */
 @Composable
 fun WatchScreen(
@@ -81,9 +83,13 @@ fun WatchScreen(
     groupOf: (Channel) -> ChannelGroup,
     nowShowing: (Channel) -> Programme?,
     ensureGuide: suspend (Channel) -> Unit,
+    isFavourite: (Channel) -> Boolean,
+    onToggleFavourite: (Channel) -> Unit,
     onChannel: (Channel) -> Unit,
     onClose: (Channel, String) -> Unit,
 ) {
+    // The channel highlighted in the channel list overlay, for Menu (≡).
+    var highlightedInList by remember { mutableStateOf<Channel?>(null) }
     var group by remember { mutableStateOf(start) }
     var index by remember { mutableIntStateOf(startIndex.coerceIn(0, start.channels.lastIndex)) }
     var infoTick by remember { mutableIntStateOf(0) }
@@ -202,8 +208,18 @@ fun WatchScreen(
                 .focusRequester(focus)
                 .focusable()
                 .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     val key = event.nativeKeyEvent.keyCode
+                    if (key == AndroidKeyEvent.KEYCODE_MENU) {
+                        if (event.type == KeyEventType.KeyUp) {
+                            when (overlay) {
+                                Overlay.NONE -> { onToggleFavourite(channel); infoTick++ }
+                                Overlay.CHANNELS -> highlightedInList?.let(onToggleFavourite)
+                                Overlay.GROUPS -> Unit
+                            }
+                        }
+                        return@onPreviewKeyEvent true
+                    }
+                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (overlay) {
                         // The lists handle their own up and down; left and right move between them.
                         Overlay.CHANNELS -> when (key) {
@@ -263,6 +279,7 @@ fun WatchScreen(
                     index = index,
                     total = channels.size,
                     previous = live.previous,
+                    favourite = isFavourite(channel),
                 )
             }
 
@@ -276,6 +293,8 @@ fun WatchScreen(
                     requesterFor = ::requesterFor,
                     nowShowing = nowShowing,
                     ensureGuide = ensureGuide,
+                    isFavourite = isFavourite,
+                    onHighlight = { highlightedInList = it },
                     onPick = { picked ->
                         val list = browseList.orEmpty()
                         list.getOrNull(picked)?.let { goToChannel(it, ChannelGroup(browseId, browseName, list)) }
@@ -315,6 +334,8 @@ private fun ChannelListOverlay(
     requesterFor: (Long) -> FocusRequester,
     nowShowing: (Channel) -> Programme?,
     ensureGuide: suspend (Channel) -> Unit,
+    isFavourite: (Channel) -> Boolean,
+    onHighlight: (Channel) -> Unit,
     onPick: (Int) -> Unit,
 ) {
     Column(
@@ -331,7 +352,7 @@ private fun ChannelListOverlay(
             style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
         )
         Text(
-            text = if (loading) "Loading channels…" else "OK to switch · ◀ groups · Right or Back to close",
+            text = if (loading) "Loading channels…" else "OK to switch · ≡ favourite · ◀ groups · Right or Back to close",
             style = TextStyle(fontSize = 11.sp, color = Palette.quiet),
         )
         Spacer(Modifier.height(8.dp))
@@ -346,7 +367,10 @@ private fun ChannelListOverlay(
                 val playing = item.id == playingId
                 Surface(
                     onClick = { onPick(i) },
-                    modifier = Modifier.fillMaxWidth().focusRequester(requesterFor(item.id)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(requesterFor(item.id))
+                        .onFocusChanged { if (it.isFocused) onHighlight(item) },
                     shape = ClickableSurfaceDefaults.shape(shape = shape),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = Color.Transparent,
@@ -371,7 +395,7 @@ private fun ChannelListOverlay(
                         )
                         Column {
                             Text(
-                                text = item.name,
+                                text = if (isFavourite(item)) "★ ${item.name}" else item.name,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 style = TextStyle(
@@ -466,6 +490,7 @@ private fun InfoBar(
     index: Int,
     total: Int,
     previous: Channel?,
+    favourite: Boolean,
 ) {
     Box(
         modifier = Modifier
@@ -488,7 +513,7 @@ private fun InfoBar(
             }
             Column(modifier = Modifier.width(640.dp)) {
                 Text(
-                    text = channel.name,
+                    text = if (favourite) "★ ${channel.name}" else channel.name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
@@ -503,7 +528,7 @@ private fun InfoBar(
                 }
                 val back = if (previous != null) " · ▶ back to ${previous.name}" else ""
                 Text(
-                    text = "$groupName · ${index + 1} of $total · ▲▼ change · ◀ channels and groups$back",
+                    text = "$groupName · ${index + 1} of $total · ▲▼ change · ◀ channels and groups · ≡ favourite$back",
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
