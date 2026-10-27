@@ -23,7 +23,7 @@ Oct 27, 2026 · Wayne
 | Player: Live Categories drawer | On hold | Design stage 2; Wayne is looking at another option |
 | Player: playback overlays and remaining screens | Not started | Design stage 4: overlays, login, account, editors, updater |
 | Player: catch-up | Not started | Rewind on channels that support it |
-| Launcher link | Next | "Watch on IPTV" first in the launcher; then Continue watching, favourites and provider categories as rows |
+| Launcher link | In progress | Done: "Watch on IPTV" first on details, IPTV in search and hold-OK, IPTV badges (#52–#54). Next: Continue watching, favourites and provider categories as rows |
 | Optional extras | Not started | IMDb and Rotten Tomatoes scores (needs an OMDb key); Prime via Fire TV search |
 | Fire Stick as Home screen | Waiting | Home on Fire needs a permission granted over ADB from another device; to be done from the Chromebook |
 | Own stick | Idea | A certified Google TV / Android TV stick, where WIPTV can be the real Home screen; budget matters |
@@ -144,7 +144,7 @@ Every merge publishes a new build of both apps. Each app checks GitHub when it o
 
 Remaining work, in order. Progress for every area is in the Status table at the top.
 
-1. **Launcher link:** "Watch on IPTV" as the first Watch on choice, then the player's Continue watching, favourites and chosen provider categories as launcher rows (keeping the home screen to about four rows).
+1. **Launcher link:** "Watch on IPTV" is done (#52–#54); next, the player's Continue watching, favourites and chosen provider categories as launcher rows (keeping the home screen to about four rows).
 2. **Live Categories drawer** (design stage 2), if Wayne still wants it.
 3. **Catch-up** in the player.
 4. **Playback overlays and remaining screens** (design stage 4).
@@ -199,7 +199,7 @@ A separate app for your Xtream Codes provider, in `player/` in the same repo. It
 | 4. Watching screen: channel list over the video, favourites, last channel | Done (#24–#28) |
 | 5. Catch-up | Not started |
 | 6. Movies and Series: rows, details, Continue watching, My List | Done (#29); redesign done (#37–#41, #46) |
-| 7. Launcher link: "play this title" from the launcher, provider rows | Not started |
+| 7. Launcher link: "play this title" from the launcher, provider rows | "Play this title" done (#52–#54); provider rows next |
 | 8. Fire Stick check | Ongoing: each build is tried on the Fire Stick |
 
 ## Brief for the dev chat

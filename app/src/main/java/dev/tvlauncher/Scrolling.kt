@@ -17,7 +17,8 @@ private const val PIVOT = 0.14f
  * How the home screen scrolls when the remote moves focus up or down. Posters (anything at least
  * [TallItem] high) always settle with their row's heading at the top, like the player's rows, so
  * each press moves exactly one row and the row above never peeks in. Shorter items stay put while
- * they're fully on screen, and otherwise settle [PIVOT] of the way down.
+ * they're fully on screen; going up to one scrolls right to the top, and going down to one
+ * settles it [PIVOT] of the way down.
  */
 @OptIn(ExperimentalFoundationApi::class)
 private class PivotScroll(private val rowPivot: Float, private val tall: Float) : BringIntoViewSpec {
@@ -25,6 +26,9 @@ private class PivotScroll(private val rowPivot: Float, private val tall: Float) 
         if (size >= tall) return offset - rowPivot
         val fullyVisible = offset >= 0f && offset + size <= containerSize
         if (fullyVisible) return 0f
+        // Going up to something short (the apps, the featured title, the buttons above it): carry
+        // on to the very top in one smooth scroll, so the header shows. The list stops at its top.
+        if (offset < 0f) return offset - containerSize
         return offset - containerSize * PIVOT
     }
 }

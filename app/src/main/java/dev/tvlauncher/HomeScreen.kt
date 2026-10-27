@@ -328,19 +328,9 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                 // artwork large on the right, fading into the dark behind the header and its text.
                 item(key = "top") {
                     Box(Modifier.fillMaxWidth()) {
-                        // Anywhere up here (the switch, the featured title, the update pill)
-                        // brings the whole top back into view, header included.
-                        Column(
-                            Modifier
-                                .onFocusChanged {
-                                    if (it.hasFocus) scope.launch {
-                                        // After the focus change's own scroll has started, so this one wins.
-                                        delay(60)
-                                        listState.animateScrollToItem(0)
-                                    }
-                                }
-                                .padding(top = 20.dp),
-                        ) {
+                        // Going up to anything here scrolls right to the top, header included
+                        // (see PivotScrolling), in one movement.
+                        Column(Modifier.padding(top = 20.dp)) {
                             Header(now = now, weather = weather, update = update, onUpdateClick = onUpdateClick)
                             Box(Modifier.padding(top = 12.dp, bottom = 14.dp)) {
                                 TypeSwitch(selected = mediaType, onSelect = { mediaType = it }, onSearch = { searchOpen = true }, onSurprise = { surprise() })
