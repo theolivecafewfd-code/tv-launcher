@@ -18,3 +18,4 @@ rootProject.name = "tv-launcher"
 include(":app")
 include(":player")
 include(":design")
+include(":update")
