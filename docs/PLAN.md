@@ -1,31 +1,37 @@
-# TV Launcher — Project Plan (Xiaomi + Fire Stick)
+# WIPTV — Project Plan (Fire Stick)
 
-Oct 24, 2026 · Wayne
+Oct 27, 2026 · Wayne
 
 > A copy of the WIPTV project plan. The live version is kept in Claude Docs; this file is refreshed from it now and then.
 
 ## Status
 
-**WIPTV** is live on the Fire TV Stick HD at **build 34**: a TV Shows | Movies home screen with a featured Top 10, rows of titles on Netflix and Prime, details pages with trailers and My List, search, Waterford weather, and a customisable app dock. Updates install from the pill next to the clock. It's opened from the apps list for now; making it the Home screen waits until the remaining pieces are refined.
+**WIPTV** (the launcher) and **WIPTV Player** (the IPTV app) are both live on the Fire TV Stick HD at **build 79**, in the shared glass style. The launcher has the TV Shows | Movies home screen, details, search, Surprise me, weather and the app dock with quick settings. The player has Live TV with a preview and guide, favourites, full-screen channel lists, and Movies and Series. One update pill in either app updates both. The launcher is still opened from the apps list; making it the Home screen is waiting for access to the Chromebook.
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Build pipeline and updates | Done | GitHub builds every pull request; merges publish a release; the pill next to the clock installs updates on the Fire Stick |
-| App dock | Done | Hide and reorder (hold OK or Edit apps); quick settings tiles in PR #17 |
-| Header | Done | Greeting, clock, update pill, Waterford weather and tomorrow's outlook |
-| Home v2: TV Shows \| Movies | Done | Featured Top 10; rows: Top 10 this week, My List, Comedy, Documentary, Recommended for you; Netflix and Prime in Ireland only, tagged on each poster |
-| Title details | Done | Info, cast, Watch on buttons, Trailer, My List, Mark as watched, More like this. Netflix jumps straight to films and shows; Prime opens the app with a search prompt. Hold OK anywhere to play straight away |
-| Search and Surprise me | In progress | Search done (build 34); Surprise me in PR #17 |
-| Quick settings and polish | In progress | Quick settings in PR #17; polish after some daily use |
-| WIPTV branding | Done | Icon, Fire TV banner and app name |
+| Build pipeline and updates | Done | Every pull request builds both apps; merges publish releases one at a time; one pill in either app updates both (#33, #34) |
+| Launcher home: TV Shows \| Movies | Done | Featured Top 10; Top 10 this week, My List, Comedy, Documentary, Recommended for you; Netflix and Prime in Ireland |
+| Launcher details, search, Surprise me | Done | Details with Watch on, Trailer, My List, Mark as watched, More like this |
+| Launcher header, dock and quick settings | Done | Greeting, clock, Waterford weather; hide and reorder apps; Wi-Fi, Bluetooth, Display & sound and Settings tiles |
+| Glass restyle | Done | Shared `design` module; launcher (#32) and player header and Live TV (#31) |
+| Player: sign-in and account | Done | Xtream Codes login stored encrypted on the TV; account expiry and screen limit |
+| Player: Live TV | Done | Groups, guide with now line, preview (OK previews, OK again full screen), Edit groups, favourites on Menu (≡), screen saver kept off while watching; calmer guide (#35) |
+| Player: full-screen watching | Done | Up/Down zap, Left for channels then groups, Right for the last channel, info bar |
+| Player: Movies and Series | Done, redesign in review | Rows, details, seasons and episodes, Continue watching, My List, resume, next episode. Cinematic redesign in PRs #36–#39 |
+| Native screenshots | In review | PR #36: an emulator run against a pretend provider, so visual changes can be seen before merging |
+| Player: Live Categories drawer | Not started | Design stage 2: a Categories button and drawer to give the guide more room |
+| Player: playback overlays and remaining screens | Not started | Design stage 4: overlays, login, account, editors, updater |
+| Player: catch-up | Not started | Rewind on channels that support it |
+| Launcher link | Not started | "Watch on IPTV" first in the launcher; then Continue watching, favourites and provider categories as rows |
 | Optional extras | Not started | IMDb and Rotten Tomatoes scores (needs an OMDb key); Prime via Fire TV search |
-| Fire Stick as Home screen | Deferred | Home on Fire redirect; last step, after refinements |
+| Fire Stick as Home screen | Waiting | Home on Fire needs a permission granted over ADB from another device; Amazon blocks apps on the stick from connecting to its own ADB. To be done from the Chromebook |
+| Own stick | Idea | A certified Google TV / Android TV stick, where WIPTV can be the real Home screen; budget matters |
 | Default home on the Xiaomi | Dropped | The stick was counterfeit and was retired |
-| App 2: IPTV player | Not started | Starts once the launcher is finished; joins Watch on as the first choice |
 
-**Links:** [GitHub repo](https://github.com/theolivecafewfd-code/tv-launcher) · download for the TV: `is.gd/mAyKiF` (always the newest build)
+**Links:** [GitHub repo](https://github.com/theolivecafewfd-code/tv-launcher) · launcher `is.gd/mAyKiF` · player `is.gd/pPSEvh` (both always the newest build)
 
-**How changes are made:** Claude writes each change and opens a pull request; GitHub builds and checks it; Wayne says "merge it" and Claude merges; the launcher's update pill offers the new build on the TV.
+**How changes are made:** Claude writes each change and opens a pull request; GitHub builds both apps (and, once #36 is merged, takes screenshots of player changes); Wayne checks it and says "merge it", then Claude merges; the update pill offers the new build on the TV.
 
 ## Goal
 
@@ -64,7 +70,7 @@ Selecting a film or series shows a button for every place you can watch it, and 
 | Your IPTV provider | Matches against your provider's movie and series list by TMDB ID, or by title and year when the provider has no IDs | Opens our IPTV player straight into playback |
 
 - **Default choice:** a setting for the order, such as provider first or Netflix first, with OK going straight to the top one.
-- **Before the IPTV player exists:** the provider button stays hidden.
+- **Until the launcher link is built:** the provider button stays hidden.
 
 ## Tech choices
 
@@ -101,14 +107,14 @@ The same app file runs on any Fire Stick that still uses Android-based Fire OS. 
 | Fire TV Stick 3rd gen, Lite, older HD, 4K Max (2021) | Fire OS 7 (Android 9) | Yes, with a short delay on Home |
 | Fire TV Stick 4K Select, new Fire TV Stick HD (2026) | Vega OS | No: no Android apps or sideloading |
 
-**Your stick:** Fire TV Stick HD (1st generation) on Fire OS 7.7.1.7, which is compatible. Developer options, ADB debugging and Install unknown apps for Downloader are switched on, and TV Launcher is installed.
+**Your stick:** Fire TV Stick HD (1st generation) on Fire OS 7.7.1.7, which is compatible. Developer options, ADB debugging and Install unknown apps for Downloader are switched on, and WIPTV and WIPTV Player are installed.
 
 Check yours in Settings → My Fire TV → About. Amazon has said every future Fire TV Stick will run Vega OS, so buy a Fire OS model if you want a spare ([AFTVnews](https://www.aftvnews.com/tag/amazon-fire-tv-stick/), [Fire OS vs Vega list](https://www.aftvnews.com/tag/fire-os/)).
 
 **How Home works on a Fire Stick:** Amazon doesn't let you replace its home screen, and it blocked the old launcher-switching tricks. Instead, a small background service spots Amazon's home screen opening and immediately opens yours on top.
 
 - **Start with an existing app:** [Home on Fire](https://github.com/IBGB-117/HomeOnFire-Plex) is free and open source, and does exactly this for Fire OS 7 and 8. It can also open your launcher when the stick starts up.
-- **One-time setup over ADB from the phone:** grant it permission to switch on its accessibility service, because that settings page is blank on many Fire OS 8 builds.
+- **One-time setup over ADB from another device:** grant it permission to switch on its accessibility service, because that settings page is blank on many Fire OS 8 builds. Amazon blocks apps on the stick (such as Remote ADB Shell) from connecting to the stick's own ADB, so this is done from the Chromebook.
 - **What you'll notice:** Amazon's home flashes for about a quarter of a second on each Home press on Fire OS 8, and up to a few seconds on Fire OS 7.
 - **Later, optionally:** build the same redirect into our own app, so it's one install instead of two.
 - **Risk:** a Fire OS update can break the redirect. The fix is usually an app update, or holding back updates.
@@ -125,26 +131,26 @@ No computer is needed: GitHub builds the app, and your phone installs it on the 
 
 Claude writes the change → pull request → GitHub builds and checks it → Wayne says "merge it" → GitHub Release → update pill (or Downloader) → Fire Stick
 
-Every merge publishes a new build. The launcher checks GitHub when it opens and every 30 minutes; the pill next to the clock shows **Up to date · build N** or **Update available**, and pressing it downloads and installs the update after one Install confirmation. For a fresh install, Downloader on the TV takes `is.gd/mAyKiF`, which always points at the newest build. Every build is signed with the same key, kept in the repo on purpose, so updates install over the old version.
+Every merge publishes a new build of both apps. Each app checks GitHub when it opens and every 30 minutes; its pill shows **Up to date · build N** or **Update available**, and pressing it downloads and installs whichever app has a newer build, after one Install confirmation each. For a fresh install, Downloader on the TV takes `is.gd/mAyKiF` (launcher) or `is.gd/pPSEvh` (player), which always point at the newest builds. Every build is signed with the same key, kept in the repo on purpose, so updates install over the old version.
 
 **One-time Fire Stick setup (done):**
 
 1. Settings → My Fire TV → About: press OK on the stick's name 7 times to unlock Developer options.
 2. Developer options: turn on **ADB debugging**.
-3. Developer options → Install unknown apps: turn on **Downloader** and **TV Launcher**.
-4. Downloader: enter `is.gd/mAyKiF` and install.
+3. Developer options → Install unknown apps: turn on **Downloader**, **WIPTV** and **WIPTV Player** (so their update pills can install).
+4. Downloader: enter `is.gd/mAyKiF` and install; then `is.gd/pPSEvh` for the player.
 
 ## Roadmap
 
-Remaining launcher work, in order. Progress for every phase is in the Status table at the top.
+Remaining work, in order. Progress for every area is in the Status table at the top.
 
-1. **Surprise me and quick settings** (PR #17).
-2. **Polish** from a few days of daily use.
-3. **Optional extras:** IMDb and Rotten Tomatoes scores; Prime via Fire TV search.
-4. **Make it the Fire Stick's Home screen** with Home on Fire, set up over ADB.
-5. **App 2: IPTV player**, then connect it so IPTV becomes the first Watch on choice.
-
-The IPTV player is the second app, started once the launcher is done. See App 2 below.
+1. **Movies and Series redesign** (PRs #36–#39): screenshots, cinematic browsing, details, episodes. Then check on the Fire Stick.
+2. **Live Categories drawer** (design stage 2).
+3. **Playback overlays and remaining screens** (design stage 4).
+4. **Make the launcher the Fire Stick's Home screen** with Home on Fire, granted over ADB from the Chromebook.
+5. **Launcher link:** "Watch on IPTV" as the first Watch on choice, then the player's Continue watching, favourites and chosen provider categories as launcher rows (keeping the home screen to about four rows).
+6. **Catch-up** in the player.
+7. **Optional extras:** IMDb and Rotten Tomatoes scores; Prime via Fire TV search.
 
 ## Safety and recovery
 
@@ -164,9 +170,9 @@ Everything in this plan can be undone, because apps are only disabled, never del
 | --- | --- | --- |
 |  |  |  |
 
-## App 2: IPTV player
+## App 2: WIPTV Player
 
-A separate app for your Xtream Codes provider, built after the launcher. It uses TiviMate as a guide for layout and features, but has its own design. It appears as a tile in the launcher's dock, and the launcher's "Watch on my provider" button opens it.
+A separate app for your Xtream Codes provider, in `player/` in the same repo. It uses TiviMate as a guide for layout and features, but has its own design (see [the player design](PLAYER_DESIGN.md)). It appears as a tile in the launcher's dock; later the launcher's "Watch on IPTV" button will open it.
 
 | Screen | What's on it |
 | --- | --- |
@@ -186,14 +192,16 @@ A separate app for your Xtream Codes provider, built after the launcher. It uses
 
 **Phases:**
 
-1. **Login and account.** Log in, check the account, show expiry and screen limit.
-2. **Live TV basics.** Groups, channel list, full-screen playback, channel up and down.
-3. **TV guide.** Download the guide, show the grid, now and next, live preview.
-4. **Watching screen.** Channel list over the video, info bar, favourites, number entry, last channel.
-5. **Catch-up.** Rewind past programmes on channels that support it.
-6. **Movies and Series.** Catalogue rows, detail pages, continue watching.
-7. **Launcher link.** Accept "play this title" from the launcher and turn on the provider button there.
-8. **Fire Stick check.** Test the player on a Fire OS stick and fix differences.
+| Phase | Status |
+| --- | --- |
+| 1. Login and account | Done (#19) |
+| 2. Live TV basics: groups, channels, full-screen playback, channel up and down | Done (#20, #21) |
+| 3. TV guide: preview, now and next, simple guide | Done (#22, #23); the full XMLTV guide is still to come |
+| 4. Watching screen: channel list over the video, favourites, last channel | Done (#24–#28) |
+| 5. Catch-up | Not started |
+| 6. Movies and Series: rows, details, Continue watching, My List | Done (#29); redesign in review (#36–#39) |
+| 7. Launcher link: "play this title" from the launcher, provider rows | Not started |
+| 8. Fire Stick check | Ongoing: each build is tried on the Fire Stick |
 
 ## Brief for the dev chat
 
