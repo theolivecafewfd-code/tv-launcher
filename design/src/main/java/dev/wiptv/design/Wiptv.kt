@@ -28,6 +28,8 @@ import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -35,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 
@@ -244,6 +247,71 @@ fun SectionCapsule(labels: List<String>, selected: Int, onSelect: (Int) -> Unit,
                 ) {
                     Text(text = label, style = WiptvType.control.copy(fontSize = 15.sp, lineHeight = 18.sp))
                     if (isSelected) {
+                        Box(Modifier.padding(top = 2.dp).width(18.dp).height(2.dp).background(WiptvColors.focus, WiptvShapes.pill))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * One control in a [NavCapsule]: a destination with a [label] (TV Shows, Apps), or an action
+ * shown only as an [icon] (search), which then needs a [description] for accessibility. Only a
+ * destination can be [selected].
+ */
+class NavItem(
+    val label: String? = null,
+    val icon: (@Composable (Color) -> Unit)? = null,
+    val description: String = label.orEmpty(),
+    val selected: Boolean = false,
+    val modifier: Modifier = Modifier,
+    val onClick: () -> Unit,
+)
+
+/**
+ * A row of destinations and actions in one continuous glass capsule, with one background and a
+ * faint edge (the launcher's top navigation). Each item is focusable on its own, in the order
+ * given. Focus is a subtle rounded wash inside the capsule with brighter text; the selected
+ * destination keeps bright text and a short underline wherever focus is, so only one thing ever
+ * looks lit. OK acts; focus alone never does.
+ */
+@Composable
+fun NavCapsule(items: List<NavItem>, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.height(40.dp).glass(WiptvShapes.pill).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        items.forEach { item ->
+            Surface(
+                onClick = item.onClick,
+                modifier = item.modifier.semantics { contentDescription = item.description },
+                shape = ClickableSurfaceDefaults.shape(shape = WiptvShapes.pill),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = Color.Transparent,
+                    contentColor = if (item.selected) WiptvColors.text else WiptvColors.secondary,
+                    focusedContainerColor = WiptvColors.focus.copy(alpha = 0.18f),
+                    focusedContentColor = WiptvColors.text,
+                    pressedContainerColor = WiptvColors.focus.copy(alpha = 0.24f),
+                    pressedContentColor = WiptvColors.text,
+                ),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .padding(horizontal = if (item.label != null) 14.dp else 10.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    val colour = LocalContentColor.current
+                    if (item.label != null) {
+                        Text(text = item.label, maxLines = 1, style = WiptvType.control.copy(fontSize = 15.sp, lineHeight = 18.sp))
+                    } else {
+                        item.icon?.invoke(colour)
+                    }
+                    if (item.selected) {
                         Box(Modifier.padding(top = 2.dp).width(18.dp).height(2.dp).background(WiptvColors.focus, WiptvShapes.pill))
                     }
                 }
