@@ -358,16 +358,17 @@ Kept up to date as stages land. "Built" means the GitHub build passed; "emulator
 
 | Stage | Pull requests | Built | Emulator | Fire Stick |
 | --- | --- | --- | --- | --- |
-| 1 — Shared style + Live TV | #31 (design module, header, Live TV), #35 (calmer guide) | Yes | — | #31 yes; #35 pending (build 79) |
-| Launcher glass (added) | #32 | Yes | — | Pending review |
-| 2 — Live Categories drawer | Not started | | | |
-| 3 — Movies + Series | #36 (screenshot tooling), #37 (browsing), #38 (details), #39 (episodes): in review | Yes | Yes | Pending |
+| 1 — Shared style + Live TV | #31 (design module, header, Live TV), #35 (calmer guide), #43–#44 (soft row focus, no programme boxes, quality badges) | Yes | — | Yes (build 112) |
+| Launcher in the player's style (added) | #32, #47–#50 (cinematic home, details, search, app editor; polish) | Yes | — | Yes (build 125) |
+| 2 — Live Categories drawer | Not started (on hold) | | | |
+| 3 — Movies + Series | #36–#39, #41, #46 (resume hero, episode focus, More info, years) | Yes | Yes | Yes (build 116) |
 | 4 — Playback + remaining surfaces | Not started | | | |
 
 **Agreed deviations from version 0.1**
 
 - **Quiet glass.** A lighter `Glass.Quiet` recipe (45% tint, faint edge) for side panels on a plain background, such as the Live TV categories, after Wayne found the panels too blue (#35).
-- **Guide rows.** No fill or programme boxes at rest: a hairline between rows, a soft wash on the programme on now, faint half-hour divisions. Focus is a light wash and outline across the whole row; the playing channel has a green ▶ and bar; favourites an amber ★ (#35).
+- **Guide rows.** No programme boxes or fills: programmes sit on the row, with a very faint line where each starts and an 8% hairline between rows. Focus is a soft #30405A fill across the whole row and a 3 × 24 dp #DDE8FF bar at its left edge, with no outline, glow or scaling. The playing channel keeps its green ▶ (no bar); favourites an amber ★. The now line runs behind programme text, and only one programme shows per time slot (#35, #43, #44).
+- **Quality badges.** A reliable trailing quality tag ("Sky Sports News | FHD |") shows as the name plus a small FHD/HD/SD badge, in the guide, the preview panel and full-screen lists; ambiguous names are left alone (#43, #51).
 - **Channel column** 248 dp (was 196 dp) so names fit (#35).
 - **Posters** 126 × 189 dp, about six across with the next peeking in, at Wayne's request (the spec started at 104 × 156 dp, about seven) (#37).
 - **Continue watching** uses wide cards with the episode still or backdrop and progress, one row however many there are. The focused card's title, resume point and time left show once in the hero, over the title's artwork (from the catalogue when the card has none); the card itself says "OK to resume" (#37, refined in #46).

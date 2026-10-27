@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.Brush
 import coil.compose.AsyncImage
 import android.os.SystemClock
 import android.widget.Toast
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -151,7 +152,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
         if (!Catalog.hasKey) return@LaunchedEffect
         rowsFailed = false
         val loaded = try {
-            Catalog.rows(mediaType, History(context).entries())
+            Catalog.rows(mediaType)
         } catch (e: Exception) {
             rowsFailed = true
             emptyList()
@@ -161,6 +162,26 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
             if (rows.firstOrNull()?.items?.firstOrNull()?.type != mediaType) featuredIndex = 0
             rows = loaded
         }
+    }
+    // Recommended for you loads on its own, after the other rows. Until it arrives its row shows
+    // grey placeholder posters that can take focus, so Down from the row above isn't stuck.
+    var recommendedRow by remember { mutableStateOf<ContentRow?>(null) }
+    var recommendedLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(mediaType, refreshKey) {
+        if (!Catalog.hasKey) return@LaunchedEffect
+        val haveThisType = recommendedRow?.items?.firstOrNull()?.type == mediaType
+        if (!haveThisType) recommendedRow = null
+        recommendedLoading = !haveThisType
+        val loaded = try {
+            Catalog.recommendedRow(mediaType, History(context).entries())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        // A failed refresh keeps the row you already have.
+        if (loaded != null && loaded.items.isNotEmpty()) recommendedRow = loaded
+        recommendedLoading = false
     }
     val titleScope = rememberCoroutineScope()
     // OK on a title opens its details; holding OK plays it straight away.
@@ -191,11 +212,18 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     // My List, shown as a row once you've added something.
     val library = remember { Library(context) }
     var myList by remember { mutableStateOf(library.myList()) }
-    val allRows = remember(rows, myList, mediaType) {
+    val allRows = remember(rows, myList, mediaType, recommendedRow, recommendedLoading) {
         val mine = myList.filter { it.type == mediaType }
-        if (mine.isEmpty()) rows else {
+        val withList = if (mine.isEmpty()) rows else {
             val top = rows.filter { it.key == "top" }
             top + ContentRow("mylist", "My List", "", ranked = false, items = mine) + rows.filter { it.key != "top" }
+        }
+        val recommended = recommendedRow?.takeIf { it.items.firstOrNull()?.type == mediaType }
+        when {
+            recommended != null -> withList + recommended
+            // An empty row while it loads: PosterRow shows placeholders for it.
+            recommendedLoading && withList.isNotEmpty() -> withList + ContentRow("recommended", "Recommended for you", "", ranked = false, items = emptyList())
+            else -> withList
         }
     }
 

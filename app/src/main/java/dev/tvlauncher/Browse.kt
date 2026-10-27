@@ -11,6 +11,10 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.lazy.items
 import dev.wiptv.design.RowScrolling
 import dev.wiptv.design.SectionCapsule
 import androidx.compose.animation.Crossfade
@@ -327,6 +331,21 @@ fun PosterRow(
                 )
             }
         }
+        // A row still loading has no titles yet: it shows placeholders that can take focus. If
+        // focus is on one when the titles arrive, it moves to the first title.
+        var waiting by remember { mutableStateOf(false) }
+        LaunchedEffect(row.items.isEmpty()) {
+            if (row.items.isEmpty() || !waiting) return@LaunchedEffect
+            waiting = false
+            repeat(20) {
+                if (runCatching { requester.requestFocus() }.isSuccess) return@LaunchedEffect
+                delay(25)
+            }
+        }
+        val upAndDown = Modifier.focusProperties {
+            this.up = up
+            if (down != null) this.down = down
+        }
         // The row remembers which poster you were on, and up and down always go to the row
         // directly above or below, whatever the posters' positions.
         RowScrolling(start = Edge, end = 72.dp) {
@@ -337,6 +356,20 @@ fun PosterRow(
             contentPadding = PaddingValues(start = Edge - ArtFocusGap, end = Edge, top = 6.dp, bottom = 2.dp),
             horizontalArrangement = Arrangement.spacedBy((if (row.ranked) 20.dp else 16.dp) - ArtFocusGap * 2),
         ) {
+            if (row.items.isEmpty()) {
+                items(6) {
+                    Column(modifier = Modifier.width(PosterWidth + ArtFocusGap * 2)) {
+                        ArtFrame(
+                            width = PosterWidth,
+                            height = PosterHeight,
+                            onFocusChange = { if (it) waiting = true },
+                            onClick = {},
+                            modifier = upAndDown,
+                        ) {}
+                        Spacer(Modifier.height(42.dp))
+                    }
+                }
+            }
             itemsIndexed(row.items, key = { _, t -> t.key }) { i, title ->
                 Row(verticalAlignment = Alignment.Top) {
                     if (row.ranked) {
@@ -362,10 +395,7 @@ fun PosterRow(
                         title = title,
                         onClick = { onOpen(title) },
                         onLongClick = { onPlay(title) },
-                        modifier = Modifier.focusProperties {
-                            this.up = up
-                            if (down != null) this.down = down
-                        },
+                        modifier = upAndDown,
                     )
                 }
             }
