@@ -4,7 +4,7 @@
 
 ## Where things are
 
-Everything up to **PR #51 is merged**, and both apps are released from `main`. The latest build Wayne has checked is **125**. Updates install with the pill in either app.
+Everything up to **PR #55 is merged**, and both apps are released from `main`. The latest build Wayne has checked is **125**. Updates install with the pill in either app.
 
 **Done and checked on the Fire Stick**
 - **Launcher:** TV Shows | Movies home, details, search, Surprise me, Waterford weather, app dock with quick settings (#1–#17).
@@ -16,8 +16,19 @@ Everything up to **PR #51 is merged**, and both apps are released from `main`. T
 **Also checked (build 125)**
 - **#50:** darker text area over artwork on the home screen and details, details lines that wrap between whole items, quieter forecast line, "Build N" label removed, focused posters bring their names on screen, the focused details button no longer clipped.
 
+- **#51:** Recommended for you shows placeholder posters while it loads (so Down isn't stuck at Documentary); FHD/HD/SD badges also in the full-screen channel list and info bar.
+- **Launcher link, first part (#52–#54), checked:** "▶ Watch on IPTV" is the first button on a details page when the provider has the title; a film plays straight away in the player, a series opens its page there, and Back returns to the launcher. Holding OK on a poster tries IPTV first. Search has an "On your IPTV" row and an IPTV status line. Posters and the featured title carry a dark "IPTV" badge.
+
 **Merged, waiting for Wayne's look**
-- **#51:** Recommended for you shows placeholder posters while it loads (so Down isn't stuck at Documentary); FHD/HD/SD badges also in the full-screen channel list and info bar; these notes.
+- **#55:** one smooth scroll back to the top (no bounce) and search posters no longer clipped at the edges.
+
+## How the launcher link works
+
+- The player keeps the provider's films and series in a small SQLite list on the TV (`CatalogIndex`: names, years, posters, ids, never stream addresses or the login), refreshed about daily. The whole-catalogue download is streamed (`Xtream.forEachVod`) and may take up to two minutes to start.
+- `CatalogProvider` (authority `dev.wiptv.player.catalog`) answers `match`, `search` and `status`. It's guarded by the signature permission `dev.wiptv.permission.CATALOG`, declared in both apps so install order doesn't matter.
+- Titles match by TMDB id when the provider has one, else by a normalised name (no language tags, years, quality labels) and a year within one.
+- The launcher opens a title with `open_kind`/`open_id` extras on the player's `MainActivity` (new, cleared task); when that title is closed, the player finishes and you're back in the launcher.
+- If IPTV results don't show, the search screen's "IPTV: …" line says why.
 
 ## Shared design pieces
 
@@ -25,8 +36,8 @@ The `design` module now holds what both apps use: tokens (`WiptvColors` includin
 
 ## What's next (in Wayne's rough order)
 
-1. Any fixes from Wayne's check of build 125 and the build from #51.
-2. **Launcher link:** a "Watch on IPTV" first choice in the launcher's details, then the player's Continue watching, favourites and chosen provider categories as launcher rows (keep about four rows).
+1. Any fixes from Wayne's check of #55.
+2. **Launcher link, next part:** the player's Continue watching, favourites and chosen provider categories as launcher rows (keep about four rows).
 3. **Live Categories drawer** (design stage 2): on hold while Wayne looks at another option.
 4. **Catch-up** in the player, for channels with `tv_archive`.
 5. **Playback overlays and remaining screens** (design stage 4): live info bar and lists, film progress overlay, login, account, editors and updater in the glass style.
