@@ -5,6 +5,8 @@ set -x
 OUT=shots
 mkdir -p "$OUT"
 adb install -r player/build/outputs/apk/debug/player-debug.apk
+# A Fire Stick has no status or navigation bars, so hide the emulator's.
+adb shell settings put global policy_control immersive.full=*
 
 shot() { sleep "${2:-0}"; adb exec-out screencap -p > "$OUT/$1.png"; }
 key() { for k in "$@"; do adb shell input keyevent "$k"; sleep 0.7; done; }

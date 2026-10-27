@@ -1,7 +1,7 @@
 name: Screenshots
 
 # Native screenshots of the player against a pretend provider with invented titles and artwork,
-# taken on an Android emulator at the Fire Stick's 1080p TV size. Pushed to a branch named
+# taken on an Android 9 emulator (like Fire OS 7) at the Fire Stick's 1080p TV size. Pushed to a branch named
 # screenshots/<PR branch> so they can be viewed (and linked from the PR).
 on:
   pull_request:
@@ -63,7 +63,7 @@ jobs:
       - name: Take screenshots
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: 28
           arch: x86_64
           profile: tv_1080p
           disable-animations: true
