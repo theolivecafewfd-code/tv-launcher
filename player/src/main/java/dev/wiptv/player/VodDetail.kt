@@ -71,6 +71,10 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.launch
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import coil.request.ImageRequest
+import dev.wiptv.design.focusOutline
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
@@ -140,7 +144,7 @@ fun VodDetailScreen(
     fun episodePoint(episode: Episode, from: Long) = ResumePoint(
         key = "episode:${episode.id}",
         title = item.name,
-        subtitle = "S${episode.season} E${episode.number} · ${episode.title}",
+        subtitle = "S${episode.season} E${episode.number} · ${EpisodeTitles.name(episode, item.name)}",
         poster = item.poster,
         url = Xtream.episodeUrl(login, episode.id, episode.extension),
         position = from,
@@ -353,22 +357,32 @@ fun VodDetailScreen(
                                 s.seasons.firstOrNull { sn -> s.episodes[sn].orEmpty().any { "episode:${it.id}" == r.key } }
                             } ?: s.seasons.first()
                         }
+                        val seasonEpisodes = s.episodes[shownSeason].orEmpty()
                         item(key = "seasons") {
                             Row(
-                                modifier = Modifier.padding(start = 48.dp, end = 48.dp, top = 22.dp, bottom = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(start = 48.dp - 3.dp, end = 48.dp, top = 22.dp, bottom = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
                             ) {
                                 for (number in s.seasons) {
                                     SeasonTab(text = "Season $number", selected = number == shownSeason, onClick = { season = number })
                                 }
+                                Text(
+                                    text = "${seasonEpisodes.size} episode" + if (seasonEpisodes.size == 1) "" else "s",
+                                    modifier = Modifier.padding(start = 12.dp),
+                                    style = WiptvType.hint,
+                                )
                             }
                         }
-                        items(s.episodes[shownSeason].orEmpty(), key = { "episode:" + it.id }) { episode ->
+                        val fallbackArt = s.backdrop ?: item.backdrop ?: item.poster
+                        items(seasonEpisodes, key = { "episode:" + it.id }) { episode ->
                             val point = remember(refresh, episode.id) { store.resumePoint("episode:${episode.id}") }
-                            Box(modifier = Modifier.padding(horizontal = 48.dp, vertical = 2.dp).widthIn(max = 760.dp)) {
+                            Box(modifier = Modifier.padding(start = 48.dp - 10.dp, end = 48.dp).widthIn(max = 820.dp)) {
                                 EpisodeRow(
                                     episode = episode,
-                                    progress = point?.progress,
+                                    title = EpisodeTitles.display(episode, item.name),
+                                    fallbackArt = fallbackArt,
+                                    point = point,
                                     watched = "episode:${episode.id}" in watched,
                                     onClick = { playEpisode(s, episode, point?.position ?: 0) },
                                 )
@@ -471,82 +485,166 @@ private fun chain(
     }
 }
 
+/**
+ * A season in the row of seasons. The season being shown keeps a soft wash and an underline, so
+ * it stays marked when focus moves down into its episodes; focus is the light fill and outline.
+ * OK picks the season (focus alone doesn't switch).
+ */
 @Composable
 private fun SeasonTab(text: String, selected: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(50)
+    var focused by remember { mutableStateOf(false) }
+    val shape = WiptvShapes.pill
     Surface(
         onClick = onClick,
+        modifier = Modifier.onFocusChanged { focused = it.isFocused },
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (selected) Palette.glow else Palette.tile,
-            contentColor = if (selected) Palette.background else Palette.text,
-            focusedContainerColor = Color.White,
-            focusedContentColor = Palette.background,
+            containerColor = if (selected) WiptvColors.focus.copy(alpha = 0.14f) else Color.Transparent,
+            contentColor = if (selected) WiptvColors.text else WiptvColors.secondary,
+            focusedContainerColor = WiptvColors.focus,
+            focusedContentColor = WiptvColors.onLight,
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        border = focusOutline(shape),
     ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-        )
+        Column(
+            modifier = Modifier.height(36.dp).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(text = text, style = WiptvType.control.copy(fontSize = 15.sp, lineHeight = 18.sp))
+            if (selected) {
+                Box(
+                    Modifier
+                        .padding(top = 2.dp)
+                        .width(18.dp)
+                        .height(2.dp)
+                        .background(if (focused) WiptvColors.onLight else WiptvColors.focus, WiptvShapes.pill),
+                )
+            }
+        }
     }
 }
 
+/**
+ * One episode: a small still (or the series artwork with the episode number), the clean title,
+ * a quieter description, and on the right its length and how far you've got. No box at rest,
+ * just a hairline underneath; focus is a light wash and outline across the row.
+ */
 @Composable
-private fun EpisodeRow(episode: Episode, progress: Float?, watched: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(8.dp)
+private fun EpisodeRow(
+    episode: Episode,
+    title: String,
+    fallbackArt: String?,
+    point: ResumePoint?,
+    watched: Boolean,
+    onClick: () -> Unit,
+) {
+    val shape = WiptvShapes.card
+    val progress = point?.progress?.takeIf { it > 0f }
     Surface(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBehind {
+                drawLine(
+                    color = Color.White.copy(alpha = 0.07f),
+                    start = Offset(10.dp.toPx(), size.height - 0.5f),
+                    end = Offset(size.width - 10.dp.toPx(), size.height - 0.5f),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            },
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Palette.tile.copy(alpha = 0.6f),
-            contentColor = Palette.text,
-            focusedContainerColor = Palette.tileFocused,
-            focusedContentColor = Palette.text,
+            containerColor = Color.Transparent,
+            contentColor = WiptvColors.text,
+            focusedContainerColor = WiptvColors.focus.copy(alpha = 0.10f),
+            focusedContentColor = WiptvColors.text,
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        border = focusOutline(shape),
     ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            // The still, 16:9.
+            Box(
+                modifier = Modifier
+                    .size(width = 136.dp, height = 77.dp)
+                    .clip(WiptvShapes.small)
+                    .background(Brush.verticalGradient(listOf(WiptvColors.elevated, WiptvColors.surface))),
+            ) {
+                if (episode.image != null) {
+                    AsyncImage(
+                        model = episode.image,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    // No still: the series artwork, softened, with the episode number on it.
+                    if (fallbackArt != null) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current).data(fallbackArt).size(48, 27).build(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            alpha = 0.6f,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    Text(
+                        text = episode.number.toString(),
+                        modifier = Modifier.align(Alignment.Center),
+                        style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text.copy(alpha = 0.9f)),
+                    )
+                }
+                if (watched && progress == null) {
+                    Text(
+                        text = "✓",
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .background(Color.Black.copy(alpha = 0.55f), WiptvShapes.pill)
+                            .padding(horizontal = 7.dp, vertical = 1.dp),
+                        style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WiptvColors.positive),
+                    )
+                }
+                if (progress != null) {
+                    ProgressLine(
+                        progress = progress,
+                        height = 3.dp,
+                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+                    )
+                }
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "E${episode.number}",
-                    modifier = Modifier.width(34.dp),
-                    style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
-                )
-                Text(
-                    text = episode.title,
+                    text = title,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                    style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                    style = WiptvType.control.copy(color = WiptvColors.text),
                 )
-                val tail = listOfNotNull(episode.durationMinutes?.let { "$it min" }, if (watched) "✓ Watched" else null)
-                Text(text = tail.joinToString(" · "), style = TextStyle(fontSize = 11.sp, color = Palette.quiet))
+                if (episode.plot.isNotBlank()) {
+                    Text(
+                        text = episode.plot,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 3.dp),
+                        style = TextStyle(fontSize = 13.sp, lineHeight = 18.sp, color = WiptvColors.quiet),
+                    )
+                }
             }
-            if (episode.plot.isNotBlank()) {
-                Text(
-                    text = episode.plot,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 44.dp),
-                    style = TextStyle(fontSize = 11.sp, color = Palette.quiet),
-                )
-            }
-            if (progress != null && progress > 0f) {
-                Spacer(Modifier.height(4.dp))
-                Box(
-                    modifier = Modifier
-                        .padding(start = 44.dp)
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .background(Palette.background, RoundedCornerShape(2.dp)),
-                ) {
-                    Box(Modifier.fillMaxHeight().fillMaxWidth(progress).background(Palette.glow, RoundedCornerShape(2.dp)))
+
+            Column(modifier = Modifier.width(96.dp), horizontalAlignment = Alignment.End) {
+                episode.durationMinutes?.let { Text(text = "$it min", style = WiptvType.metadata.copy(fontSize = 13.sp)) }
+                when {
+                    progress != null && point != null -> timeLeft(point)?.let {
+                        Text(text = it, style = WiptvType.hint.copy(color = WiptvColors.progress))
+                    }
+                    watched -> Text(text = "Watched", style = WiptvType.hint.copy(color = WiptvColors.positive))
                 }
             }
         }
