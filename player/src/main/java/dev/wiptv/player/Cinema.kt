@@ -32,6 +32,18 @@ import coil.imageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.focusOutline
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Surface
+import androidx.tv.material3.Text
 import dev.wiptv.design.WiptvShapes
 import kotlinx.coroutines.delay
 
@@ -55,6 +67,8 @@ fun CinematicBackdrop(
     modifier: Modifier = Modifier,
     delayMillis: Long = 160,
     leftFade: Float = 0.62f,
+    /** How far across the screen stays dark enough for text (fraction of the width). */
+    textScrim: Float = leftFade * 0.45f,
 ) {
     val context = LocalContext.current
     var shown by remember { mutableStateOf<Art?>(null) }
@@ -82,7 +96,7 @@ fun CinematicBackdrop(
             modifier = Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(
                     0f to WiptvColors.background,
-                    leftFade * 0.45f to WiptvColors.background.copy(alpha = 0.8f),
+                    textScrim to WiptvColors.background.copy(alpha = 0.8f),
                     leftFade to Color.Transparent,
                 ),
             ),
@@ -139,3 +153,54 @@ internal fun runtimeOf(minutes: Int): String = if (minutes >= 60) "${minutes / 6
 
 /** The provider's score, labelled as a score (it isn't a certificate or a named rating). */
 internal fun scoreOf(rating: Double?): String? = rating?.let { "Score %.1f".format(it) }
+
+/**
+ * A details-page action. Only the focused button is light (with the outline 3 dp outside it), so
+ * focus is never confused with emphasis. At rest the primary one (Play, Resume) has a brighter
+ * wash and bolder label; the rest are quiet glass.
+ */
+@Composable
+fun ActionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = false) {
+    var focused by remember { mutableStateOf(false) }
+    val outer = RoundedCornerShape(15.dp)
+    val inner = RoundedCornerShape(12.dp)
+    Surface(
+        onClick = onClick,
+        modifier = modifier.onFocusChanged { focused = it.isFocused },
+        shape = ClickableSurfaceDefaults.shape(shape = outer),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.Transparent,
+            pressedContainerColor = Color.Transparent,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.03f),
+        border = focusOutline(outer),
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(3.dp)
+                .height(42.dp)
+                .background(
+                    when {
+                        focused -> WiptvColors.focus
+                        primary -> WiptvColors.focus.copy(alpha = 0.30f)
+                        else -> Color.White.copy(alpha = 0.07f)
+                    },
+                    inner,
+                )
+                .border(1.dp, if (focused) Color.Transparent else Color.White.copy(alpha = if (primary) 0.5f else 0.14f), inner)
+                .padding(horizontal = 20.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = text,
+                maxLines = 1,
+                style = TextStyle(
+                    fontSize = 15.sp,
+                    fontWeight = if (primary) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (focused) WiptvColors.onLight else WiptvColors.text,
+                ),
+            )
+        }
+    }
+}

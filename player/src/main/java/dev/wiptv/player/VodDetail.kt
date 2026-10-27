@@ -50,6 +50,27 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import dev.wiptv.design.Glass
+import dev.wiptv.design.PivotScrolling
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.glass
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
@@ -88,7 +109,9 @@ fun VodDetailScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    // Focus starts on the main action. My List holds it while the details load, then it moves to
+    // Play or Resume once they arrive (before you'd have had time to move it yourself).
+    LaunchedEffect(movie != null || series != null) {
         repeat(40) {
             if (runCatching { firstButton.requestFocus() }.isSuccess) return@LaunchedEffect
             delay(50)
@@ -133,149 +156,196 @@ fun VodDetailScreen(
         onPlay(episodePoint(episode, from), chain(all, episode, ::episodePoint) { refresh++ })
     }
 
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(modifier = Modifier.fillMaxSize().background(Palette.background)) {
-            val backdrop = movie?.backdrop ?: series?.backdrop ?: item.backdrop
-            if (backdrop != null) {
-                Box(modifier = Modifier.align(Alignment.TopEnd).size(width = 640.dp, height = 360.dp)) {
-                    AsyncImage(
-                        model = backdrop,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(listOf(Palette.background, Color.Transparent))))
-                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Palette.background))))
-                }
-            }
+    val m = movie
+    val s = series
+    val loaded = m != null || s != null || error != null
+    val plot = (m?.plot ?: s?.plot)?.ifBlank { null } ?: item.plot
+    val meta = when {
+        m != null -> listOfNotNull(
+            m.year.ifBlank { null } ?: item.year,
+            m.durationMinutes?.let(::runtimeOf),
+            m.genre.ifBlank { null },
+            scoreOf(m.rating),
+        )
+        s != null -> listOfNotNull(
+            s.year.ifBlank { null } ?: item.year,
+            if (s.seasons.isEmpty()) null else "${s.seasons.size} season" + if (s.seasons.size == 1) "" else "s",
+            s.genre.ifBlank { null },
+            scoreOf(s.rating),
+        )
+        else -> listOfNotNull(item.year, scoreOf(item.rating))
+    }
+    val cast = (m?.cast ?: s?.cast)?.ifBlank { null }
+    val director = m?.director?.ifBlank { null }
+    var plotCut by remember { mutableStateOf(false) }
+    var showMore by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
 
-            Row(
-                modifier = Modifier.fillMaxSize().padding(start = 40.dp, end = 32.dp, top = 28.dp),
-                horizontalArrangement = Arrangement.spacedBy(22.dp),
-            ) {
-                // Poster.
-                Box(
-                    modifier = Modifier
-                        .size(width = 140.dp, height = 210.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Palette.tile),
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Box(modifier = Modifier.fillMaxSize().background(WiptvColors.background)) {
+            // Full-screen artwork, faded on the left and at the bottom. Waits for the details so it
+            // doesn't show the poster wash and then swap straight to the backdrop.
+            CinematicBackdrop(
+                backdrop = m?.backdrop ?: s?.backdrop ?: item.backdrop,
+                poster = if (loaded) item.poster else null,
+                modifier = Modifier.fillMaxSize(),
+                delayMillis = 0,
+                leftFade = 0.98f,
+                textScrim = 0.58f,
+            )
+
+            PivotScrolling(pivot = 110.dp) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 48.dp),
                 ) {
-                    if (item.poster != null) {
-                        AsyncImage(
-                            model = item.poster,
-                            contentDescription = item.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                }
-
-                Column(modifier = Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        text = item.name,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Palette.text),
-                    )
-                    val meta = when {
-                        movie != null -> listOfNotNull(
-                            movie!!.year.ifBlank { null },
-                            movie!!.durationMinutes?.let { "${it / 60}h ${it % 60}m".removePrefix("0h ") },
-                            movie!!.genre.ifBlank { null },
-                            movie!!.rating?.let { "★ %.1f".format(it) },
-                        )
-                        series != null -> listOfNotNull(
-                            series!!.year.ifBlank { null },
-                            "${series!!.seasons.size} season" + if (series!!.seasons.size == 1) "" else "s",
-                            series!!.genre.ifBlank { null },
-                            series!!.rating?.let { "★ %.1f".format(it) },
-                        )
-                        else -> emptyList()
-                    }
-                    Text(text = meta.joinToString(" · "), style = TextStyle(fontSize = 13.sp, color = Palette.quiet))
-                    val plot = movie?.plot ?: series?.plot ?: item.plot
-                    when {
-                        error != null -> Text(text = error!!, style = TextStyle(fontSize = 13.sp, color = Palette.warn))
-                        movie == null && series == null -> Text(text = "Loading…", style = TextStyle(fontSize = 13.sp, color = Palette.quiet))
-                        !plot.isNullOrBlank() -> Text(
-                            text = plot,
-                            maxLines = if (item.kind == VodKind.MOVIE) 5 else 3,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.width(560.dp),
-                            style = TextStyle(fontSize = 13.sp, color = Palette.text),
-                        )
-                    }
-                    val people = movie?.let { listOfNotNull(it.cast.ifBlank { null }?.let { c -> "With $c" }, it.director.ifBlank { null }?.let { d -> "Directed by $d" }) }
-                        ?: series?.cast?.ifBlank { null }?.let { listOf("With $it") }
-                        ?: emptyList()
-                    for (line in people) {
-                        Text(
-                            text = line,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.width(560.dp),
-                            style = TextStyle(fontSize = 11.sp, color = Palette.quiet),
-                        )
-                    }
-
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        val m = movie
-                        val s = series
-                        when {
-                            m != null && resume != null -> {
-                                PlayerButton(
-                                    text = "▶ Resume from ${clockOf(resume.position)}",
-                                    onClick = { onPlay(moviePoint(m, resume.position), null) },
-                                    primary = true,
-                                    modifier = Modifier.focusRequester(firstButton),
+                    item(key = "header") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                // Back on the buttons: show the whole header again.
+                                .onFocusChanged { if (it.hasFocus) scope.launch { listState.animateScrollToItem(0) } }
+                                .padding(start = 48.dp, end = 48.dp, top = 44.dp, bottom = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(32.dp),
+                        ) {
+                            // Poster, sharp, with a faint edge.
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 150.dp, height = 225.dp)
+                                    .clip(WiptvShapes.card)
+                                    .background(Brush.verticalGradient(listOf(WiptvColors.elevated, WiptvColors.surface)))
+                                    .border(1.dp, Color.White.copy(alpha = 0.14f), WiptvShapes.card),
+                            ) {
+                                Text(
+                                    text = item.name,
+                                    maxLines = 4,
+                                    modifier = Modifier.align(Alignment.Center).padding(12.dp),
+                                    style = WiptvType.metadata,
                                 )
-                                PlayerButton(text = "Start over", onClick = { onPlay(moviePoint(m, 0), null) })
-                            }
-                            m != null -> PlayerButton(
-                                text = "▶ Play",
-                                onClick = { onPlay(moviePoint(m, 0), null) },
-                                primary = true,
-                                modifier = Modifier.focusRequester(firstButton),
-                            )
-                            s != null && s.seasons.isNotEmpty() -> {
-                                val all = s.seasons.flatMap { s.episodes[it].orEmpty() }
-                                val resumeEpisode = resume?.let { r -> all.firstOrNull { "episode:${it.id}" == r.key } }
-                                if (resumeEpisode != null && resume != null) {
-                                    PlayerButton(
-                                        text = "▶ Resume S${resumeEpisode.season} E${resumeEpisode.number}",
-                                        onClick = { playEpisode(s, resumeEpisode, resume.position) },
-                                        primary = true,
-                                        modifier = Modifier.focusRequester(firstButton),
-                                    )
-                                } else {
-                                    // Next unwatched episode, or the very first.
-                                    val next = all.firstOrNull { "episode:${it.id}" !in watched } ?: all.first()
-                                    PlayerButton(
-                                        text = "▶ Play S${next.season} E${next.number}",
-                                        onClick = { playEpisode(s, next, 0) },
-                                        primary = true,
-                                        modifier = Modifier.focusRequester(firstButton),
+                                if (item.poster != null) {
+                                    AsyncImage(
+                                        model = item.poster,
+                                        contentDescription = item.name,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize(),
                                     )
                                 }
                             }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = item.name,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = WiptvType.hero.copy(fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.SemiBold),
+                                )
+                                if (meta.isNotEmpty()) {
+                                    Text(
+                                        text = meta.joinToString("  ·  "),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(top = 8.dp),
+                                        style = WiptvType.metadata.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium),
+                                    )
+                                }
+                                when {
+                                    error != null -> Text(
+                                        text = error!!,
+                                        modifier = Modifier.padding(top = 14.dp),
+                                        style = WiptvType.body.copy(color = WiptvColors.warning),
+                                    )
+                                    !loaded -> Text(
+                                        text = "Loading…",
+                                        modifier = Modifier.padding(top = 14.dp),
+                                        style = WiptvType.body.copy(color = WiptvColors.quiet),
+                                    )
+                                    !plot.isNullOrBlank() -> Text(
+                                        text = plot,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
+                                        onTextLayout = { plotCut = it.hasVisualOverflow },
+                                        modifier = Modifier.padding(top = 14.dp).widthIn(max = 540.dp),
+                                        style = WiptvType.body.copy(lineHeight = 23.sp, color = WiptvColors.text.copy(alpha = 0.9f)),
+                                    )
+                                }
+
+                                // A film you've started: how far through, just above Resume.
+                                if (m != null && resume != null && resume.progress > 0f) {
+                                    Row(
+                                        modifier = Modifier.padding(top = 16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                    ) {
+                                        ProgressLine(progress = resume.progress, modifier = Modifier.width(200.dp))
+                                        timeLeft(resume)?.let { Text(text = it, style = WiptvType.metadata) }
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.padding(top = 18.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    when {
+                                        m != null && resume != null -> {
+                                            ActionButton(
+                                                text = "▶  Resume",
+                                                primary = true,
+                                                onClick = { onPlay(moviePoint(m, resume.position), null) },
+                                                modifier = Modifier.focusRequester(firstButton),
+                                            )
+                                            ActionButton(text = "Start over", onClick = { onPlay(moviePoint(m, 0), null) })
+                                        }
+                                        m != null -> ActionButton(
+                                            text = "▶  Play",
+                                            primary = true,
+                                            onClick = { onPlay(moviePoint(m, 0), null) },
+                                            modifier = Modifier.focusRequester(firstButton),
+                                        )
+                                        s != null && s.seasons.isNotEmpty() -> {
+                                            val all = s.seasons.flatMap { s.episodes[it].orEmpty() }
+                                            val resumeEpisode = resume?.let { r -> all.firstOrNull { "episode:${it.id}" == r.key } }
+                                            if (resumeEpisode != null && resume != null) {
+                                                ActionButton(
+                                                    text = "▶  Resume S${resumeEpisode.season} E${resumeEpisode.number}",
+                                                    primary = true,
+                                                    onClick = { playEpisode(s, resumeEpisode, resume.position) },
+                                                    modifier = Modifier.focusRequester(firstButton),
+                                                )
+                                            } else {
+                                                // Next unwatched episode, or the very first.
+                                                val next = all.firstOrNull { "episode:${it.id}" !in watched } ?: all.first()
+                                                ActionButton(
+                                                    text = "▶  Play S${next.season} E${next.number}",
+                                                    primary = true,
+                                                    onClick = { playEpisode(s, next, 0) },
+                                                    modifier = Modifier.focusRequester(firstButton),
+                                                )
+                                            }
+                                        }
+                                    }
+                                    ActionButton(
+                                        text = if (inList) "✓  My List" else "+  My List",
+                                        onClick = {
+                                            inList = store.toggleFavourite(item)
+                                            onListChanged()
+                                        },
+                                        modifier = if (m == null && (s == null || s.seasons.isEmpty())) Modifier.focusRequester(firstButton) else Modifier,
+                                    )
+                                    val trailer = m?.trailer ?: s?.trailer
+                                    if (trailer != null) {
+                                        ActionButton(text = "Trailer", onClick = { openTrailer(context, trailer) })
+                                    }
+                                    if (plotCut || cast != null || director != null) {
+                                        ActionButton(text = "More info", onClick = { showMore = true })
+                                    }
+                                }
+                            }
                         }
-                        val trailer = movie?.trailer ?: series?.trailer
-                        if (trailer != null) {
-                            PlayerButton(text = "Trailer", onClick = { openTrailer(context, trailer) })
-                        }
-                        PlayerButton(
-                            text = if (inList) "✓ My List" else "+ My List",
-                            onClick = {
-                                inList = store.toggleFavourite(item)
-                                onListChanged()
-                            },
-                            modifier = if (movie == null && series == null) Modifier.focusRequester(firstButton) else Modifier,
-                        )
                     }
 
                     // Series: seasons, then that season's episodes.
-                    val s = series
                     if (s != null && s.seasons.isNotEmpty()) {
                         // The season you're up to, until you pick another.
                         val shownSeason = if (season in s.seasons) season else {
@@ -283,19 +353,19 @@ fun VodDetailScreen(
                                 s.seasons.firstOrNull { sn -> s.episodes[sn].orEmpty().any { "episode:${it.id}" == r.key } }
                             } ?: s.seasons.first()
                         }
-                        Spacer(Modifier.height(4.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            for (number in s.seasons) {
-                                SeasonTab(text = "Season $number", selected = number == shownSeason, onClick = { season = number })
+                        item(key = "seasons") {
+                            Row(
+                                modifier = Modifier.padding(start = 48.dp, end = 48.dp, top = 22.dp, bottom = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                for (number in s.seasons) {
+                                    SeasonTab(text = "Season $number", selected = number == shownSeason, onClick = { season = number })
+                                }
                             }
                         }
-                        LazyColumn(
-                            modifier = Modifier.weight(1f).width(600.dp),
-                            contentPadding = PaddingValues(top = 4.dp, bottom = 20.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            items(s.episodes[shownSeason].orEmpty(), key = { it.id }) { episode ->
-                                val point = remember(refresh, episode.id) { store.resumePoint("episode:${episode.id}") }
+                        items(s.episodes[shownSeason].orEmpty(), key = { "episode:" + it.id }) { episode ->
+                            val point = remember(refresh, episode.id) { store.resumePoint("episode:${episode.id}") }
+                            Box(modifier = Modifier.padding(horizontal = 48.dp, vertical = 2.dp).widthIn(max = 760.dp)) {
                                 EpisodeRow(
                                     episode = episode,
                                     progress = point?.progress,
@@ -307,6 +377,80 @@ fun VodDetailScreen(
                     }
                 }
             }
+        }
+    }
+
+    if (showMore) {
+        MoreInfo(
+            title = item.name,
+            meta = meta.joinToString("  ·  "),
+            plot = plot,
+            cast = cast,
+            director = director,
+            onClose = { showMore = false },
+        )
+    }
+}
+
+/**
+ * The whole synopsis, cast and director, in a panel on the right. Up and Down scroll it; Back
+ * closes it and focus goes back to More info.
+ */
+@Composable
+private fun MoreInfo(title: String, meta: String, plot: String?, cast: String?, director: String?, onClose: () -> Unit) {
+    val scroll = rememberScrollState()
+    val scope = rememberCoroutineScope()
+    val focus = remember { FocusRequester() }
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(24.dp)
+                    .width(500.dp)
+                    .fillMaxHeight()
+                    .glass(WiptvShapes.panel, Glass.Drawer)
+                    .focusRequester(focus)
+                    .focusable()
+                    .onKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                        val step = when (event.key) {
+                            Key.DirectionDown -> 160f
+                            Key.DirectionUp -> -160f
+                            else -> return@onKeyEvent false
+                        }
+                        scope.launch { scroll.animateScrollBy(step) }
+                        true
+                    }
+                    .verticalScroll(scroll)
+                    .padding(28.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(text = title, style = WiptvType.screen)
+                if (meta.isNotBlank()) Text(text = meta, style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium))
+                if (!plot.isNullOrBlank()) {
+                    Text(
+                        text = plot,
+                        modifier = Modifier.padding(top = 6.dp),
+                        style = WiptvType.body.copy(lineHeight = 25.sp),
+                    )
+                }
+                if (cast != null) {
+                    Text(text = "Starring", modifier = Modifier.padding(top = 10.dp), style = WiptvType.hint)
+                    Text(text = cast, style = WiptvType.metadata.copy(color = WiptvColors.text))
+                }
+                if (director != null) {
+                    Text(text = "Directed by", modifier = Modifier.padding(top = 6.dp), style = WiptvType.hint)
+                    Text(text = director, style = WiptvType.metadata.copy(color = WiptvColors.text))
+                }
+                Text(text = "Back to close", modifier = Modifier.padding(top = 14.dp), style = WiptvType.hint)
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        repeat(20) {
+            if (runCatching { focus.requestFocus() }.isSuccess) return@LaunchedEffect
+            delay(50)
         }
     }
 }
