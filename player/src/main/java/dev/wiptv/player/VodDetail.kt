@@ -72,7 +72,15 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.tv.material3.Glow
 import coil.request.ImageRequest
 import dev.wiptv.design.focusOutline
 import kotlinx.coroutines.CancellationException
@@ -179,10 +187,26 @@ fun VodDetailScreen(
         )
         else -> listOfNotNull(item.year, scoreOf(item.rating))
     }
+    // The year shows in the details line, so a matching "(1987)" comes off the name.
+    val title = VodTitles.withoutYear(item.name, m?.year?.ifBlank { null } ?: s?.year?.ifBlank { null } ?: item.year)
     val cast = (m?.cast ?: s?.cast)?.ifBlank { null }
     val director = m?.director?.ifBlank { null }
     var plotCut by remember { mutableStateOf(false) }
     var showMore by remember { mutableStateOf(false) }
+    val moreInfoButton = remember { FocusRequester() }
+    var refocusMoreInfo by remember { mutableStateOf(false) }
+    // Closing More info puts focus back on its button.
+    LaunchedEffect(refocusMoreInfo) {
+        if (!refocusMoreInfo) return@LaunchedEffect
+        repeat(20) {
+            if (runCatching { moreInfoButton.requestFocus() }.isSuccess) {
+                refocusMoreInfo = false
+                return@LaunchedEffect
+            }
+            delay(50)
+        }
+        refocusMoreInfo = false
+    }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -199,7 +223,9 @@ fun VodDetailScreen(
                 textScrim = 0.58f,
             )
 
-            PivotScrolling(pivot = 110.dp) {
+            // Rows already on screen stay put; one coming on from below settles near the top, so
+            // the header scrolls away and about five episodes show. Up on the buttons brings it back.
+            PivotScrolling(pivot = 32.dp) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -240,7 +266,7 @@ fun VodDetailScreen(
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = item.name,
+                                    text = title,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                     style = WiptvType.hero.copy(fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.SemiBold),
@@ -342,7 +368,11 @@ fun VodDetailScreen(
                                         ActionButton(text = "Trailer", onClick = { openTrailer(context, trailer) })
                                     }
                                     if (plotCut || cast != null || director != null) {
-                                        ActionButton(text = "More info", onClick = { showMore = true })
+                                        ActionButton(
+                                            text = "More info",
+                                            onClick = { showMore = true },
+                                            modifier = Modifier.focusRequester(moreInfoButton),
+                                        )
                                     }
                                 }
                             }
@@ -396,19 +426,23 @@ fun VodDetailScreen(
 
     if (showMore) {
         MoreInfo(
-            title = item.name,
+            title = title,
             meta = meta.joinToString("  ·  "),
             plot = plot,
             cast = cast,
             director = director,
-            onClose = { showMore = false },
+            onClose = {
+                showMore = false
+                refocusMoreInfo = true
+            },
         )
     }
 }
 
 /**
- * The whole synopsis, cast and director, in a panel on the right. Up and Down scroll it; Back
- * closes it and focus goes back to More info.
+ * The whole synopsis, cast and director, in a dark panel on the right, about 42% of the screen
+ * wide and only as tall as its text (long text scrolls within the screen). Up and Down scroll
+ * it; Back closes it and focus goes back to More info.
  */
 @Composable
 private fun MoreInfo(title: String, meta: String, plot: String?, cast: String?, director: String?, onClose: () -> Unit) {
@@ -416,14 +450,12 @@ private fun MoreInfo(title: String, meta: String, plot: String?, cast: String?, 
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)).padding(24.dp)) {
             Column(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .padding(24.dp)
-                    .width(500.dp)
-                    .fillMaxHeight()
-                    .glass(WiptvShapes.panel, Glass.Drawer)
+                    .width(400.dp)
+                    .glass(WiptvShapes.panel, Glass.Sheet)
                     .focusRequester(focus)
                     .focusable()
                     .onKeyEvent { event ->
@@ -437,7 +469,7 @@ private fun MoreInfo(title: String, meta: String, plot: String?, cast: String?, 
                         true
                     }
                     .verticalScroll(scroll)
-                    .padding(28.dp),
+                    .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(text = title, style = WiptvType.screen)
@@ -529,7 +561,8 @@ private fun SeasonTab(text: String, selected: Boolean, onClick: () -> Unit) {
 /**
  * One episode: a small still (or the series artwork, softened), the clean title,
  * a quieter description, and on the right its length and how far you've got. No box at rest,
- * just a hairline underneath; focus is a light wash and outline across the row.
+ * just a hairline underneath. Focus is a soft fill across the whole row and a short bright bar
+ * at its left edge, with no outline, glow or scaling (like the Live TV guide).
  */
 @Composable
 private fun EpisodeRow(
@@ -540,32 +573,60 @@ private fun EpisodeRow(
     watched: Boolean,
     onClick: () -> Unit,
 ) {
-    val shape = WiptvShapes.card
+    val shape = WiptvShapes.small
     val progress = point?.progress?.takeIf { it > 0f }
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val fill by animateColorAsState(
+        targetValue = if (focused) WiptvColors.rowFocus else WiptvColors.rowFocus.copy(alpha = 0f),
+        animationSpec = tween(120),
+        label = "episodeFill",
+    )
+    val marker by animateFloatAsState(if (focused) 1f else 0f, animationSpec = tween(120), label = "episodeMarker")
     Surface(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
             .drawBehind {
                 drawLine(
-                    color = Color.White.copy(alpha = 0.07f),
+                    color = Color.White.copy(alpha = 0.08f),
                     start = Offset(10.dp.toPx(), size.height - 0.5f),
                     end = Offset(size.width - 10.dp.toPx(), size.height - 0.5f),
                     strokeWidth = 1.dp.toPx(),
                 )
             },
+        tonalElevation = 0.dp,
         shape = ClickableSurfaceDefaults.shape(shape = shape),
+        // The fill is drawn below (so it can fade); the Surface itself paints nothing.
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
             contentColor = WiptvColors.text,
-            focusedContainerColor = WiptvColors.focus.copy(alpha = 0.10f),
+            focusedContainerColor = Color.Transparent,
             focusedContentColor = WiptvColors.text,
+            pressedContainerColor = Color.Transparent,
+            pressedContentColor = WiptvColors.text,
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        border = focusOutline(shape),
+        scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1f, pressedScale = 1f),
+        border = ClickableSurfaceDefaults.border(border = Border.None, focusedBorder = Border.None, pressedBorder = Border.None),
+        glow = ClickableSurfaceDefaults.glow(glow = Glow.None, focusedGlow = Glow.None, pressedGlow = Glow.None),
+        interactionSource = interaction,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+            modifier = Modifier
+                .drawBehind {
+                    drawRoundRect(fill, cornerRadius = CornerRadius(8.dp.toPx()))
+                    if (marker > 0f) {
+                        // 3 × 24 dp, centred, in the gap left of the still.
+                        val h = 24.dp.toPx()
+                        drawRoundRect(
+                            color = WiptvColors.rowFocusMarker.copy(alpha = marker),
+                            topLeft = Offset(3.dp.toPx(), (size.height - h) / 2),
+                            size = Size(3.dp.toPx(), h),
+                            cornerRadius = CornerRadius(1.5.dp.toPx()),
+                        )
+                    }
+                }
+                .padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(18.dp),
         ) {
@@ -634,7 +695,7 @@ private fun EpisodeRow(
             }
 
             Column(modifier = Modifier.width(96.dp), horizontalAlignment = Alignment.End) {
-                episode.durationMinutes?.let { Text(text = "$it min", style = WiptvType.metadata.copy(fontSize = 13.sp)) }
+                episode.durationMinutes?.let { Text(text = "$it min", style = WiptvType.hint.copy(fontSize = 13.sp)) }
                 when {
                     progress != null && point != null -> timeLeft(point)?.let {
                         Text(text = it, style = WiptvType.hint.copy(color = WiptvColors.progress))

@@ -64,25 +64,37 @@ private data class Hero(
     val poster: String?,
 )
 
-private fun heroOf(item: VodItem, details: MovieDetails? = null) = Hero(
-    title = item.name,
-    meta = listOfNotNull(
-        (details?.year?.ifBlank { null } ?: item.year),
-        details?.durationMinutes?.let(::runtimeOf),
-        details?.genre?.ifBlank { null }?.split(',', '/')?.take(2)?.joinToString(", ") { it.trim() },
-        scoreOf(details?.rating ?: item.rating),
-    ).joinToString(" · "),
-    plot = details?.plot?.ifBlank { null } ?: item.plot,
-    backdrop = item.backdrop ?: details?.backdrop,
-    poster = item.poster,
-)
+private fun heroOf(item: VodItem, details: MovieDetails? = null): Hero {
+    val year = details?.year?.ifBlank { null } ?: item.year
+    return Hero(
+        title = VodTitles.withoutYear(item.name, year),
+        meta = listOfNotNull(
+            year,
+            details?.durationMinutes?.let(::runtimeOf),
+            details?.genre?.ifBlank { null }?.split(',', '/')?.take(2)?.joinToString(", ") { it.trim() },
+            scoreOf(details?.rating ?: item.rating),
+        ).joinToString(" · "),
+        plot = details?.plot?.ifBlank { null } ?: item.plot,
+        backdrop = item.backdrop ?: details?.backdrop,
+        poster = item.poster,
+    )
+}
 
-private fun heroOf(point: ResumePoint) = Hero(
+/**
+ * Something you've started: its title once, then where you're up to and how long is left. The
+ * picture and synopsis come from the catalogue entry (and its cached details) when the saved
+ * point has no wide artwork of its own, so the top area is never left empty.
+ */
+private fun heroOf(point: ResumePoint, item: VodItem?, details: MovieDetails?) = Hero(
     title = point.title,
-    meta = point.subtitle ?: "",
-    plot = listOfNotNull("Resume from ${clockOf(point.position)}", timeLeft(point)).joinToString(" · "),
-    backdrop = point.image,
-    poster = point.poster,
+    meta = listOfNotNull(
+        point.subtitle?.takeIf { it.isNotBlank() },
+        "Resume from ${clockOf(point.position)}",
+        timeLeft(point),
+    ).joinToString(" · "),
+    plot = details?.plot?.ifBlank { null } ?: item?.plot,
+    backdrop = point.image ?: item?.backdrop ?: details?.backdrop,
+    poster = point.poster ?: item?.poster,
 )
 
 /** Poster and row sizes: about six posters across, the seventh peeking in. */
@@ -117,6 +129,8 @@ fun CatalogScreen(
     // Films' rows rarely carry a backdrop or synopsis, so once focus rests on one its details are
     // fetched (once) to fill the top area. Never per key press: moving on cancels the wait.
     var restingOn by remember(kind) { mutableStateOf<VodItem?>(null) }
+    // Set while focus is on a Continue watching card, so its details fill in the resume hero.
+    var restingPoint by remember(kind) { mutableStateOf<ResumePoint?>(null) }
     val movieDetails = remember(kind) { mutableStateMapOf<Long, MovieDetails>() }
     var detail by remember { mutableStateOf<VodItem?>(null) }
     var playing by remember { mutableStateOf<ResumePoint?>(null) }
@@ -151,11 +165,26 @@ fun CatalogScreen(
             return@LaunchedEffect
         }
         movieDetails[item.id] = details
-        hero = heroOf(item, details)
+        hero = restingPoint?.let { heroOf(it, item, details) } ?: heroOf(item, details)
     }
 
     fun focusItem(item: VodItem) {
         hero = heroOf(item, movieDetails[item.id])
+        restingPoint = null
+        restingOn = item
+    }
+
+    /** The catalogue entry a Continue watching card belongs to, from what's already loaded. */
+    fun catalogueItemFor(point: ResumePoint): VodItem? {
+        val id = (if (kind == VodKind.MOVIE) point.key.removePrefix("movie:").toLongOrNull() else point.seriesId) ?: return null
+        return myList.firstOrNull { it.id == id }
+            ?: itemsByCategory.values.firstNotNullOfOrNull { list -> list.firstOrNull { it.id == id } }
+    }
+
+    fun focusResume(point: ResumePoint) {
+        val item = catalogueItemFor(point)
+        hero = heroOf(point, item, item?.let { movieDetails[it.id] })
+        restingPoint = point
         restingOn = item
     }
 
@@ -225,29 +254,16 @@ fun CatalogScreen(
                     if (resume.isNotEmpty()) {
                         val first = firstModifier()
                         item(key = "resume") {
-                            if (resume.size == 1) {
-                                // One thing on the go: a wide card with its details beside it,
-                                // instead of a lone card in an empty row.
-                                val point = resume.first()
-                                Column {
-                                    RowTitle("Continue watching")
-                                    ResumeBanner(
+                            // The title and where you're up to show once, in the hero above; the
+                            // cards carry the picture, progress and "OK to resume".
+                            PosterRow(title = "Continue watching") {
+                                items(resume, key = { it.key }) { point ->
+                                    ResumeCard(
                                         point = point,
-                                        onFocus = { hero = heroOf(point); restingOn = null },
+                                        onFocus = { focusResume(point) },
                                         onClick = { playing = point; playingNext = null },
-                                        modifier = first,
+                                        modifier = if (point == resume.first()) first else Modifier,
                                     )
-                                }
-                            } else {
-                                PosterRow(title = "Continue watching") {
-                                    items(resume, key = { it.key }) { point ->
-                                        ResumeCard(
-                                            point = point,
-                                            onFocus = { hero = heroOf(point); restingOn = null },
-                                            onClick = { playing = point; playingNext = null },
-                                            modifier = if (point == resume.first()) first else Modifier,
-                                        )
-                                    }
                                 }
                             }
                         }
@@ -417,7 +433,7 @@ private fun HeroText(hero: Hero?, message: String?, isError: Boolean, onRetry: (
         modifier = Modifier
             .padding(start = ScreenEdge, top = 14.dp)
             .width(470.dp)
-            .height(150.dp),
+            .height(144.dp),
     ) {
         if (hero != null) {
             var titleLines by remember { mutableIntStateOf(1) }
@@ -637,10 +653,12 @@ private fun ResumeArt(point: ResumePoint, showProgress: Boolean = true) {
     }
 }
 
-/** "S2 E5 · 38 min left", or just the time left for a film. */
-private fun resumeLine(point: ResumePoint): String =
-    listOfNotNull(point.subtitle?.substringBefore(" · ")?.takeIf { it.isNotBlank() }, timeLeft(point) ?: "Resume from ${clockOf(point.position)}")
-        .joinToString(" · ")
+/** "Title · S2 E5", or the title and time left for a film. */
+private fun resumeLine(point: ResumePoint, withTitle: Boolean): String =
+    listOfNotNull(
+        point.title.takeIf { withTitle },
+        point.subtitle?.substringBefore(" · ")?.takeIf { it.isNotBlank() } ?: timeLeft(point),
+    ).joinToString(" · ")
 
 /** A Continue watching card: wide artwork with its progress, the title and how much is left. */
 @Composable
@@ -654,60 +672,21 @@ private fun ResumeCard(point: ResumePoint, onFocus: () -> Unit, onClick: () -> U
             onClick = onClick,
             modifier = modifier,
         ) { ResumeArt(point) }
-        Column(modifier = Modifier.padding(start = FocusGap, end = FocusGap, top = 6.dp)) {
-            Text(
-                text = point.title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = TextStyle(
-                    fontSize = 14.sp,
-                    lineHeight = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = if (focused) WiptvColors.text else WiptvColors.secondary,
-                ),
-            )
-            Text(text = resumeLine(point), maxLines = 1, overflow = TextOverflow.Ellipsis, style = WiptvType.hint)
-        }
+        // One line: the title at rest; on the focused card, the hint and time left (the title is in the hero).
+        Text(
+            text = if (focused) listOfNotNull("OK to resume", timeLeft(point)).joinToString(" · ") else resumeLine(point, withTitle = true),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = FocusGap, end = FocusGap, top = 6.dp),
+            style = TextStyle(
+                fontSize = 14.sp,
+                lineHeight = 18.sp,
+                fontWeight = FontWeight.Medium,
+                color = if (focused) WiptvColors.text else WiptvColors.secondary,
+            ),
+        )
     }
 }
 
 private val ResumeWidth = 236.dp
 private val ResumeHeight = 133.dp
-
-/** Continue watching with a single item: a bigger card with its details alongside. */
-@Composable
-private fun ResumeBanner(point: ResumePoint, onFocus: () -> Unit, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = Modifier.padding(start = ScreenEdge - FocusGap, top = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(22.dp),
-    ) {
-        ArtFrame(
-            width = 268.dp,
-            height = 151.dp,
-            onFocusChange = { if (it) onFocus() },
-            onClick = onClick,
-            modifier = modifier,
-        ) { ResumeArt(point, showProgress = false) }
-        Column(modifier = Modifier.width(380.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = point.title,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = WiptvType.section,
-            )
-            point.subtitle?.let {
-                Text(text = it, maxLines = 1, overflow = TextOverflow.Ellipsis, style = WiptvType.metadata)
-            }
-            Row(
-                modifier = Modifier.padding(top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (point.progress > 0f) ProgressLine(progress = point.progress, modifier = Modifier.width(180.dp))
-                Text(text = timeLeft(point) ?: "Resume from ${clockOf(point.position)}", style = WiptvType.metadata)
-            }
-            Text(text = "Press OK to resume", modifier = Modifier.padding(top = 6.dp), style = WiptvType.hint)
-        }
-    }
-}
