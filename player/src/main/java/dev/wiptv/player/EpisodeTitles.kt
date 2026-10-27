@@ -6,8 +6,8 @@ package dev.wiptv.player
  * in [Episode.title]; this only changes what's shown.
  *
  * Only removed when it's safe: the series name when a separator or episode code follows it
- * (so "Lost in Space" in a series called "Lost" is left alone), and an episode code only when its
- * numbers match this episode.
+ * (so "Lost in Space" in a series called "Lost" is left alone); a full code like S01E01 or 1x01
+ * at the start; a looser one like "Episode 4" only when its number matches this episode.
  */
 internal object EpisodeTitles {
     private const val SEPARATORS = " -–—:|._"
@@ -32,7 +32,10 @@ internal object EpisodeTitles {
             val g = match.groupValues
             val season2 = g[1].ifEmpty { g[3] }.ifEmpty { g[5] }.toIntOrNull()
             val number2 = g[2].ifEmpty { g[4] }.ifEmpty { g[6] }.ifEmpty { g[7] }.ifEmpty { g[8] }.toIntOrNull()
-            if (number2 == number && (season2 == null || season2 == season)) {
+            // A full code (S01E01, 1x01) is clearly a code even when the provider's numbering is
+            // off by one, so it always goes; "Episode 4" or "E4" only when it's this episode.
+            val fullCode = g[1].isNotEmpty() || g[3].isNotEmpty()
+            if (fullCode || (number2 == number && (season2 == null || season2 == season))) {
                 title = title.substring(match.range.last + 1).trimStart(*SEPARATORS.toCharArray())
             }
         }

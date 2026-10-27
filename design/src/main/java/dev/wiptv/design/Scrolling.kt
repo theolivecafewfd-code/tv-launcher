@@ -12,19 +12,20 @@ import androidx.compose.ui.unit.Dp
 /**
  * How a vertical list scrolls as the remote moves focus: anything already fully on screen stays
  * put, and something partly off screen settles [pivot] from the top every time, so rows land in
- * the same place instead of being nudged just far enough to show them.
+ * the same place instead of being nudged just far enough to show them. With [alwaysAlign], even
+ * an item that's already on screen moves to the pivot, so the focused row is always at the top.
  *
  * The same rule then reaches every list inside, so wrap sideways rows in [RowScrolling].
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PivotScrolling(pivot: Dp, content: @Composable () -> Unit) {
+fun PivotScrolling(pivot: Dp, alwaysAlign: Boolean = false, content: @Composable () -> Unit) {
     val pivotPx = with(LocalDensity.current) { pivot.toPx() }
-    val spec = remember(pivotPx) {
+    val spec = remember(pivotPx, alwaysAlign) {
         object : BringIntoViewSpec {
             override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
                 val fullyVisible = offset >= 0f && offset + size <= containerSize
-                return if (fullyVisible) 0f else offset - pivotPx
+                return if (fullyVisible && !alwaysAlign) 0f else offset - pivotPx
             }
         }
     }
