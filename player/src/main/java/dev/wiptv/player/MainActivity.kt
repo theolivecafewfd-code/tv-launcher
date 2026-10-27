@@ -83,14 +83,14 @@ class MainActivity : ComponentActivity() {
         }
         val details = TextView(this).apply {
             text = report
-            setTextColor(Color.rgb(0xE6, 0xE1, 0xEE))
+            setTextColor(Color.rgb(0xF2, 0xF4, 0xF8))
             textSize = 13f
             typeface = Typeface.MONOSPACE
         }
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(padding, padding, padding, padding)
-            setBackgroundColor(Color.rgb(0x16, 0x11, 0x1E))
+            setBackgroundColor(Color.rgb(0x0B, 0x11, 0x1B))
             addView(title, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
             addView(retry, LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT).apply { topMargin = padding / 2 })
             addView(details, LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT).apply { topMargin = padding / 2 })

@@ -1,5 +1,6 @@
 package dev.wiptv.player
 
+import dev.wiptv.design.wiptvBackground
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -80,7 +81,7 @@ fun AccountScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.background)
+            .wiptvBackground()
             .padding(horizontal = 48.dp, vertical = 32.dp),
     ) {
         UpdatePill(update, modifier = Modifier.align(Alignment.TopEnd))

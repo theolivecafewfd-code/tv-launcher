@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
         }
         val details = TextView(this).apply {
             text = report
-            setTextColor(Color.rgb(0xE6, 0xE1, 0xEE))
+            setTextColor(Color.rgb(0xF2, 0xF4, 0xF8))
             textSize = 13f
             typeface = Typeface.MONOSPACE
             setPadding(0, padding / 2, 0, 0)
@@ -93,7 +93,7 @@ class MainActivity : ComponentActivity() {
 
         setContentView(
             ScrollView(this).apply {
-                setBackgroundColor(Color.rgb(0x16, 0x11, 0x1E))
+                setBackgroundColor(Color.rgb(0x0B, 0x11, 0x1B))
                 addView(column)
             },
         )

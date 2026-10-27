@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -21,6 +22,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ImageShader
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -33,37 +39,64 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 
 /**
- * The WIPTV colours, from docs/player-design/tokens.json: cool blue-grey, with artwork and video
- * providing the colour. Text is light on dark; focused small controls flip to dark on light.
+ * The WIPTV colours, shared by the launcher and the player (the only place they're defined):
+ * near-black charcoal with a restrained navy undertone, with artwork and video providing the
+ * colour. Text is light on dark; focused small controls and primary actions are pale with dark
+ * text. See docs/PLAYER_DESIGN.md, section 16.
  */
 object WiptvColors {
-    val background = Color(0xFF111624)
-    val backgroundTop = Color(0xFF182537)
-    val surface = Color(0xFF202B42)
-    val elevated = Color(0xFF33425B)
-    val panel = Color(0xFF25354E)
-    val text = Color(0xFFF5F7FF)
-    val secondary = Color(0xFFC0C9DC)
-    val quiet = Color(0xFFAEBBD0)
-    val focus = Color(0xFFE7EEFF)
-    val onLight = Color(0xFF202C42)
+    /** The screen: charcoal with a hint of navy. */
+    val background = Color(0xFF0B111B)
+
+    /** Raised background: the top of the screen's gradient, quiet side panels. */
+    val backgroundTop = Color(0xFF111A27)
+    val raised = backgroundTop
+
+    /** Panel surface: glass, trays, dialogs, placeholders. */
+    val surface = Color(0xFF192332)
+
+    /** Elevated surface: a focused list row's fill, artwork placeholders. */
+    val elevated = Color(0xFF233041)
+
+    /** The base of the glass recipes. */
+    val panel = surface
+
+    /** Primary, secondary and muted text. */
+    val text = Color(0xFFF2F4F8)
+    val secondary = Color(0xFFAFB8C7)
+    val quiet = Color(0xFF8793A5)
+    val muted = quiet
+
+    /** The focus accent, and primary buttons' pale fill with their dark text. */
+    val focus = Color(0xFFDCE7FA)
+    val primaryFill = focus
+    val onLight = Color(0xFF101724)
+    val onPrimary = onLight
+
+    /** A subtle edge for panels and quiet buttons. */
+    val border = Color.White.copy(alpha = 0.12f)
+
     val positive = Color(0xFFB4EED6)
     val warning = Color(0xFFFFD09B)
     val error = Color(0xFFFFB8B4)
-    val progress = Color(0xFFDFEAFF)
+    val progress = focus
 
-    /** A focused list row (the Live TV guide): a soft fill and a short bright bar on the left. */
-    val rowFocus = Color(0xFF30405A)
-    val rowFocusMarker = Color(0xFFDDE8FF)
+    /** A focused list row (guide, episodes): a subtle raised fill and a short pale bar on the left. */
+    val rowFocus = elevated
+    val rowFocusMarker = focus
 
-    /** The quiet side panel tint (Live TV categories): darker and greyer than [panel]. */
-    val panelQuiet = Color(0xFF1C2535)
+    /** The quiet side panel tint (Live TV categories). */
+    val panelQuiet = raised
 
-    /** Information sheets over a details page (More info): dark slate, barely blue. */
-    val sheet = Color(0xFF202B32)
+    /** Information sheets and trays (More info, the schedule, the Apps tray). */
+    val sheet = surface
 }
 
-/** Text sizes for the TV's 960 × 540 layout grid (platform sans-serif, no added fonts). */
+/**
+ * Text styles for the TV's 960 × 540 layout grid, in the platform sans-serif (no added fonts),
+ * shared by both apps. The semantic names (page title, section heading, body, metadata, caption)
+ * are the ones to reach for; the others are kept for screens that already use them.
+ */
 object WiptvType {
     val hero = TextStyle(fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text)
     val screen = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text)
@@ -72,6 +105,15 @@ object WiptvType {
     val body = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, color = WiptvColors.text)
     val metadata = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, color = WiptvColors.secondary)
     val hint = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, color = WiptvColors.quiet)
+
+    /** A screen's title ("Choose your apps", "Live TV"). */
+    val pageTitle = screen
+
+    /** A row or tray heading ("Top 10 this week", "Your apps"). */
+    val sectionHeading = TextStyle(fontSize = 17.sp, lineHeight = 22.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text)
+
+    /** A name under a poster or tile. */
+    val caption = TextStyle(fontSize = 14.sp, lineHeight = 18.sp, color = WiptvColors.secondary)
 }
 
 /** Corner shapes: small, cards and buttons, panels (preview, drawers, dialogs), and pills. */
@@ -90,24 +132,27 @@ enum class Glass(
     val tint: Float,
     val washTop: Float,
     val washBottom: Float,
-    val edgeTop: Float = 0.40f,
-    val edgeBottom: Float = 0.16f,
+    val edgeTop: Float = 0.16f,
+    val edgeBottom: Float = 0.06f,
     val base: Color = WiptvColors.panel,
 ) {
     /** The section capsule and other navigation. */
-    Nav(0.86f, 0.12f, 0.04f),
+    Nav(0.86f, 0.05f, 0.0f),
 
     /** Drawers, dialogs and side panels. Readable over anything. */
-    Drawer(0.96f, 0.08f, 0.02f),
+    Drawer(0.95f, 0.04f, 0.0f),
 
     /** Panels over video: at least 94% tint under any text. */
-    OverVideo(0.94f, 0.08f, 0.02f),
+    OverVideo(0.94f, 0.04f, 0.0f),
 
-    /** Side panels on a plain background (Live TV categories): dark blue-grey, with a faint edge. */
-    Quiet(0.70f, 0.03f, 0.0f, edgeTop = 0.10f, edgeBottom = 0.05f, base = WiptvColors.panelQuiet),
+    /** Side panels on a plain background (Live TV categories): barely there, with a faint edge. */
+    Quiet(0.70f, 0.02f, 0.0f, edgeTop = 0.10f, edgeBottom = 0.04f, base = WiptvColors.panelQuiet),
 
-    /** Information sheets (More info): solid dark slate with a subtle edge. */
-    Sheet(0.97f, 0.03f, 0.0f, edgeTop = 0.14f, edgeBottom = 0.06f, base = WiptvColors.sheet),
+    /** Information sheets (More info, a channel's schedule): solid dark slate with a subtle edge. */
+    Sheet(0.97f, 0.03f, 0.0f, edgeTop = 0.14f, edgeBottom = 0.05f, base = WiptvColors.sheet),
+
+    /** Floating trays (the launcher's Apps): dark translucent slate, a faint edge. */
+    Tray(0.92f, 0.04f, 0.0f, edgeTop = 0.14f, edgeBottom = 0.05f, base = WiptvColors.sheet),
 }
 
 /** Paints a glass panel behind the content, in [shape]. */
@@ -122,10 +167,23 @@ fun Modifier.glass(shape: Shape, recipe: Glass = Glass.Nav): Modifier = this
         shape,
     )
 
-/** The screen behind everything: a quiet gradient from the top. */
-fun Modifier.wiptvBackground(): Modifier = this.background(
-    Brush.verticalGradient(0f to WiptvColors.backgroundTop, 0.55f to WiptvColors.background, 1f to WiptvColors.background),
-)
+/** How strongly the background grain shows: a matte finish, not a visible pattern. */
+private const val GRAIN_ALPHA = 0.02f
+
+/**
+ * The screen behind everything, in both apps: a quiet gradient from raised charcoal at the top to
+ * the background below, under a very fine, static monochrome grain (one small bundled tile,
+ * repeated without seams, which also hides banding). Drawn behind the content only.
+ */
+@Composable
+fun Modifier.wiptvBackground(): Modifier {
+    val tile = ImageBitmap.imageResource(R.drawable.wiptv_grain)
+    val grain = remember(tile) { ShaderBrush(ImageShader(tile, TileMode.Repeated, TileMode.Repeated)) }
+    return drawBehind {
+        drawRect(Brush.verticalGradient(0f to WiptvColors.backgroundTop, 0.55f to WiptvColors.background, 1f to WiptvColors.background))
+        drawRect(grain, alpha = GRAIN_ALPHA)
+    }
+}
 
 /** A bar down the left edge, for "this is the selected one" when it isn't focused. */
 fun Modifier.selectedMarker(selected: Boolean, color: Color = WiptvColors.focus): Modifier =

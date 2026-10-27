@@ -1,5 +1,6 @@
 package dev.wiptv.player
 
+import dev.wiptv.design.wiptvBackground
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -108,7 +109,7 @@ fun LoginScreen(update: UpdateHandle, onSignedIn: (Login) -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.background)
+            .wiptvBackground()
             .padding(horizontal = 48.dp, vertical = 32.dp),
     ) {
         UpdatePill(update, modifier = Modifier.align(Alignment.TopEnd))
@@ -240,7 +241,7 @@ private fun EditDialog(field: Field, initial: String, onDone: (String) -> Unit, 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Palette.background)
+                .wiptvBackground()
                 .padding(top = 40.dp, start = 48.dp, end = 48.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
