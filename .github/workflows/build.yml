@@ -34,7 +34,9 @@ jobs:
           status=${PIPESTATUS[0]}
           set -e
           if [ "$status" -ne 0 ]; then
-            grep -E "^e: |What went wrong|^> " build.log | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+            # GitHub keeps only a few annotations per step, so the errors go in one, line breaks encoded.
+            errors=$( (grep -E "^e: " build.log; grep -A4 "What went wrong" build.log) | head -40 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')
+            echo "::error title=Build failed::$errors"
             exit "$status"
           fi
           cp app/build/outputs/apk/release/app-release.apk tv-launcher.apk
