@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Installing updates (the user still confirms each install). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- So each app can see whether the other is installed, and which build it is. -->
+    <queries>
+        <package android:name="dev.tvlauncher" />
+        <package android:name="dev.wiptv.player" />
+    </queries>
+
+    <application>
+        <receiver
+            android:name="dev.wiptv.update.InstallResultReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

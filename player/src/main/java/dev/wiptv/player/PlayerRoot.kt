@@ -1,5 +1,9 @@
 package dev.wiptv.player
 
+import dev.wiptv.update.UpdateState
+import dev.wiptv.update.Updater
+import dev.wiptv.update.label
+import dev.wiptv.update.loud
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -107,7 +111,7 @@ fun rememberUpdateState(): UpdateHandle {
     LaunchedEffect(Unit) {
         while (true) {
             if (state !is UpdateState.Downloading && state != UpdateState.Installing) {
-                state = Updater.check()
+                state = Updater.check(context, BuildConfig.UPDATE_REPO)
             }
             delay(30 * 60 * 1000L)
         }
@@ -122,8 +126,8 @@ fun rememberUpdateState(): UpdateHandle {
                 } else scope.launch {
                     state = UpdateState.Downloading(0)
                     state = try {
-                        Updater.downloadAndInstall(context, target) { percent ->
-                            state = UpdateState.Downloading(percent)
+                        Updater.downloadAndInstall(context, target) { app, percent ->
+                            state = UpdateState.Downloading(percent, app)
                         }
                         UpdateState.Installing
                     } catch (e: CancellationException) {
@@ -131,11 +135,21 @@ fun rememberUpdateState(): UpdateHandle {
                     } catch (e: Exception) {
                         UpdateState.Failed(e.message ?: "download failed", target)
                     }
+                    // Only the launcher was updated (this app would have restarted): check again
+                    // once its install has had time to finish, so the pill doesn't stay on "Installing".
+                    if (state == UpdateState.Installing && target.updates.none { it.app.packageName == context.packageName }) {
+                        delay(20_000)
+                        state = Updater.check(context, BuildConfig.UPDATE_REPO)
+                    }
                 }
+            }
+            UpdateState.Installing -> scope.launch {
+                state = UpdateState.Checking
+                state = Updater.check(context, BuildConfig.UPDATE_REPO)
             }
             UpdateState.UpToDate, is UpdateState.CheckFailed -> scope.launch {
                 state = UpdateState.Checking
-                state = Updater.check()
+                state = Updater.check(context, BuildConfig.UPDATE_REPO)
             }
             else -> Unit
         }
@@ -146,19 +160,11 @@ fun rememberUpdateState(): UpdateHandle {
 @Composable
 fun UpdatePill(update: UpdateHandle, modifier: Modifier = Modifier) {
     val state = update.state
-    val label = when (state) {
-        UpdateState.Checking -> "Checking for updates…"
-        UpdateState.UpToDate -> "Up to date · build ${BuildConfig.VERSION_CODE}"
-        is UpdateState.CheckFailed -> "Couldn't check: ${state.reason}"
-        is UpdateState.Available -> "Update available · build ${state.build}"
-        is UpdateState.Downloading -> "Downloading update… ${state.percent}%"
-        UpdateState.Installing -> "Installing update…"
-        is UpdateState.Failed -> "Update failed · press to retry"
-    }
+    val label = state.label(BuildConfig.VERSION_CODE)
     GlassPill(
         text = label,
         onClick = update.onClick,
-        loud = state is UpdateState.Available || state is UpdateState.Failed,
+        loud = state.loud,
         modifier = modifier.widthIn(max = 320.dp),
     )
 }

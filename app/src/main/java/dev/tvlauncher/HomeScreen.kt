@@ -1,5 +1,9 @@
 package dev.tvlauncher
 
+import dev.wiptv.update.UpdateState
+import dev.wiptv.update.Updater
+import dev.wiptv.update.label
+import dev.wiptv.update.loud
 import androidx.compose.foundation.BorderStroke
 import dev.wiptv.design.GlassPill
 import dev.wiptv.design.WiptvColors
@@ -202,7 +206,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
         scope.launch {
             update = UpdateState.Checking
             lastUpdateCheck = SystemClock.elapsedRealtime()
-            update = Updater.check()
+            update = Updater.check(context, BuildConfig.UPDATE_REPO)
         }
     }
     LaunchedEffect(refreshKey) {
@@ -229,8 +233,8 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
         scope.launch {
             update = UpdateState.Downloading(0)
             try {
-                Updater.downloadAndInstall(context, target) { percent ->
-                    update = UpdateState.Downloading(percent)
+                Updater.downloadAndInstall(context, target) { app, percent ->
+                    update = UpdateState.Downloading(percent, app)
                 }
                 update = UpdateState.Installing
             } catch (e: Exception) {
@@ -496,21 +500,12 @@ private fun Header(now: LocalTime, weather: WeatherNow?, update: UpdateState, on
  */
 @Composable
 private fun UpdateButton(update: UpdateState, onClick: () -> Unit) {
-    val installed = BuildConfig.VERSION_CODE
-    val label = when (update) {
-        UpdateState.Checking -> "Checking for updates…"
-        UpdateState.UpToDate -> "Up to date · build $installed"
-        is UpdateState.CheckFailed -> "Couldn't check: ${update.reason}"
-        is UpdateState.Available -> "Update available · build ${update.build}"
-        is UpdateState.Downloading -> "Downloading update… ${update.percent}%"
-        UpdateState.Installing -> "Installing update…"
-        is UpdateState.Failed -> "Update failed · press to retry"
-    }
+    val label = update.label(BuildConfig.VERSION_CODE)
     // Bright when there's something to do, quiet otherwise.
     GlassPill(
         text = label,
         onClick = onClick,
-        loud = update is UpdateState.Available || update is UpdateState.Failed,
+        loud = update.loud,
         modifier = Modifier.widthIn(max = 320.dp),
     )
 }
