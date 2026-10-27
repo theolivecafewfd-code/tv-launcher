@@ -370,9 +370,11 @@ Kept up to date as stages land. "Built" means the GitHub build passed; "emulator
 - **Guide rows.** No fill or programme boxes at rest: a hairline between rows, a soft wash on the programme on now, faint half-hour divisions. Focus is a light wash and outline across the whole row; the playing channel has a green ▶ and bar; favourites an amber ★ (#35).
 - **Channel column** 248 dp (was 196 dp) so names fit (#35).
 - **Posters** 126 × 189 dp, about six across with the next peeking in, at Wayne's request (the spec started at 104 × 156 dp, about seven) (#37).
-- **Continue watching** uses wide cards with the episode still or backdrop, progress and time left; a single item becomes one wide card with its details alongside (#37).
+- **Continue watching** uses wide cards with the episode still or backdrop and progress, one row however many there are. The focused card's title, resume point and time left show once in the hero, over the title's artwork (from the catalogue when the card has none); the card itself says "OK to resume" (#37, refined in #46).
 - **Hero details for films.** Films' rows rarely carry a synopsis or backdrop, so after focus rests on a film for 0.7 s its details are fetched once and cached. This is not a request per key press (#37).
 - **Details actions.** Only the focused action is light. At rest Play/Resume has a brighter wash; other actions are quiet glass (#38).
-- **More info** panel for the full synopsis, cast and director, since the header keeps the synopsis to three lines (#38).
+- **More info** panel for the full synopsis, cast and director, since the header keeps the synopsis to three lines (#38). Dark slate (`Glass.Sheet`, #202B32), about 42% wide, as tall as its text and scrolling when long (#46).
+- **Episode rows** take the Live TV guide's focus: a soft #30405A fill and a short #DDE8FF bar on the left, with no outline or scaling. The details page settles a newly focused row near the top, so the header scrolls away and about five episodes show (#46).
+- **Years in names.** A trailing "(1987)" that matches the year in the details line is left off the displayed name; bare numbers ("Blade Runner 2049") are never touched (#46).
 - **Episode titles** shown cleaned ("1 · The Stolen Eagle"); the provider's title is kept unchanged in the data (#39).
 - **Start section.** The player accepts a `section` extra (LIVE, MOVIES or SERIES); the default launch destination is unchanged (#36).

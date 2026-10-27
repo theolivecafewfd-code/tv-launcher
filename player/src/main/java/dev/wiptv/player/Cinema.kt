@@ -75,8 +75,10 @@ fun CinematicBackdrop(
 
     LaunchedEffect(backdrop, poster) {
         delay(delayMillis)
-        shown = backdrop?.let { loadArt(context, it, soft = false) }
+        val art = backdrop?.let { loadArt(context, it, soft = false) }
             ?: poster?.let { loadArt(context, it, soft = true) }
+        // A picture that fails to load keeps the last one rather than leaving an empty area.
+        if (art != null || (backdrop == null && poster == null)) shown = art
     }
 
     Box(modifier = modifier) {

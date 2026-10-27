@@ -58,6 +58,9 @@ object WiptvColors {
 
     /** The quiet side panel tint (Live TV categories): darker and greyer than [panel]. */
     val panelQuiet = Color(0xFF1C2535)
+
+    /** Information sheets over a details page (More info): dark slate, barely blue. */
+    val sheet = Color(0xFF202B32)
 }
 
 /** Text sizes for the TV's 960 × 540 layout grid (platform sans-serif, no added fonts). */
@@ -102,6 +105,9 @@ enum class Glass(
 
     /** Side panels on a plain background (Live TV categories): dark blue-grey, with a faint edge. */
     Quiet(0.70f, 0.03f, 0.0f, edgeTop = 0.10f, edgeBottom = 0.05f, base = WiptvColors.panelQuiet),
+
+    /** Information sheets (More info): solid dark slate with a subtle edge. */
+    Sheet(0.97f, 0.03f, 0.0f, edgeTop = 0.14f, edgeBottom = 0.06f, base = WiptvColors.sheet),
 }
 
 /** Paints a glass panel behind the content, in [shape]. */
