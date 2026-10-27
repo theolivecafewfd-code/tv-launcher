@@ -35,8 +35,11 @@ private class PivotScroll(private val rowPivot: Float, private val tall: Float) 
     }
 }
 
-/** Posters are 195 dp with their focus gap; the featured title (176 dp) and app tiles are shorter. */
-private val TallItem = 185.dp
+/**
+ * Posters are 195 dp with their focus gap (189 + 2 × 3). The featured title (190 dp) and app
+ * tiles are shorter and must stay below this, or the header gets scrolled off on the featured title.
+ */
+private val TallItem = 193.dp
 
 /** Space above a focused poster: room for its row's heading. */
 private val RowPivot = 34.dp
