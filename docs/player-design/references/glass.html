@@ -1,0 +1,308 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WIPTV · Glass — preferred direction</title><style>body{margin:0;padding:24px;background:#080e19;color:#f5f7ff;font-family:Arial,sans-serif}.reference-note{max-width:1200px;margin:0 auto 16px;font-size:14px;line-height:1.5}.reference-note a{color:#dfeaff}.reference-frame{max-width:1200px;margin:auto}</style></head><body><aside class="reference-note"><strong>WIPTV · Glass — preferred direction</strong><br>Visual concept only. Home, search, profiles and a separate My List destination are future ideas. The native redesign keeps Live TV / Movies / Series. <a href="../../PLAYER_DESIGN.md">Read the specification</a>. Browser interactions and sample content are illustrative.</aside><script>
+// Small local reference-only icons. The native app should use its existing vector/icon system.
+const lucide={createIcons:()=>{const shapes={
+ 'search':'<circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/>',
+ 'play':'<path d="m8 5 11 7-11 7Z"/>',
+ 'info':'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7v1"/>',
+ 'x':'<path d="m6 6 12 12M18 6 6 18"/>',
+ 'chevron-down':'<path d="m6 9 6 6 6-6"/>',
+ 'panels-top-left':'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 9v11"/>',
+ 'heart':'<path d="M12 20 4 12C-1 6 7 1 12 7 17 1 25 6 20 12Z"/>',
+ 'tv':'<rect x="3" y="6" width="18" height="13" rx="2"/><path d="m8 2 4 4 4-4M8 22h8"/>',
+ 'flag':'<path d="M5 22V3c5-4 9 4 14 0v11c-5 4-9-4-14 0"/>',
+ 'clapperboard':'<rect x="3" y="8" width="18" height="13" rx="2"/><path d="M3 8V3h18v5M7 3l3 5m4-5 3 5"/>',
+ 'trophy':'<path d="M8 3h8v6a4 4 0 0 1-8 0ZM8 5H4v3q0 5 6 5M16 5h4v3q0 5-6 5M12 13v7M7 21h10"/>'
+};document.querySelectorAll('i[data-lucide]').forEach(el=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');for(const [k,v] of Object.entries({viewBox:'0 0 24 24',width:'16',height:'16',fill:'none',stroke:'currentColor','stroke-width':'1.8','stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':'true'}))svg.setAttribute(k,v);svg.innerHTML=shapes[el.dataset.lucide]||'<circle cx="12" cy="12" r="8"/>';el.replaceWith(svg);});}};
+</script><div class="reference-frame"><div id="wiptv-glass" aria-label="WIPTV player interface concept">
+  <style>
+    #wiptv-glass{--tv-bg:#0a1018;--tv-surface:#141e2b;--tv-elevated:#1e2b3c;--tv-ink:#f4f6f9;--tv-soft:#acb8c7;--tv-lime:#d9f88a;--tv-line:#2a3849;color-scheme:dark;background:var(--tv-bg);color:var(--tv-ink);font-family:Inter,Arial,sans-serif;font-size:14px;line-height:1.45;border-radius:18px;overflow:hidden;position:relative;min-width:0}
+    #wiptv-glass *{box-sizing:border-box}
+    #wiptv-glass button,#wiptv-glass input{font:inherit}
+    #wiptv-glass button{color:inherit;border:0}
+    #wiptv-glass button:focus-visible,#wiptv-glass input:focus-visible{outline:3px solid var(--tv-lime);outline-offset:4px}
+    #wiptv-glass .tv-header{display:flex;align-items:center;gap:26px;padding:25px 34px 20px;flex-wrap:wrap;background:#0a1018;position:relative;z-index:2}
+    #wiptv-glass .tv-brand{font-size:23px;letter-spacing:-1px;font-weight:700;display:flex;align-items:center;gap:8px;margin-right:10px}
+    #wiptv-glass .tv-brand span{display:inline-grid;place-items:center;width:25px;height:25px;border-radius:7px;background:var(--tv-lime);color:var(--tv-bg);font-size:16px;letter-spacing:-3px;padding-right:3px}
+    #wiptv-glass .tv-nav{display:flex;gap:5px;flex:1;align-items:center;flex-wrap:wrap}
+    #wiptv-glass .tv-nav button{background:transparent;padding:10px 13px;border-radius:25px;color:var(--tv-soft);white-space:nowrap;font-weight:500}
+    #wiptv-glass .tv-nav button[aria-current="page"]{background:var(--tv-ink);color:var(--tv-bg)}
+    #wiptv-glass .tv-nav button:hover{color:var(--tv-ink);background:var(--tv-elevated)}
+    #wiptv-glass .tv-nav button[aria-current="page"]:hover{color:var(--tv-bg);background:var(--tv-ink)}
+    #wiptv-glass .tv-utilities{display:flex;gap:15px;align-items:center;padding-right:50px}
+    #wiptv-glass .tv-icon{background:transparent;padding:6px;display:grid;place-items:center;border-radius:10px}
+    #wiptv-glass .tv-profile{background:#293a32;border:1px solid #5a7056;border-radius:50%;width:33px;height:33px;display:grid;place-items:center;color:var(--tv-lime);font-size:12px}
+    #wiptv-glass .tv-search-wrap{padding:0 34px 20px}
+    #wiptv-glass .tv-search-wrap input{width:100%;padding:13px 17px;background:var(--tv-surface);border:1px solid var(--tv-line);border-radius:12px;color:var(--tv-ink)}
+    #wiptv-glass [hidden]{display:none!important}
+    #wiptv-glass .tv-hero{position:relative;min-height:325px;padding:36px 42px 34px;display:flex;align-items:center;isolation:isolate;overflow:hidden;background:#172a39}
+    #wiptv-glass .tv-scenery{position:absolute;inset:0;z-index:-2;overflow:hidden;background:radial-gradient(ellipse at 77% 32%,#a0b4af 0%,#566e7a 22%,#223d51 51%,#101b2a 84%)}
+    #wiptv-glass .tv-scenery:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#0a1018 0%,#0a1018e8 25%,#0a101847 62%,#0a101815 100%),linear-gradient(0deg,#0a1018 0%,transparent 40%);z-index:4}
+    #wiptv-glass .tv-moon{position:absolute;width:65px;height:65px;border-radius:50%;background:#e4e3c9;right:19%;top:35px;box-shadow:0 0 70px #d1dbbe45}
+    #wiptv-glass .tv-ridge{position:absolute;inset:22% -10% -2% 20%;background:#293e4c;clip-path:polygon(0 100%,0 55%,12% 42%,22% 58%,38% 15%,49% 38%,61% 0,74% 42%,88% 23%,100% 47%,100% 100%)}
+    #wiptv-glass .tv-ridge.front{inset:48% -5% -2% 30%;background:#142a35;clip-path:polygon(0 100%,0 65%,15% 43%,30% 57%,48% 10%,63% 39%,80% 0,100% 28%,100% 100%)}
+    #wiptv-glass .tv-water{position:absolute;inset:73% 0 0 32%;background:repeating-linear-gradient(0deg,#5c7c8422 0 1px,transparent 1px 10px),linear-gradient(#38525c,#132735);transform:skewY(-4deg)}
+    #wiptv-glass .tv-cabin{position:absolute;right:25%;top:58%;width:68px;height:43px;background:#15212b;transform:rotate(-3deg);box-shadow:0 20px 20px #07101980}
+    #wiptv-glass .tv-cabin:before{content:"";position:absolute;left:-8px;top:-23px;border-left:42px solid transparent;border-right:42px solid transparent;border-bottom:25px solid #101c24}
+    #wiptv-glass .tv-cabin:after{content:"";position:absolute;width:16px;height:17px;background:#f2c67b;top:12px;left:13px;box-shadow:27px 0 #f2c67b,0 0 25px #e4b57965}
+    #wiptv-glass .tv-hero-copy{max-width:440px}
+    #wiptv-glass .tv-eyebrow{display:flex;align-items:center;gap:9px;text-transform:uppercase;letter-spacing:2.4px;font-size:10px;font-weight:700;color:var(--tv-lime);margin-bottom:11px}
+    #wiptv-glass .tv-hero h1{font-family:Georgia,serif;font-size:55px;letter-spacing:-2px;font-weight:400;line-height:1.06;margin:0 0 15px}
+    #wiptv-glass .tv-meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:#c1cbd5;font-size:12px}
+    #wiptv-glass .tv-meta .tv-rating{border:1px solid #6b7682;padding:0 5px;border-radius:3px;font-size:10px}
+    #wiptv-glass .tv-description{font-size:13px;color:#c2cbd6;line-height:1.65;max-width:355px;margin:15px 0 21px}
+    #wiptv-glass .tv-actions{display:flex;gap:10px;flex-wrap:wrap}
+    #wiptv-glass .tv-action{display:flex;align-items:center;justify-content:center;gap:8px;border-radius:8px;padding:11px 18px;background:var(--tv-elevated);font-weight:600;font-size:12px;min-height:42px}
+    #wiptv-glass .tv-action.primary{background:var(--tv-lime);color:#152013}
+    #wiptv-glass .tv-action:hover{filter:brightness(1.15)}
+    #wiptv-glass .tv-content{padding:9px 34px 30px}
+    #wiptv-glass .tv-section{margin-top:19px}
+    #wiptv-glass .tv-section-head{display:flex;justify-content:space-between;align-items:baseline;gap:15px;margin-bottom:12px}
+    #wiptv-glass .tv-section-head h2{font-size:17px;letter-spacing:-.3px;font-weight:600;margin:0}
+    #wiptv-glass .tv-section-head small{color:var(--tv-soft);font-size:11px}
+    #wiptv-glass .tv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+    #wiptv-glass .tv-tile{display:block;background:transparent;text-align:left;padding:0;border-radius:10px;min-width:0}
+    #wiptv-glass .tv-art{height:111px;position:relative;overflow:hidden;border-radius:9px;background:linear-gradient(135deg,#31464f,#18212b);transition:transform .18s}
+    #wiptv-glass .tv-tile:hover .tv-art{transform:translateY(-3px)}
+    #wiptv-glass .tv-art:after{content:"";position:absolute;inset:0;background:linear-gradient(0deg,#0009,transparent 75%)}
+    #wiptv-glass .tv-art-title{position:absolute;bottom:15px;left:15px;right:10px;font-family:Georgia,serif;letter-spacing:1px;font-size:21px;line-height:1.04;z-index:1;color:#fff;text-shadow:0 1px 10px #0009}
+    #wiptv-glass .tv-art.lake{background:radial-gradient(circle at 80% 28%,#b9bba1 0 10%,transparent 10.5%),linear-gradient(155deg,transparent 48%,#1c363f 49% 66%,transparent 67%),linear-gradient(25deg,#12262e 40%,#4b7079 41% 60%,#778f99 61%)}
+    #wiptv-glass .tv-art.city{background:repeating-linear-gradient(90deg,transparent 0 14px,#0c1b2699 14px 34px),repeating-linear-gradient(0deg,transparent 0 15px,#e6b87944 15px 17px),linear-gradient(140deg,#30516b,#192531 48%,#bf7343)}
+    #wiptv-glass .tv-art.kitchen{background:radial-gradient(ellipse at 75% 80%,#a2b28c 0 19%,#c6be9766 20% 24%,transparent 25%),linear-gradient(105deg,#212921,#536951 45%,#a79165)}
+    #wiptv-glass .tv-art.space{background:radial-gradient(circle at 66% 60%,#c9bdb4 0 15%,#5b6669 15.5% 21%,transparent 21.5%),radial-gradient(ellipse at 70% 45%,#566b7d,#101927 70%)}
+    #wiptv-glass .tv-art.coast{background:linear-gradient(161deg,transparent 52%,#53756d 53% 60%,#273e35 61%),linear-gradient(0deg,#284658,#a4b7b7)}
+    #wiptv-glass .tv-art.desert{background:radial-gradient(circle at 75% 25%,#f3d1a2 0 8%,transparent 8.5%),linear-gradient(165deg,transparent 53%,#b77f60 54% 67%,#775044 68%),linear-gradient(#5a6b75,#d1a689)}
+    #wiptv-glass .tv-tag{position:absolute;top:9px;left:10px;z-index:1;padding:3px 6px;background:#0b121bc9;border-radius:4px;font-size:9px;letter-spacing:.6px;color:#fff}
+    #wiptv-glass .tv-progress{position:absolute;bottom:0;left:0;right:0;height:3px;background:#ffffff25;z-index:2}
+    #wiptv-glass .tv-progress span{display:block;height:100%;background:var(--tv-lime)}
+    #wiptv-glass .tv-tile-caption{padding:9px 1px 0;font-size:12px;font-weight:500}
+    #wiptv-glass .tv-tile-caption small{display:block;color:var(--tv-soft);font-size:10px;font-weight:400;margin-top:3px}
+    #wiptv-glass .tv-live-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+    #wiptv-glass .tv-channel{padding:15px;background:var(--tv-surface);border-radius:9px;text-align:left;min-width:0}
+    #wiptv-glass .tv-channel:hover{background:var(--tv-elevated)}
+    #wiptv-glass .tv-channel-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px}
+    #wiptv-glass .tv-channel-logo{font-size:16px;font-weight:700;letter-spacing:-.5px}
+    #wiptv-glass .tv-live{font-size:9px;letter-spacing:1px;color:var(--tv-lime);display:flex;align-items:center;gap:5px}
+    #wiptv-glass .tv-live:before{content:"";width:5px;height:5px;border-radius:50%;background:var(--tv-lime)}
+    #wiptv-glass .tv-show-name{font-size:12px;display:block;margin-bottom:5px;font-weight:500}
+    #wiptv-glass .tv-show-time{font-size:10px;color:var(--tv-soft)}
+    #wiptv-glass .tv-channel-track{height:2px;background:#ffffff15;margin-top:13px}
+    #wiptv-glass .tv-channel-track span{display:block;height:100%;background:var(--tv-lime);opacity:.7}
+    #wiptv-glass .tv-footer{padding:17px 34px;background:#0c141e;display:flex;justify-content:space-between;gap:12px;color:#8090a4;font-size:10px;flex-wrap:wrap}
+    #wiptv-glass .tv-footer span{display:flex;gap:7px;align-items:center}
+    #wiptv-glass .tv-key{border:1px solid #405064;padding:1px 5px;border-radius:3px;color:#c4ced9;font-size:9px}
+    #wiptv-glass .tv-page-title{font-size:29px;font-weight:500;letter-spacing:-1px;margin:21px 0 3px}
+    #wiptv-glass .tv-page-subtitle{color:var(--tv-soft);font-size:12px;margin:0 0 22px}
+    #wiptv-glass .tv-filters{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+    #wiptv-glass .tv-filter{background:var(--tv-surface);color:var(--tv-soft);border-radius:20px;padding:8px 15px;font-size:11px}
+    #wiptv-glass .tv-filter[aria-pressed="true"]{background:var(--tv-lime);color:#182016}
+    #wiptv-glass .tv-poster-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:15px}
+    #wiptv-glass .tv-poster-grid .tv-art{height:210px}
+    #wiptv-glass .tv-poster-grid .tv-art-title{font-size:26px;bottom:25px;left:13px;right:13px}
+    #wiptv-glass .tv-guide{display:grid;grid-template-columns:120px 1fr;gap:2px;margin-top:20px;min-width:0}
+    #wiptv-glass .tv-guide-times{display:grid;grid-template-columns:repeat(3,1fr);color:var(--tv-soft);font-size:11px;padding:0 12px 8px}
+    #wiptv-glass .tv-guide-name{padding:18px 12px;background:var(--tv-surface);font-size:12px;font-weight:600;display:flex;align-items:center}
+    #wiptv-glass .tv-guide-programmes{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:3px;min-width:0}
+    #wiptv-glass .tv-programme{background:var(--tv-surface);text-align:left;padding:15px 12px;font-size:12px;min-width:0;border-radius:3px}
+    #wiptv-glass .tv-programme small{display:block;font-size:10px;color:var(--tv-soft);margin-top:5px}
+    #wiptv-glass .tv-programme.selected{background:var(--tv-lime);color:#172016}
+    #wiptv-glass .tv-programme.selected small{color:#435337}
+    #wiptv-glass .tv-guide-preview{display:grid;grid-template-columns:1fr 1fr;gap:25px;align-items:center;margin-top:20px}
+    #wiptv-glass .tv-preview-art{height:155px;border-radius:10px;position:relative;background:linear-gradient(160deg,transparent 40%,#6d9474 41% 53%,#304b35 54%),linear-gradient(#8faebc,#344f61)}
+    #wiptv-glass .tv-preview-art .tv-preview-label{position:absolute;bottom:15px;left:17px;font-family:Georgia,serif;font-size:25px;text-shadow:0 2px 6px #000}
+    #wiptv-glass .tv-detail{margin-bottom:22px;padding:19px;background:var(--tv-elevated);border-radius:12px}
+    #wiptv-glass .tv-detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+    #wiptv-glass .tv-detail h2{font-family:Georgia,serif;font-weight:400;font-size:26px;margin:0 0 7px}
+    #wiptv-glass .tv-detail p{color:var(--tv-soft);font-size:12px;max-width:560px;margin:8px 0 15px}
+    #wiptv-glass .tv-episode{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;padding:14px 0;background:transparent;border-top:1px solid var(--tv-line);font-size:12px}
+    #wiptv-glass .tv-episode small{color:var(--tv-soft);font-size:10px}
+    #wiptv-glass .tv-toast{margin-top:12px;color:var(--tv-lime);font-size:12px}
+    #wiptv-glass .tv-empty{padding:25px 0;color:var(--tv-soft)}
+    @media(max-width:760px){#wiptv-glass .tv-header{padding:22px 22px 12px;gap:15px}#wiptv-glass .tv-brand{flex:1}#wiptv-glass .tv-utilities{padding-right:65px}#wiptv-glass .tv-nav{order:3;flex-basis:100%;gap:3px}#wiptv-glass .tv-nav button{padding:9px 11px;font-size:12px}#wiptv-glass .tv-hero{padding:27px 24px;min-height:300px}#wiptv-glass .tv-hero h1{font-size:43px}#wiptv-glass .tv-content{padding:7px 22px 25px}#wiptv-glass .tv-grid,#wiptv-glass .tv-live-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#wiptv-glass .tv-poster-grid{grid-template-columns:repeat(3,minmax(0,1fr))}#wiptv-glass .tv-poster-grid .tv-art{height:190px}#wiptv-glass .tv-footer{padding:15px 22px}#wiptv-glass .tv-guide{grid-template-columns:85px 1fr}#wiptv-glass .tv-guide-programmes{grid-template-columns:1fr 1fr}#wiptv-glass .tv-guide-programmes button:last-child{display:none}#wiptv-glass .tv-guide-times{grid-template-columns:1fr 1fr}#wiptv-glass .tv-guide-times span:last-child{display:none}#wiptv-glass .tv-search-wrap{padding:0 22px 16px}}
+    @media(max-width:440px){#wiptv-glass .tv-header{padding:20px 16px 10px;gap:8px}#wiptv-glass .tv-brand{font-size:20px}#wiptv-glass .tv-utilities{gap:6px;padding-right:65px}#wiptv-glass .tv-nav{justify-content:space-between}#wiptv-glass .tv-nav button{padding:9px 8px;font-size:11px}#wiptv-glass .tv-profile{width:28px;height:28px}#wiptv-glass .tv-hero{padding:25px 20px;min-height:325px}#wiptv-glass .tv-hero h1{font-size:40px}#wiptv-glass .tv-description{max-width:280px}#wiptv-glass .tv-hero-copy{max-width:100%}#wiptv-glass .tv-scenery:before{background:linear-gradient(90deg,#0a1018ed,#0a101888),linear-gradient(0deg,#0a1018,transparent)}#wiptv-glass .tv-content{padding:5px 16px 22px}#wiptv-glass .tv-art{height:100px}#wiptv-glass .tv-art-title{font-size:19px;left:10px}#wiptv-glass .tv-section-head h2{font-size:16px}#wiptv-glass .tv-section-head small{font-size:10px}#wiptv-glass .tv-channel{padding:12px}#wiptv-glass .tv-channel-logo{font-size:14px}#wiptv-glass .tv-poster-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#wiptv-glass .tv-guide-preview{grid-template-columns:1fr;gap:14px}#wiptv-glass .tv-guide{grid-template-columns:67px 1fr}#wiptv-glass .tv-guide-name{font-size:10px;padding:12px 6px}#wiptv-glass .tv-programme{padding:12px 8px;font-size:11px}#wiptv-glass .tv-programme small{font-size:9px}#wiptv-glass .tv-footer{padding:15px 16px}#wiptv-glass .tv-search-wrap{padding:0 16px 16px}}
+    @media(prefers-reduced-motion:reduce){#wiptv-glass *{transition:none!important}}
+  #wiptv-glass{--tv-bg:#111624;--tv-surface:#202b42;--tv-elevated:#33425b;--tv-ink:#f5f7ff;--tv-soft:#c0c9dc;--tv-lime:#e7eeff;--tv-line:#ffffff26;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:radial-gradient(ellipse at 80% 4%,#677b9b80,transparent 45%),radial-gradient(ellipse at 0% 65%,#574b8250,transparent 60%),linear-gradient(160deg,#182537,#151a2a 55%,#101726);border-radius:24px;isolation:isolate}
+#wiptv-glass .tv-header{background:transparent;padding:25px 30px;gap:18px;position:absolute;inset:0 0 auto;z-index:4;align-items:center}
+#wiptv-glass .tv-brand{font-weight:600;font-size:20px;margin:0;letter-spacing:-.8px;flex:0 0 auto}
+#wiptv-glass .tv-brand span{background:linear-gradient(135deg,#fff9,#c7dcff25);color:#fff;border:1px solid #ffffff80;box-shadow:inset 0 1px 3px #fffa,0 3px 18px #070e2530;border-radius:9px}
+#wiptv-glass .tv-nav{flex:0 1 auto;margin:auto;flex-wrap:nowrap;padding:5px;border-radius:40px;background:linear-gradient(145deg,#ffffff30,#ffffff0c);border:1px solid #ffffff40;box-shadow:inset 0 1px 1px #ffffff7a,inset 0 -1px 1px #ffffff12,0 10px 35px #050a1d40;backdrop-filter:blur(24px) saturate(150%);-webkit-backdrop-filter:blur(24px) saturate(150%);gap:2px}
+#wiptv-glass .tv-nav button{color:#f2f4fc;padding:10px 15px;font-weight:500;font-size:12px;min-height:40px;border-radius:30px}
+#wiptv-glass .tv-nav button[aria-current="page"]{background:linear-gradient(#fffffff5,#e7edffd9);color:#202c42;box-shadow:0 2px 8px #050a1e30,inset 0 1px #fff}
+#wiptv-glass .tv-nav button:hover{background:#ffffff25}
+#wiptv-glass .tv-nav button[aria-current="page"]:hover{background:#fff;color:#202c42}
+#wiptv-glass .tv-utilities{gap:10px;padding-right:63px}
+#wiptv-glass .tv-icon{width:39px;height:39px;border-radius:50%;background:linear-gradient(135deg,#ffffff26,#ffffff0a);border:1px solid #ffffff35;box-shadow:inset 0 1px #ffffff55;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+#wiptv-glass .tv-profile{background:linear-gradient(140deg,#d3dfff50,#8292bd30);border:1px solid #ffffff60;color:#fff;width:35px;height:35px}
+#wiptv-glass .tv-search-wrap{position:relative;z-index:6;padding:110px 32px 0;background:#192438}
+#wiptv-glass .tv-search-wrap input{background:#26354b;border:1px solid #ffffff45;border-radius:28px;font-size:16px}
+#wiptv-glass .tv-hero{min-height:480px;padding:145px 46px 40px;background:transparent;align-items:flex-end}
+#wiptv-glass .tv-scenery{background:radial-gradient(ellipse at 78% 32%,#d7b9b8 0%,#8195a8 21%,#4f718c 42%,#233851 71%,#172438 100%)}
+#wiptv-glass .tv-scenery:before{background:linear-gradient(90deg,#111a2b99,#18263b08 80%),linear-gradient(0deg,#172133 0%,#17213380 15%,transparent 55%)}
+#wiptv-glass .tv-moon{top:108px;right:19%;width:70px;height:70px;background:#ece2d5;box-shadow:0 0 70px #e3d2d25c}
+#wiptv-glass .tv-ridge{background:#445b74;inset:30% -10% -2% 10%}
+#wiptv-glass .tv-ridge.front{background:#213c53;inset:48% -5% -2% 30%}
+#wiptv-glass .tv-water{inset:69% 0 0 20%;background:repeating-linear-gradient(0deg,#b3c4d022 0 1px,transparent 1px 11px),linear-gradient(#607e94,#263e59)}
+#wiptv-glass .tv-cabin{right:24%;top:60%}
+#wiptv-glass .tv-hero-copy{max-width:470px}
+#wiptv-glass .tv-eyebrow{font-size:10px;font-weight:500;letter-spacing:2px;color:#d8e6ff}
+#wiptv-glass .tv-hero h1{font-family:inherit;font-size:58px;font-weight:500;letter-spacing:-3px;line-height:1.04;text-shadow:0 3px 20px #07112030;margin-bottom:15px}
+#wiptv-glass .tv-meta{color:#e0e7f4;letter-spacing:.2px}
+#wiptv-glass .tv-description{color:#e4eaf4;margin:14px 0 23px;max-width:340px;text-shadow:0 1px 7px #10203050;font-size:13px}
+#wiptv-glass .tv-action{border-radius:30px;background:linear-gradient(150deg,#ffffff35,#ffffff14);border:1px solid #ffffff45;box-shadow:inset 0 1px #ffffff60,0 5px 15px #08111d20;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:12px 21px;min-height:44px;font-weight:500}
+#wiptv-glass .tv-action.primary{background:linear-gradient(145deg,#fff,#d9e4f4);color:#23364c;border:1px solid #ffffffbb;box-shadow:inset 0 2px 1px #fff,0 6px 25px #10223c25}
+#wiptv-glass .tv-content{padding:0 30px 29px}
+#wiptv-glass .tv-section{margin-top:24px}
+#wiptv-glass .tv-section-head h2{font-size:18px;letter-spacing:-.5px;font-weight:500}
+#wiptv-glass .tv-section-head small{font-size:11px;color:#c0c9dc}
+#wiptv-glass .tv-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
+#wiptv-glass .tv-tile{padding:7px;background:linear-gradient(145deg,#ffffff1d,#ffffff07);border:1px solid #ffffff2a;border-radius:17px;box-shadow:inset 0 1px #ffffff26,0 7px 22px #080f1f25;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+#wiptv-glass .tv-art{height:122px;border-radius:12px}
+#wiptv-glass .tv-art-title{font-family:inherit;font-size:24px;font-weight:500;letter-spacing:-.8px;max-width:190px;bottom:17px}
+#wiptv-glass .tv-tag{top:9px;left:9px;padding:4px 8px;border-radius:20px;background:#ffffff25;border:1px solid #ffffff30;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);font-weight:500;font-size:9px}
+#wiptv-glass .tv-tile-caption{padding:10px 7px 7px;font-weight:500}
+#wiptv-glass .tv-tile-caption small{font-size:11px;color:#c0c9dc}
+#wiptv-glass .tv-progress{height:3px;background:#ffffff30}
+#wiptv-glass .tv-progress span{background:#f1f6ff}
+#wiptv-glass .tv-channel{border:1px solid #ffffff30;border-radius:16px;background:linear-gradient(145deg,#ffffff22,#ffffff08);box-shadow:inset 0 1px #ffffff3d,0 8px 24px #0a102222;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);padding:17px}
+#wiptv-glass .tv-channel:hover{background:linear-gradient(145deg,#ffffff35,#ffffff12)}
+#wiptv-glass .tv-channel-logo{font-weight:500;font-size:15px}
+#wiptv-glass .tv-live{font-size:9px;color:#c9f0e3}
+#wiptv-glass .tv-live:before{background:#b4eed6}
+#wiptv-glass .tv-show-time{font-size:11px;color:#c0c9dc}
+#wiptv-glass .tv-channel-track{background:#ffffff25}
+#wiptv-glass .tv-channel-track span{background:#dfeaff}
+#wiptv-glass .tv-footer{background:#172134;color:#b6c2d3;border-top:1px solid #ffffff10;padding:16px 30px;font-size:10px}
+#wiptv-glass .tv-key{border-color:#718099;color:#e5ecfa}
+#wiptv-glass .tv-page-title{padding-top:111px;margin:0 0 5px;font-size:34px;letter-spacing:-1.4px}
+#wiptv-glass .tv-page-subtitle{font-size:12px;color:#c0c9dc}
+#wiptv-glass .tv-filters{position:relative;gap:8px;align-items:center}
+#wiptv-glass .tv-filter{border-radius:25px;background:#ffffff12;border:1px solid #ffffff26;color:#e4eaf7;font-size:12px;min-height:42px;box-shadow:inset 0 1px #ffffff18}
+#wiptv-glass .tv-filter[aria-pressed="true"]{background:linear-gradient(#f7faff,#d8e3f4);color:#22354b}
+#wiptv-glass .tv-poster-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:17px}
+#wiptv-glass .tv-poster-grid .tv-art{height:260px}
+#wiptv-glass .tv-poster-grid .tv-art-title{font-size:31px;letter-spacing:-1.2px;line-height:1.08}
+#wiptv-glass .tv-guide-preview{padding:12px;background:linear-gradient(145deg,#ffffff16,#ffffff06);border:1px solid #ffffff28;border-radius:23px;gap:25px;box-shadow:inset 0 1px #ffffff30,0 15px 30px #080f2420;align-items:center}
+#wiptv-glass .tv-preview-art{height:190px;border-radius:16px}
+#wiptv-glass .tv-preview-label{font-family:inherit;font-weight:500;font-size:27px;letter-spacing:-1px}
+#wiptv-glass .tv-guide{gap:4px;margin-top:23px}
+#wiptv-glass .tv-guide-name{border-radius:13px 0 0 13px;background:#ffffff10;padding:21px 14px;font-weight:500}
+#wiptv-glass .tv-guide-programmes{gap:4px}
+#wiptv-glass .tv-programme{border-radius:10px;background:#ffffff10;border:1px solid #ffffff10;padding:17px 13px}
+#wiptv-glass .tv-programme.selected{background:linear-gradient(145deg,#ffffffee,#c9dbf0e8);color:#25384f;border-color:#ffffffb3;box-shadow:inset 0 1px #fff,0 4px 16px #060d2520}
+#wiptv-glass .tv-programme small{color:#c4cfe0;font-size:11px}
+#wiptv-glass .tv-programme.selected small{color:#465f7a}
+#wiptv-glass .tv-detail{background:#293951;border:1px solid #ffffff36;border-radius:24px;box-shadow:inset 0 1px #ffffff3d,0 14px 35px #060c2025}
+#wiptv-glass .tv-detail h2{font-family:inherit;font-size:27px;letter-spacing:-.9px;font-weight:500}
+#wiptv-glass .tv-detail .tv-meta{color:#c4cfe0}
+#wiptv-glass .tv-detail p{color:#d0d9e7}
+#wiptv-glass .tv-toast{color:#d2f2e6}
+#wiptv-glass .glass-categories-button{display:flex;align-items:center;gap:8px;background:linear-gradient(140deg,#ffffff28,#ffffff10);border:1px solid #ffffff45;border-radius:25px;box-shadow:inset 0 1px #ffffff40;padding:10px 15px;min-height:42px;font-size:12px}
+#wiptv-glass .glass-categories{position:absolute;z-index:7;top:calc(100% + 10px);left:0;width:260px;max-width:100%;display:grid;grid-template-columns:1fr;gap:5px;padding:10px;background:linear-gradient(135deg,#3c5268f5,#25354ef5);border:1px solid #ffffff60;box-shadow:inset 0 1px #ffffff65,0 18px 35px #050a2060;border-radius:22px;backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px)}
+#wiptv-glass .glass-category-list{display:grid;gap:5px}
+#wiptv-glass .glass-category-list button{padding:12px 13px;border-radius:12px;background:transparent;text-align:left;font-size:12px;min-height:42px;display:flex;align-items:center;gap:10px}
+#wiptv-glass .glass-category-list button[aria-pressed="true"]{background:linear-gradient(145deg,#ffffffed,#d2e3f1);color:#22354c;box-shadow:inset 0 1px #fff,0 5px 10px #0c132530}
+#wiptv-glass .glass-category-note{padding:14px;color:#d5dfec;font-size:13px;display:flex;align-items:center;gap:13px;min-height:160px}
+#wiptv-glass .glass-category-note strong{font-weight:500;display:block;font-size:19px;color:#fff;margin-bottom:6px;letter-spacing:-.5px}
+@media(max-width:900px){#wiptv-glass .tv-header{padding:22px 24px;gap:10px}#wiptv-glass .tv-brand{font-size:17px}#wiptv-glass .tv-nav button{padding:9px 11px;font-size:11px}#wiptv-glass .tv-utilities{gap:6px;padding-right:60px}#wiptv-glass .tv-nav{margin:auto}}
+@media(max-width:760px){#wiptv-glass .tv-header{position:relative;padding:23px 22px 0;gap:15px;background:#23354b30}#wiptv-glass .tv-brand{font-size:20px;flex:1}#wiptv-glass .tv-nav{order:3;flex-basis:auto;width:auto;margin:0 auto;max-width:100%;justify-content:center}#wiptv-glass .tv-nav button{padding:10px 16px;font-size:12px;min-height:40px}#wiptv-glass .tv-utilities{padding-right:65px}#wiptv-glass .tv-hero{min-height:390px;padding:40px 27px 28px}#wiptv-glass .tv-moon{top:40px;right:15%}#wiptv-glass .tv-hero h1{font-size:49px}#wiptv-glass .tv-content{padding:0 22px 27px}#wiptv-glass .tv-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}#wiptv-glass .tv-art{height:115px}#wiptv-glass .tv-art-title{font-size:19px;left:10px}#wiptv-glass .tv-page-title{padding-top:25px}#wiptv-glass .tv-poster-grid .tv-art{height:230px}#wiptv-glass .tv-footer{padding:16px 22px}#wiptv-glass .tv-search-wrap{padding:20px 22px 4px;background:transparent}#wiptv-glass .tv-guide-preview{gap:17px}#wiptv-glass .tv-preview-art{height:165px}#wiptv-glass .tv-guide-name{padding:18px 10px}#wiptv-glass .tv-programme{padding:15px 10px}}
+@media(max-width:500px){#wiptv-glass .tv-header{padding:21px 16px 0;gap:14px}#wiptv-glass .tv-nav{margin:0;width:100%;justify-content:space-between}#wiptv-glass .tv-nav button{font-size:11px;padding:9px 10px;min-height:40px}#wiptv-glass .tv-utilities{padding-right:65px}#wiptv-glass .tv-hero{min-height:395px;padding:34px 22px 28px}#wiptv-glass .tv-hero h1{font-size:46px;letter-spacing:-2px}#wiptv-glass .tv-description{max-width:270px}#wiptv-glass .tv-scenery:before{background:linear-gradient(90deg,#18263b99,#18263b25),linear-gradient(0deg,#172133,transparent 80%)}#wiptv-glass .tv-hero-copy{width:100%}#wiptv-glass .tv-eyebrow{font-size:9px;letter-spacing:1.5px}#wiptv-glass .tv-content{padding:0 16px 25px}#wiptv-glass .tv-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#wiptv-glass .tv-grid .tv-tile:last-child{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:8px}#wiptv-glass .tv-grid .tv-tile:last-child .tv-art{height:95px}#wiptv-glass .tv-art-title{font-size:20px}#wiptv-glass .tv-channel{padding:14px 12px}#wiptv-glass .tv-channel-logo{font-size:14px}#wiptv-glass .tv-poster-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}#wiptv-glass .tv-poster-grid .tv-art{height:215px}#wiptv-glass .tv-poster-grid .tv-art-title{font-size:26px}#wiptv-glass .tv-tile-caption{font-size:11px;padding:9px 3px 5px}#wiptv-glass .tv-tile-caption small{font-size:10px}#wiptv-glass .tv-guide-preview{grid-template-columns:1fr;padding:10px;gap:15px}#wiptv-glass .tv-guide-preview>div:last-child{padding:0 8px 10px}#wiptv-glass .tv-preview-art{height:160px}#wiptv-glass .tv-guide{grid-template-columns:65px 1fr}#wiptv-glass .tv-guide-name{padding:15px 6px;font-size:10px}#wiptv-glass .tv-programme{padding:13px 9px;font-size:11px}#wiptv-glass .tv-programme small{font-size:10px}#wiptv-glass .tv-footer{padding:16px;font-size:9px}#wiptv-glass .glass-categories{grid-template-columns:1fr;gap:10px;padding:10px}#wiptv-glass .glass-category-list{grid-template-columns:repeat(2,minmax(0,1fr))}#wiptv-glass .glass-category-note{min-height:70px;padding:10px;font-size:12px}#wiptv-glass .glass-category-note strong{font-size:17px}#wiptv-glass .tv-search-wrap{padding:18px 16px 4px}}
+
+</style>
+  <header class="tv-header">
+    <div class="tv-brand"><span>W</span> WIPTV</div>
+    <nav class="tv-nav" aria-label="Main navigation">
+      <button class="cursor-interaction" data-page="home" aria-current="page">Home</button><button class="cursor-interaction" data-page="live">Live TV</button><button class="cursor-interaction" data-page="movies">Movies</button><button class="cursor-interaction" data-page="series">Series</button><button class="cursor-interaction" data-page="watchlist">My list</button>
+    </nav>
+    <div class="tv-utilities"><button class="tv-icon cursor-interaction" id="glass-tv-search-toggle" aria-label="Search library" aria-expanded="false"><i data-lucide="search" aria-hidden="true"></i></button><div class="tv-profile" aria-label="Wayne's profile">W</div></div>
+  </header>
+  <div class="tv-search-wrap" id="glass-tv-search-wrap" hidden><input id="glass-tv-search-input" aria-label="Search sample titles and channels" placeholder="Search channels, films and series…" type="search"></div>
+  <main id="glass-tv-main"></main>
+  <footer class="tv-footer"><span><span class="tv-key">OK</span> Select <span class="tv-key">← →</span> Browse</span><span>WAYNE’S PROFILE · SAMPLE LIBRARY</span></footer>
+  <script>
+  (()=>{
+    const root=document.getElementById('wiptv-glass');
+    const main=root.querySelector('#glass-tv-main');
+    const titles=[
+      {id:'harbour',name:'The Quiet Harbour',kind:'Series',genre:'Drama',art:'lake',meta:'S1 · E4 · 23 min left',progress:63,year:'2026',desc:'A homecoming. A missing boat. A small coastal town with a long memory.',episodes:['The return','Low water','A light offshore','The missing hours']},
+      {id:'midnight',name:'Midnight Line',kind:'Movie',genre:'Thriller',art:'city',meta:'Movie · 48 min left',progress:47,year:'2025',desc:'The last train out of the city carries a passenger who cannot afford to be recognised.'},
+      {id:'table',name:'A Place at the Table',kind:'Series',genre:'Food & travel',art:'kitchen',meta:'S2 · E2 · 31 min left',progress:29,year:'2026',desc:'Local kitchens, generous tables and the people who bring a place to life.',episodes:['The market','Sunday lunch','Across the border','Home cooking']},
+      {id:'orbit',name:'Beyond the Blue',kind:'Movie',genre:'Adventure',art:'space',meta:'2026 · 1h 54m',year:'2026',desc:'One quiet signal from the edge of the solar system changes the course of a mission.'},
+      {id:'coast',name:'Wild Atlantic',kind:'Series',genre:'Nature',art:'coast',meta:'2026 · 6 episodes',year:'2026',desc:'An extraordinary journey along the coast, from hidden coves to the open Atlantic.',episodes:['The western edge','Islands','The deep','Storm season']},
+      {id:'desert',name:'The Long Way Home',kind:'Movie',genre:'Drama',art:'desert',meta:'2025 · 1h 42m',year:'2025',desc:'Two strangers share a journey across a landscape neither of them knows.'}
+    ];
+    const channels=[{name:'RTÉ ONE',show:'Coast & Country',next:'The evening news',time:'20:00 – 21:00',p:42},{name:'RTÉ2',show:'Match Night',next:'The highlights',time:'19:45 – 22:00',p:31},{name:'VIRGIN ONE',show:'The Big Interview',next:'Tonight',time:'20:00 – 21:00',p:42},{name:'TG4',show:'Ceol Beo',next:'Scéalta',time:'20:15 – 21:15',p:17}];
+    let categoriesOpen=false;
+    let page='home',filter='All',query='',detail=null,toast='',selectedChannel=0; const saved=new Set(['orbit','coast','desert']);
+    const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function tile(t){return `<button class="tv-tile cursor-interaction" data-title="${t.id}" aria-label="Open ${esc(t.name)}"><div class="tv-art ${t.art}"><span class="tv-tag">${t.kind.toUpperCase()}</span><span class="tv-art-title">${esc(t.name)}</span>${t.progress?`<div class="tv-progress"><span style="width:${t.progress}%"></span></div>`:''}</div><div class="tv-tile-caption">${esc(t.name)}<small>${esc(t.meta)}</small></div></button>`;}
+    function liveCard(c,i){return `<button class="tv-channel cursor-interaction" data-channel="${i}"><span class="tv-channel-top"><span class="tv-channel-logo">${c.name}</span><span class="tv-live">LIVE</span></span><span class="tv-show-name">${c.show}</span><span class="tv-show-time">${c.time}</span><div class="tv-channel-track"><span style="width:${c.p}%"></span></div></button>`;}
+    function section(name,sub,content,cls='tv-grid'){return `<section class="tv-section"><div class="tv-section-head"><h2>${name}</h2><small>${sub}</small></div><div class="${cls}">${content}</div></section>`;}
+    function detailHTML(){if(!detail)return '';const t=titles.find(t=>t.id===detail);if(!t)return '';return `<section class="tv-detail" aria-label="Title details"><div class="tv-detail-header"><div><h2>${t.name}</h2><div class="tv-meta">${t.year} · ${t.kind} · ${t.genre}</div></div><button class="tv-icon cursor-interaction" data-close aria-label="Close title details"><i data-lucide="x" aria-hidden="true"></i></button></div><p>${t.desc}</p><div class="tv-actions"><button class="tv-action primary cursor-interaction" data-play="${t.id}"><i data-lucide="play" aria-hidden="true"></i> ${t.progress?'Resume':'Play'}</button><button class="tv-action cursor-interaction" data-save="${t.id}">${saved.has(t.id)?'✓ In my list':'+ Add to my list'}</button></div>${t.episodes?`<p>Season ${t.id==='table'?'2':'1'}</p>${t.episodes.map((e,i)=>`<button class="tv-episode cursor-interaction" data-episode="${i+1}"><span>${String(i+1).padStart(2,'0')} &nbsp; ${e}</span><small>${i===3&&t.progress?'Continue watching':'Watch episode'} &nbsp; ▷</small></button>`).join('')}`:''}${toast?`<div class="tv-toast" role="status">${toast}</div>`:''}</section>`;}
+    function render(){
+      root.querySelectorAll('[data-page]').forEach(b=>{if(b.dataset.page===page&&!query)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+      if(query){const found=titles.filter(t=>(t.name+' '+t.genre+' '+t.kind).toLowerCase().includes(query));const foundC=channels.map((c,i)=>({c,i})).filter(({c})=>(c.name+' '+c.show).toLowerCase().includes(query));main.innerHTML=`<div class="tv-content"><h1 class="tv-page-title">Search</h1><p class="tv-page-subtitle">Results for “${esc(query)}”</p>${detailHTML()}${found.length?section('Films & series',`${found.length} results`,found.map(tile).join(''),'tv-poster-grid'):''}${foundC.length?section('On TV now','Sample guide',foundC.map(({c,i})=>liveCard(c,i)).join(''),'tv-live-grid'):''}${!found.length&&!foundC.length?'<p class="tv-empty">No matching titles in this sample library.</p>':''}</div>`;}
+      else if(page==='home'){
+        main.innerHTML=`<section class="tv-hero"><div class="tv-scenery" aria-hidden="true"><div class="tv-moon"></div><div class="tv-ridge"></div><div class="tv-ridge front"></div><div class="tv-water"></div><div class="tv-cabin"></div></div><div class="tv-hero-copy"><div class="tv-eyebrow">Good evening, Wayne</div><h1>The Quiet<br>Harbour</h1><div class="tv-meta"><span>2026</span><span class="tv-rating">15</span><span>Drama</span><span>Season 1 · Episode 4</span></div><p class="tv-description">A homecoming. A missing boat. A small coastal town with a long memory.</p><div class="tv-actions"><button class="tv-action primary cursor-interaction" data-title="harbour"><i data-lucide="play" aria-hidden="true"></i> Continue watching</button><button class="tv-action cursor-interaction" data-title="harbour"><i data-lucide="info" aria-hidden="true"></i> Details</button></div></div></section><div class="tv-content">${detailHTML()}${section('Pick up where you left off','Ready when you are',titles.slice(0,3).map(tile).join(''))}${section('Your live favourites','On now · Monday evening',channels.map(liveCard).join(''),'tv-live-grid')}</div>`;
+      }else if(page==='live'){
+        main.innerHTML=`<div class="tv-content"><h1 class="tv-page-title">Live TV</h1><p class="tv-page-subtitle">Your channels. A guide that stays out of the way.</p><div class="tv-filters">${['Favourites','All channels','Entertainment','Sport'].map(f=>`<button class="tv-filter cursor-interaction" data-filter="${f}" aria-pressed="${filter===f||filter==='All'&&f==='Favourites'}">${f}</button>`).join('')}</div><div class="tv-guide-preview"><div class="tv-preview-art" aria-label="Illustrated live TV preview"><span class="tv-preview-label">Coast & Country</span></div><div><div class="tv-eyebrow">RTÉ ONE · LIVE NOW</div><h2 style="font-size:24px;font-weight:500;margin:0 0 8px">Coast & Country</h2><p class="tv-page-subtitle">Stories from Ireland’s coast, and the people who call it home.</p><button class="tv-action primary cursor-interaction" data-channel="0"><i data-lucide="play" aria-hidden="true"></i> Watch live</button>${toast?`<div class="tv-toast" role="status">${toast}</div>`:''}</div></div><div class="tv-guide"><div></div><div class="tv-guide-times"><span>20:00</span><span>20:30</span><span>21:00</span></div>${channels.filter((c,i)=>filter==='Sport'?i===1:filter==='Entertainment'?i!==1:true).map(c=>{const i=channels.indexOf(c);return `<div class="tv-guide-name">${c.name}</div><div class="tv-guide-programmes"><button class="tv-programme ${i===0?'selected':''} cursor-interaction" data-channel="${i}">${c.show}<small>${c.time}</small></button><button class="tv-programme cursor-interaction" data-guide="${c.next}">${c.next}<small>Up next</small></button><button class="tv-programme cursor-interaction" data-guide="Evening stories">Evening stories<small>21:30</small></button></div>`;}).join('')}</div></div>`;
+      }else{
+        const type=page==='movies'?'Movie':page==='series'?'Series':null;
+        const list=titles.filter(t=>page==='watchlist'?saved.has(t.id):t.kind===type).filter(t=>filter==='All'||filter===t.genre);
+        const genres=['All',...new Set(titles.filter(t=>!type||t.kind===type).map(t=>t.genre))];
+        main.innerHTML=`<div class="tv-content"><h1 class="tv-page-title">${page==='movies'?'Movies':page==='series'?'Series':'My list'}</h1><p class="tv-page-subtitle">${page==='movies'?'A good film, without the endless search.':page==='series'?'Your next episode is right here.':'Saved for the evening you have in mind.'}</p>${page!=='watchlist'?`<div class="tv-filters">${genres.map(g=>`<button class="tv-filter cursor-interaction" data-filter="${g}" aria-pressed="${filter===g}">${g}</button>`).join('')}</div>`:''}${detailHTML()}${section(page==='watchlist'?'Saved by you':filter==='All'?'Browse your library':filter,`${list.length} sample titles`,list.map(tile).join(''),'tv-poster-grid')}</div>`;
+      }
+      if(page==='live'&&!query){
+        const channel=channels[selectedChannel],preview=main.querySelector('.tv-guide-preview');
+        preview.querySelector('.tv-preview-label').textContent=channel.show;
+        preview.querySelector('h2').textContent=channel.show;
+        preview.querySelector('.tv-eyebrow').textContent=channel.name+' · LIVE NOW';
+        preview.querySelector('.tv-page-subtitle').textContent=selectedChannel===0?'Stories from Ireland’s coast, and the people who call it home.':channel.time+' · Now playing on '+channel.name;
+        preview.querySelector('[data-channel]').dataset.channel=String(selectedChannel);
+        main.querySelectorAll('.tv-programme[data-channel]').forEach(b=>b.classList.toggle('selected',Number(b.dataset.channel)===selectedChannel));
+      }
+      if(page==='live'&&!query){
+        const controls=main.querySelector('.tv-filters');
+        controls.querySelectorAll('[data-filter]').forEach(b=>{if(['All channels','Entertainment'].includes(b.dataset.filter))b.remove();});
+        const opener=document.createElement('button');
+        opener.className='glass-categories-button cursor-interaction';
+        opener.dataset.glassCategories='toggle';
+        opener.setAttribute('aria-expanded',String(categoriesOpen));
+        opener.innerHTML='<i data-lucide="panels-top-left" aria-hidden="true"></i> Categories <i data-lucide="chevron-down" aria-hidden="true"></i>';
+        controls.prepend(opener);
+        if(categoriesOpen){
+          const panel=document.createElement('div');
+          panel.className='glass-categories';
+          panel.setAttribute('aria-label','Channel categories');
+          const groups=[['Favourites','heart'],['All channels','tv'],['Irish channels','flag'],['Entertainment','clapperboard'],['Sport','trophy']];
+          panel.innerHTML='<div class="glass-category-list">'+groups.map(([name,icon])=>'<button class="cursor-interaction" data-glass-group="'+name+'" aria-pressed="'+((filter==='All'&&name==='Favourites')||filter===name)+'"><i data-lucide="'+icon+'" aria-hidden="true"></i>'+name+'</button>').join('')+'</div>';
+          controls.append(panel);
+        }
+      }
+
+      if(typeof lucide!=='undefined')lucide.createIcons({attrs:{width:16,height:16}});
+    }
+    root.addEventListener('click',e=>{
+      const b=e.target.closest('button');if(!b)return;
+      if(b.dataset.page){page=b.dataset.page;filter='All';query='';detail=null;toast='';root.querySelector('#glass-tv-search-input').value='';render();}
+      else if(b.dataset.title){detail=b.dataset.title;toast='';render();const panel=main.querySelector('.tv-detail');if(panel)panel.scrollIntoView({block:'nearest',behavior:'smooth'});}
+      else if(b.hasAttribute('data-close')){detail=null;toast='';render();}
+      else if(b.dataset.save){saved.has(b.dataset.save)?saved.delete(b.dataset.save):saved.add(b.dataset.save);render();}
+      else if(b.dataset.play||b.dataset.episode){toast='Playback preview · Your stream would open here.';render();}
+      else if(b.dataset.filter){filter=b.dataset.filter;detail=null;toast='';render();}
+      else if(b.dataset.channel!==undefined){selectedChannel=Number(b.dataset.channel);page='live';query='';filter='All';detail=null;toast=`${channels[selectedChannel].name} selected · Playback preview`;render();}
+      else if(b.dataset.guide){toast=`${b.dataset.guide} · Programme information preview`;render();}
+    });
+    root.querySelector('#glass-tv-search-toggle').addEventListener('click',()=>{const wrap=root.querySelector('#glass-tv-search-wrap');wrap.hidden=!wrap.hidden;root.querySelector('#glass-tv-search-toggle').setAttribute('aria-expanded',String(!wrap.hidden));if(!wrap.hidden)root.querySelector('#glass-tv-search-input').focus();else{query='';root.querySelector('#glass-tv-search-input').value='';render();}});
+    root.querySelector('#glass-tv-search-input').addEventListener('input',e=>{query=e.target.value.trim().toLowerCase();detail=null;render();});
+    root.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT'||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;const buttons=[...root.querySelectorAll('button')].filter(b=>b.getClientRects().length);const current=document.activeElement;if(!buttons.includes(current))return;const a=current.getBoundingClientRect(),ax=a.x+a.width/2,ay=a.y+a.height/2;const dx=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0,dy=e.key==='ArrowDown'?1:e.key==='ArrowUp'?-1:0;let best=null,score=Infinity;buttons.forEach(b=>{if(b===current)return;const r=b.getBoundingClientRect(),x=r.x+r.width/2-ax,y=r.y+r.height/2-ay,forward=x*dx+y*dy,side=Math.abs(x*dy-y*dx);if(forward>5){const s=forward+side*3;if(s<score){score=s;best=b;}}});if(best){e.preventDefault();best.focus();}});
+    root.addEventListener('click',e=>{
+      const b=e.target.closest('button');if(!b)return;
+      if(b.dataset.glassCategories){categoriesOpen=!categoriesOpen;render();}
+      else if(b.dataset.glassGroup){filter=b.dataset.glassGroup;categoriesOpen=false;toast='';render();}
+    });
+    root.addEventListener('keydown',e=>{if(e.key==='Escape'&&categoriesOpen){categoriesOpen=false;render();root.querySelector('[data-glass-categories]').focus();}});
+
+    render();
+  })();
+  </script>
+</div>
+</div></body></html>
