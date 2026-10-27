@@ -6,26 +6,26 @@ Oct 27, 2026 · Wayne
 
 ## Status
 
-**WIPTV** (the launcher) and **WIPTV Player** (the IPTV app) are both live on the Fire TV Stick HD at **build 79**, in the shared glass style. The launcher has the TV Shows | Movies home screen, details, search, Surprise me, weather and the app dock with quick settings. The player has Live TV with a preview and guide, favourites, full-screen channel lists, and Movies and Series. One update pill in either app updates both. The launcher is still opened from the apps list; making it the Home screen is waiting for access to the Chromebook.
+**WIPTV** (the launcher) and **WIPTV Player** (the IPTV app) are both live on the Fire TV Stick HD, at **build 125** or later, in one shared style. The launcher now looks like the player: cinematic artwork, player-size posters, the same details page and More info panel. The player has Live TV with a calmer guide and quality badges, and Movies and Series with the cinematic redesign. One update pill in either app updates both, without hitting GitHub's limits. The launcher is still opened from the apps list; making it the Home screen is waiting for access to the Chromebook. Work is now done in Claude Code; see [the handover](HANDOVER.md).
 
 | Area | Status | Notes |
 | --- | --- | --- |
-| Build pipeline and updates | Done | Every pull request builds both apps; merges publish releases one at a time; one pill in either app updates both (#33, #34) |
-| Launcher home: TV Shows \| Movies | Done | Featured Top 10; Top 10 this week, My List, Comedy, Documentary, Recommended for you; Netflix and Prime in Ireland |
-| Launcher details, search, Surprise me | Done | Details with Watch on, Trailer, My List, Mark as watched, More like this |
-| Launcher header, dock and quick settings | Done | Greeting, clock, Waterford weather; hide and reorder apps; Wi-Fi, Bluetooth, Display & sound and Settings tiles |
-| Glass restyle | Done | Shared `design` module; launcher (#32) and player header and Live TV (#31) |
+| Build pipeline and updates | Done | Every pull request builds both apps; merges publish releases one at a time; the pill reads a build-number file in each release (#33, #34, #45) |
+| Launcher home: TV Shows \| Movies | Done | Featured Top 10 over large artwork; Top 10 this week, My List, Comedy, Documentary, Recommended for you; Netflix and Prime in Ireland |
+| Launcher details, search, Surprise me | Done | Details like the player's: Watch on, Trailer, My List, Mark as watched, More info, More like this |
+| Launcher header, dock and quick settings | Done | Greeting; weather and clock in a glass capsule; hide and reorder apps; Wi-Fi, Bluetooth, Display & sound and Settings tiles |
+| Launcher in the player's style | Done, last polish being checked | #47–#51 |
 | Player: sign-in and account | Done | Xtream Codes login stored encrypted on the TV; account expiry and screen limit |
-| Player: Live TV | Done | Groups, guide with now line, preview (OK previews, OK again full screen), Edit groups, favourites on Menu (≡), screen saver kept off while watching; calmer guide (#35) |
+| Player: Live TV | Done | Groups, guide, preview, Edit groups, favourites on Menu (≡); soft row focus, no programme boxes, FHD/HD/SD badges (#43, #44) |
 | Player: full-screen watching | Done | Up/Down zap, Left for channels then groups, Right for the last channel, info bar |
-| Player: Movies and Series | Done, redesign in review | Rows, details, seasons and episodes, Continue watching, My List, resume, next episode. Cinematic redesign in PRs #36–#39 |
-| Native screenshots | In review | PR #36: an emulator run against a pretend provider, so visual changes can be seen before merging |
-| Player: Live Categories drawer | Not started | Design stage 2: a Categories button and drawer to give the guide more room |
+| Player: Movies and Series | Done | Rows, details, seasons and episodes, Continue watching, My List, resume, next episode; cinematic redesign and refinements (#37–#41, #46) |
+| Native screenshots | Done | Emulator run against a pretend provider, only on request (#36) |
+| Player: Live Categories drawer | On hold | Design stage 2; Wayne is looking at another option |
 | Player: playback overlays and remaining screens | Not started | Design stage 4: overlays, login, account, editors, updater |
 | Player: catch-up | Not started | Rewind on channels that support it |
-| Launcher link | Not started | "Watch on IPTV" first in the launcher; then Continue watching, favourites and provider categories as rows |
+| Launcher link | Next | "Watch on IPTV" first in the launcher; then Continue watching, favourites and provider categories as rows |
 | Optional extras | Not started | IMDb and Rotten Tomatoes scores (needs an OMDb key); Prime via Fire TV search |
-| Fire Stick as Home screen | Waiting | Home on Fire needs a permission granted over ADB from another device; Amazon blocks apps on the stick from connecting to its own ADB. To be done from the Chromebook |
+| Fire Stick as Home screen | Waiting | Home on Fire needs a permission granted over ADB from another device; to be done from the Chromebook |
 | Own stick | Idea | A certified Google TV / Android TV stick, where WIPTV can be the real Home screen; budget matters |
 | Default home on the Xiaomi | Dropped | The stick was counterfeit and was retired |
 
@@ -144,13 +144,12 @@ Every merge publishes a new build of both apps. Each app checks GitHub when it o
 
 Remaining work, in order. Progress for every area is in the Status table at the top.
 
-1. **Movies and Series redesign** (PRs #36–#39): screenshots, cinematic browsing, details, episodes. Then check on the Fire Stick.
-2. **Live Categories drawer** (design stage 2).
-3. **Playback overlays and remaining screens** (design stage 4).
-4. **Make the launcher the Fire Stick's Home screen** with Home on Fire, granted over ADB from the Chromebook.
-5. **Launcher link:** "Watch on IPTV" as the first Watch on choice, then the player's Continue watching, favourites and chosen provider categories as launcher rows (keeping the home screen to about four rows).
-6. **Catch-up** in the player.
-7. **Optional extras:** IMDb and Rotten Tomatoes scores; Prime via Fire TV search.
+1. **Launcher link:** "Watch on IPTV" as the first Watch on choice, then the player's Continue watching, favourites and chosen provider categories as launcher rows (keeping the home screen to about four rows).
+2. **Live Categories drawer** (design stage 2), if Wayne still wants it.
+3. **Catch-up** in the player.
+4. **Playback overlays and remaining screens** (design stage 4).
+5. **Make the launcher the Fire Stick's Home screen** with Home on Fire, granted over ADB from the Chromebook.
+6. **Optional extras:** IMDb and Rotten Tomatoes scores; Prime via Fire TV search.
 
 ## Safety and recovery
 
@@ -199,7 +198,7 @@ A separate app for your Xtream Codes provider, in `player/` in the same repo. It
 | 3. TV guide: preview, now and next, simple guide | Done (#22, #23); the full XMLTV guide is still to come |
 | 4. Watching screen: channel list over the video, favourites, last channel | Done (#24–#28) |
 | 5. Catch-up | Not started |
-| 6. Movies and Series: rows, details, Continue watching, My List | Done (#29); redesign in review (#36–#39) |
+| 6. Movies and Series: rows, details, Continue watching, My List | Done (#29); redesign done (#37–#41, #46) |
 | 7. Launcher link: "play this title" from the launcher, provider rows | Not started |
 | 8. Fire Stick check | Ongoing: each build is tried on the Fire Stick |
 
