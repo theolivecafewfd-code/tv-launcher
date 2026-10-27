@@ -45,8 +45,8 @@ import kotlinx.coroutines.launch
  * Which Live TV groups you've hidden and the order you've put them in, kept on the TV.
  * Groups are matched by the provider's group id.
  */
-class GroupPrefs(context: Context) {
-    private val prefs = context.getSharedPreferences("groups", Context.MODE_PRIVATE)
+class GroupPrefs(context: Context, name: String = "groups") {
+    private val prefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
 
     fun hidden(): Set<String> = prefs.getStringSet("hidden", emptySet())?.toSet() ?: emptySet()
 
@@ -85,6 +85,7 @@ fun GroupEditor(
     onMove: (Group, Int) -> Unit,
     onMoveToTop: (Group) -> Unit,
     onDone: () -> Unit,
+    title: String = "Edit groups",
 ) {
     val first = remember { FocusRequester() }
     val list = rememberLazyListState()
@@ -106,7 +107,7 @@ fun GroupEditor(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Edit groups",
+                        text = title,
                         style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Palette.text),
                     )
                     Text(

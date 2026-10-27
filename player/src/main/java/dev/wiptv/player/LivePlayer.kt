@@ -37,17 +37,7 @@ import androidx.media3.ui.PlayerView
 @Stable
 class LivePlayer(context: Context) {
 
-    val exo: ExoPlayer = run {
-        val http = DefaultHttpDataSource.Factory()
-            .setUserAgent("WIPTVPlayer/${BuildConfig.VERSION_NAME}")
-            .setAllowCrossProtocolRedirects(true)
-            .setConnectTimeoutMs(15_000)
-            .setReadTimeoutMs(30_000)
-        ExoPlayer.Builder(context)
-            .setMediaSourceFactory(DefaultMediaSourceFactory(http))
-            .build()
-            .apply { playWhenReady = true }
-    }
+    val exo: ExoPlayer = newExoPlayer(context)
 
     /** The channel playing (or loading) now. */
     var channel by mutableStateOf<Channel?>(null)
@@ -125,13 +115,7 @@ fun rememberLivePlayer(): LivePlayer {
     val context = LocalContext.current
     val live = remember { LivePlayer(context) }
 
-    // Asked of the app's main window, which stays on screen behind full screen too.
-    val window = remember(context) { context.findActivity()?.window }
-    DisposableEffect(window, live.isPlaying) {
-        if (live.isPlaying) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        else window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-    }
+    KeepScreenOn(live.isPlaying)
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -196,4 +180,33 @@ private fun Context.findActivity(): Activity? {
         current = current.baseContext
     }
     return null
+}
+
+/** An ExoPlayer set up for IPTV providers: follows http/https redirects, sensible timeouts. */
+@OptIn(UnstableApi::class)
+fun newExoPlayer(context: Context): ExoPlayer {
+    val http = DefaultHttpDataSource.Factory()
+        .setUserAgent("WIPTVPlayer/${BuildConfig.VERSION_NAME}")
+        .setAllowCrossProtocolRedirects(true)
+        .setConnectTimeoutMs(15_000)
+        .setReadTimeoutMs(30_000)
+    return ExoPlayer.Builder(context)
+        .setMediaSourceFactory(DefaultMediaSourceFactory(http))
+        .build()
+        .apply { playWhenReady = true }
+}
+
+/**
+ * Keeps the TV awake while [active], so the screen saver doesn't come on mid-programme. Asked of
+ * the app's main window, which stays on screen behind full screen too.
+ */
+@Composable
+fun KeepScreenOn(active: Boolean) {
+    val context = LocalContext.current
+    val window = remember(context) { context.findActivity()?.window }
+    DisposableEffect(window, active) {
+        if (active) window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose { window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    }
 }

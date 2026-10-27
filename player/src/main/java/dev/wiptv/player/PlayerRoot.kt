@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,7 +40,10 @@ internal object Palette {
     val warn = Color(0xFFFFB86B)
 }
 
-/** Shows the sign-in screen until there are saved details, then Live TV. */
+/** The player's three parts, switched with the tabs at the top left. */
+enum class Section(val label: String) { LIVE("Live TV"), MOVIES("Movies"), SERIES("Series") }
+
+/** Shows the sign-in screen until there are saved details, then Live TV, Movies or Series. */
 @Composable
 fun PlayerRoot() {
     val context = LocalContext.current
@@ -56,14 +60,25 @@ fun PlayerRoot() {
             },
         )
     } else {
-        LiveScreen(
-            login = current,
-            update = update,
-            onSignOut = {
-                LoginStore.clear(context)
-                login = null
-            },
-        )
+        var section by remember { mutableStateOf(Section.LIVE) }
+        val store = remember { VodStore(context) }
+        val tabs: @Composable () -> Unit = { SectionTabs(selected = section, onSelect = { section = it }) }
+        // Only one part is on screen at a time, so leaving Live TV also stops its stream.
+        key(section) {
+            when (section) {
+                Section.LIVE -> LiveScreen(
+                    login = current,
+                    update = update,
+                    header = tabs,
+                    onSignOut = {
+                        LoginStore.clear(context)
+                        login = null
+                    },
+                )
+                Section.MOVIES -> CatalogScreen(VodKind.MOVIE, current, update, store, tabs)
+                Section.SERIES -> CatalogScreen(VodKind.SERIES, current, update, store, tabs)
+            }
+        }
     }
 }
 
@@ -187,5 +202,35 @@ fun PlayerButton(
             modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
             style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
         )
+    }
+}
+
+/** Live TV · Movies · Series, at the top left of each part. OK switches. */
+@Composable
+fun SectionTabs(selected: Section, onSelect: (Section) -> Unit) {
+    androidx.compose.foundation.layout.Row(
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
+    ) {
+        for (section in Section.entries) {
+            val isSelected = section == selected
+            val shape = RoundedCornerShape(50)
+            Surface(
+                onClick = { if (!isSelected) onSelect(section) },
+                shape = ClickableSurfaceDefaults.shape(shape = shape),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = if (isSelected) Palette.glow else Color.Transparent,
+                    contentColor = if (isSelected) Palette.background else Palette.quiet,
+                    focusedContainerColor = Color.White,
+                    focusedContentColor = Palette.background,
+                ),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+            ) {
+                Text(
+                    text = section.label,
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold),
+                )
+            }
+        }
     }
 }
