@@ -19,11 +19,24 @@ import androidx.compose.ui.unit.Dp
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun PivotScrolling(pivot: Dp, alwaysAlign: Boolean = false, content: @Composable () -> Unit) {
-    val pivotPx = with(LocalDensity.current) { pivot.toPx() }
-    val spec = remember(pivotPx, alwaysAlign) {
+fun PivotScrolling(
+    pivot: Dp,
+    alwaysAlign: Boolean = false,
+    /**
+     * Going up to something shorter than this (a details page's buttons or season tabs) carries
+     * on to the very top of the list in one movement, so the whole header shows again.
+     */
+    upToTopBelow: Dp? = null,
+    content: @Composable () -> Unit,
+) {
+    val density = LocalDensity.current
+    val pivotPx = with(density) { pivot.toPx() }
+    val upToTopPx = upToTopBelow?.let { with(density) { it.toPx() } }
+    val spec = remember(pivotPx, alwaysAlign, upToTopPx) {
         object : BringIntoViewSpec {
             override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+                // The list stops at its top, so overshooting there is safe.
+                if (upToTopPx != null && offset < 0f && size < upToTopPx) return offset - containerSize
                 val fullyVisible = offset >= 0f && offset + size <= containerSize
                 return if (fullyVisible && !alwaysAlign) 0f else offset - pivotPx
             }
