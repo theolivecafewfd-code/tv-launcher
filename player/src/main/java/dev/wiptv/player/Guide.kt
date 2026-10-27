@@ -38,6 +38,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.border
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.focusOutline
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
@@ -53,7 +58,7 @@ import java.time.format.DateTimeFormatter
 private const val WINDOW_MINUTES = 120
 private const val WINDOW_MS = WINDOW_MINUTES * 60_000L
 private const val HALF_HOUR_MS = 30 * 60_000L
-internal val ChannelCellWidth = 176.dp
+internal val ChannelCellWidth = 196.dp
 
 /**
  * What's on each channel, loaded a channel at a time as rows come on screen, and refreshed
@@ -118,7 +123,7 @@ fun TimeRuler(windowStart: Long, modifier: Modifier = Modifier) {
                 Text(
                     text = timeOf(windowStart + i * HALF_HOUR_MS),
                     modifier = Modifier.offset(x = maxWidth * (i.toFloat() / slots) + 6.dp),
-                    style = TextStyle(fontSize = 11.sp, color = Palette.quiet),
+                    style = WiptvType.hint.copy(color = WiptvColors.secondary),
                 )
             }
         }
@@ -141,7 +146,7 @@ fun GuideRow(
     favourite: Boolean = false,
     onMenu: (() -> Unit)? = null,
 ) {
-    val shape = RoundedCornerShape(8.dp)
+    val shape = WiptvShapes.card
     Surface(
         onClick = onClick,
         modifier = modifier
@@ -155,18 +160,16 @@ fun GuideRow(
                 true
             }
             .fillMaxWidth()
-            .height(46.dp),
+            .height(48.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = Palette.text,
-            focusedContainerColor = Palette.tileFocused,
-            focusedContentColor = Palette.text,
+            containerColor = WiptvColors.surface,
+            contentColor = WiptvColors.text,
+            focusedContainerColor = WiptvColors.elevated,
+            focusedContentColor = WiptvColors.text,
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-        ),
+        border = focusOutline(shape),
     ) {
         Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             // Channel.
@@ -178,10 +181,13 @@ fun GuideRow(
                 // The channel in the preview is marked with ▶.
                 Text(
                     text = if (playing) "▶" else channel.number.toString(),
-                    modifier = Modifier.width(28.dp),
-                    style = TextStyle(fontSize = 12.sp, color = if (playing) Palette.glow else Palette.quiet),
+                    modifier = Modifier.width(26.dp),
+                    style = TextStyle(fontSize = 12.sp, color = if (playing) WiptvColors.focus else WiptvColors.quiet),
                 )
-                Box(modifier = Modifier.size(width = 36.dp, height = 24.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier.size(width = 36.dp, height = 24.dp).background(WiptvColors.elevated, RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
                     if (channel.logo != null) {
                         AsyncImage(
                             model = channel.logo,
@@ -196,20 +202,20 @@ fun GuideRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(
-                        fontSize = 13.sp,
+                        fontSize = 14.sp,
                         fontWeight = if (playing) FontWeight.Bold else FontWeight.Medium,
-                        color = if (playing) Palette.glow else Palette.text,
+                        color = if (playing) WiptvColors.focus else WiptvColors.text,
                     ),
                 )
             }
 
             // Programmes.
-            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(6.dp))) {
+            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 6.dp).clip(WiptvShapes.small)) {
                 val windowEnd = windowStart + WINDOW_MS
                 val shown = programmes.orEmpty().filter { it.end > windowStart && it.start < windowEnd }
                 when {
                     programmes == null -> GuideNote("Loading guide…")
-                    shown.isEmpty() -> GuideNote("No guide information")
+                    shown.isEmpty() -> GuideNote("Programme information unavailable")
                 }
                 for (p in shown) {
                     val from = (maxOf(p.start, windowStart) - windowStart).toFloat() / WINDOW_MS
@@ -222,22 +228,31 @@ fun GuideRow(
                             .fillMaxHeight()
                             .padding(vertical = 5.dp)
                             .background(
-                                if (on) Palette.tileFocused else Palette.tile,
-                                RoundedCornerShape(6.dp),
+                                if (on) WiptvColors.elevated else Color.White.copy(alpha = 0.04f),
+                                WiptvShapes.small,
                             )
-                            .padding(horizontal = 8.dp),
+                            .border(1.dp, Color.White.copy(alpha = if (on) 0.16f else 0.08f), WiptvShapes.small)
+                            .padding(horizontal = 10.dp),
                         contentAlignment = Alignment.CenterStart,
                     ) {
-                        Text(
-                            text = p.title,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(
-                                fontSize = 12.sp,
-                                fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (on) Palette.text else Palette.quiet,
-                            ),
-                        )
+                        Column {
+                            Text(
+                                text = p.title,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = TextStyle(
+                                    fontSize = 13.sp,
+                                    lineHeight = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (on) WiptvColors.text else WiptvColors.secondary,
+                                ),
+                            )
+                            Text(
+                                text = if (on) timeRange(p) else timeOf(p.start),
+                                maxLines = 1,
+                                style = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, color = WiptvColors.quiet),
+                            )
+                        }
                     }
                 }
                 // The "now" line.
@@ -248,7 +263,7 @@ fun GuideRow(
                             .offset(x = maxWidth * nowAt)
                             .width(2.dp)
                             .fillMaxHeight()
-                            .background(Palette.glow.copy(alpha = 0.8f)),
+                            .background(WiptvColors.focus.copy(alpha = 0.8f)),
                     )
                 }
             }
@@ -259,14 +274,14 @@ fun GuideRow(
 @Composable
 private fun GuideNote(text: String) {
     Box(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
-        Text(text = text, style = TextStyle(fontSize = 11.sp, color = Palette.quiet.copy(alpha = 0.7f)))
+        Text(text = text, style = WiptvType.hint)
     }
 }
 
 /** Next to the preview: the channel, what's on now with a progress bar, and what's next. */
 @Composable
 fun NowPanel(channel: Channel?, programmes: List<Programme>?, now: Long, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (channel == null) {
             Text(
                 text = "OK on a channel previews it here. OK again, or Play/Pause, watches it full screen. Menu (≡) adds a favourite.",
@@ -280,14 +295,14 @@ fun NowPanel(channel: Channel?, programmes: List<Programme>?, now: Long, modifie
                     model = channel.logo,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
-                    modifier = Modifier.size(width = 44.dp, height = 28.dp),
+                    modifier = Modifier.size(width = 36.dp, height = 22.dp),
                 )
             }
             Text(
-                text = "${channel.number}  ${channel.name}",
+                text = "▶ ${channel.number} · ${channel.name.uppercase()}",
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Palette.quiet),
+                style = TextStyle(fontSize = 12.sp, letterSpacing = 0.6.sp, color = WiptvColors.secondary),
             )
         }
 
@@ -297,41 +312,43 @@ fun NowPanel(channel: Channel?, programmes: List<Programme>?, now: Long, modifie
             current != null -> {
                 Text(
                     text = current.title,
-                    maxLines = 2,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Palette.text),
+                    style = TextStyle(fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
                 )
                 val minutesLeft = ((current.end - now) / 60_000).coerceAtLeast(0)
-                Text(
-                    text = "${timeRange(current)} · $minutesLeft min left",
-                    style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
-                )
                 val progress = ((now - current.start).toFloat() / (current.end - current.start)).coerceIn(0f, 1f)
-                Box(
-                    modifier = Modifier
-                        .width(220.dp)
-                        .height(3.dp)
-                        .background(Palette.tile, RoundedCornerShape(2.dp)),
-                ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "${timeRange(current)} · $minutesLeft min left",
+                        style = TextStyle(fontSize = 13.sp, color = WiptvColors.secondary),
+                    )
                     Box(
                         modifier = Modifier
-                            .fillMaxHeight()
-                            .width(220.dp * progress)
-                            .background(Palette.glow, RoundedCornerShape(2.dp)),
-                    )
+                            .width(120.dp)
+                            .height(4.dp)
+                            .background(WiptvColors.elevated, RoundedCornerShape(2.dp)),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .width(120.dp * progress)
+                                .background(WiptvColors.progress, RoundedCornerShape(2.dp)),
+                        )
+                    }
                 }
                 if (current.description.isNotBlank()) {
                     Text(
                         text = current.description,
-                        maxLines = 3,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
+                        style = TextStyle(fontSize = 14.sp, lineHeight = 20.sp, color = WiptvColors.secondary),
                     )
                 }
             }
             programmes == null -> Text(text = "Loading guide…", style = TextStyle(fontSize = 13.sp, color = Palette.quiet))
             else -> Text(
-                text = "No guide information for this channel",
+                text = "Programme information unavailable",
                 style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
             )
         }

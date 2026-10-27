@@ -152,11 +152,8 @@ fun CatalogScreen(
             }
         }
 
-        Column(modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.weight(1f)) { tabs() }
-                UpdatePill(update)
-            }
+        Column(modifier = Modifier.fillMaxSize().padding(start = 32.dp, end = 32.dp, top = 20.dp)) {
+            tabs()
 
             // What the highlighted poster is.
             Column(modifier = Modifier.height(110.dp).width(520.dp).padding(top = 10.dp)) {
