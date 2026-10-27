@@ -182,7 +182,7 @@ fun VodDetailScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(modifier = Modifier.fillMaxSize().background(WiptvColors.background)) {
             // Full-screen artwork, faded on the left and at the bottom. Waits for the details so it
             // doesn't show the poster wash and then swap straight to the backdrop.
@@ -401,7 +401,7 @@ private fun MoreInfo(title: String, meta: String, plot: String?, cast: String?, 
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.45f))) {
             Column(
                 modifier = Modifier
