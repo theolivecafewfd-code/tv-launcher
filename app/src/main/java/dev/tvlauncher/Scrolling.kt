@@ -42,8 +42,11 @@ private class PivotScroll(private val rowPivot: Float, private val tall: Float, 
  */
 private val TallItem = 193.dp
 
-/** A Continue watching card with its focus gap (133 + 2 × 3): also settles like a row. */
-private val ResumeCard = 139.dp
+/**
+ * A Continue watching card (156 dp, its outline drawn inside): settles like a row, heading at the
+ * top, so the hero's description isn't left half on screen above it.
+ */
+private val ResumeCard = 156.dp
 
 /** Space above a focused poster: room for its row's heading. */
 private val RowPivot = 34.dp
