@@ -359,7 +359,7 @@ Kept up to date as stages land. "Built" means the GitHub build passed; "emulator
 | Stage | Pull requests | Built | Emulator | Fire Stick |
 | --- | --- | --- | --- | --- |
 | 1 — Shared style + Live TV | #31 (design module, header, Live TV), #35 (calmer guide), #43–#44 (soft row focus, no programme boxes, quality badges) | Yes | — | Yes (build 112) |
-| Launcher in the player's style (added) | #32, #47–#50 (cinematic home, details, search, app editor; polish) | Yes | — | #47–#49 yes; #50 pending (build 125) |
+| Launcher in the player's style (added) | #32, #47–#50 (cinematic home, details, search, app editor; polish) | Yes | — | Yes (build 125) |
 | 2 — Live Categories drawer | Not started (on hold) | | | |
 | 3 — Movies + Series | #36–#39, #41, #46 (resume hero, episode focus, More info, years) | Yes | Yes | Yes (build 116) |
 | 4 — Playback + remaining surfaces | Not started | | | |

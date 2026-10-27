@@ -4,7 +4,7 @@
 
 ## Where things are
 
-Everything up to **PR #51 is merged**, and both apps are released from `main`. The latest build Wayne has checked is **125** (launcher polish pending his look). Updates install with the pill in either app.
+Everything up to **PR #51 is merged**, and both apps are released from `main`. The latest build Wayne has checked is **125**. Updates install with the pill in either app.
 
 **Done and checked on the Fire Stick**
 - **Launcher:** TV Shows | Movies home, details, search, Surprise me, Waterford weather, app dock with quick settings (#1–#17).
@@ -13,8 +13,10 @@ Everything up to **PR #51 is merged**, and both apps are released from `main`. T
 - **Player, Movies and Series:** rows, details, seasons and episodes, Continue watching, My List, resume, next episode, cinematic redesign (#29, #37–#39, #41). Continue watching shows the title once in the hero over its artwork; softer episode focus; about five episodes once the header scrolls away; a darker, content-sized More info panel; trailing years removed when the year is already shown (#46).
 - **Update pill (#45):** reads a small build-number file in each release instead of GitHub's API, so "GitHub is limiting checks" no longer appears. Confirmed working.
 
+**Also checked (build 125)**
+- **#50:** darker text area over artwork on the home screen and details, details lines that wrap between whole items, quieter forecast line, "Build N" label removed, focused posters bring their names on screen, the focused details button no longer clipped.
+
 **Merged, waiting for Wayne's look**
-- **#50 (build 125):** darker text area over artwork on the home screen and details, details lines that wrap between whole items, quieter forecast line, "Build N" label removed, focused posters bring their names on screen, the focused details button no longer clipped.
 - **#51:** Recommended for you shows placeholder posters while it loads (so Down isn't stuck at Documentary); FHD/HD/SD badges also in the full-screen channel list and info bar; these notes.
 
 ## Shared design pieces

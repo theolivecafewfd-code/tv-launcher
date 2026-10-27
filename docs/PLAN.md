@@ -14,7 +14,7 @@ Oct 27, 2026 · Wayne
 | Launcher home: TV Shows \| Movies | Done | Featured Top 10 over large artwork; Top 10 this week, My List, Comedy, Documentary, Recommended for you; Netflix and Prime in Ireland |
 | Launcher details, search, Surprise me | Done | Details like the player's: Watch on, Trailer, My List, Mark as watched, More info, More like this |
 | Launcher header, dock and quick settings | Done | Greeting; weather and clock in a glass capsule; hide and reorder apps; Wi-Fi, Bluetooth, Display & sound and Settings tiles |
-| Launcher in the player's style | Done, last polish being checked | #47–#51 |
+| Launcher in the player's style | Done | #47–#51; checked on build 125 |
 | Player: sign-in and account | Done | Xtream Codes login stored encrypted on the TV; account expiry and screen limit |
 | Player: Live TV | Done | Groups, guide, preview, Edit groups, favourites on Menu (≡); soft row focus, no programme boxes, FHD/HD/SD badges (#43, #44) |
 | Player: full-screen watching | Done | Up/Down zap, Left for channels then groups, Right for the last channel, info bar |
