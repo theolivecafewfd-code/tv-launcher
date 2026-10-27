@@ -22,7 +22,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.items
 import dev.wiptv.design.RowScrolling
-import dev.wiptv.design.SectionCapsule
+import dev.wiptv.design.NavCapsule
+import dev.wiptv.design.NavItem
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -96,95 +97,38 @@ private fun Source.colours(): Pair<Color, Color> = when (this) {
 }
 
 /**
- * The top navigation under the header: the TV Shows | Movies capsule, then search, Surprise me
- * and Apps (glass). OK on Apps opens the Apps tray; focus alone never does.
+ * The top navigation under the greeting, in one glass capsule: TV Shows · Movies · Live TV · Apps,
+ * then search and Surprise me as icons. TV Shows and Movies are the destinations (the current one
+ * keeps its underline); Live TV opens the player's Live TV, Apps opens the Apps tray, and the
+ * icons open search and a surprise pick. Focus alone never does anything; OK does.
  */
 @Composable
 fun TypeSwitch(
     selected: MediaType,
     onSelect: (MediaType) -> Unit,
+    onLiveTv: () -> Unit,
+    onApps: () -> Unit,
     onSearch: () -> Unit,
     onSurprise: () -> Unit,
-    onApps: () -> Unit,
     appsRequester: FocusRequester,
+    searchRequester: FocusRequester,
 ) {
-    Row(
+    NavCapsule(
         modifier = Modifier.padding(start = Edge),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SectionCapsule(
-            labels = MediaType.entries.map { it.label },
-            selected = MediaType.entries.indexOf(selected),
-            onSelect = { onSelect(MediaType.entries[it]) },
-        )
-        // Search: a magnifying glass in a glass circle.
-        GlassIconButton(onClick = onSearch) {
-            SearchIcon(color = LocalContentColor.current, size = 16.dp)
-        }
-        // Surprise me: a die and its label.
-        GlassIconButton(onClick = onSurprise) {
-            Row(
-                modifier = Modifier.padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                DiceIcon(color = LocalContentColor.current, size = 15.dp)
-                Text(text = "Surprise me", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium))
-            }
-        }
-        // Apps: a grid of four squares and its label.
-        GlassIconButton(onClick = onApps, modifier = Modifier.focusRequester(appsRequester)) {
-            Row(
-                modifier = Modifier.padding(horizontal = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AppsIcon(color = LocalContentColor.current, size = 14.dp)
-                Text(text = "Apps", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium))
-            }
-        }
-    }
-}
-
-/** Four small rounded squares, for Apps. */
-@Composable
-private fun AppsIcon(color: Color, size: androidx.compose.ui.unit.Dp) {
-    androidx.compose.foundation.Canvas(Modifier.size(size)) {
-        val gap = this.size.width * 0.16f
-        val cell = (this.size.width - gap) / 2
-        for (row in 0..1) for (col in 0..1) {
-            drawRoundRect(
-                color = color,
-                topLeft = Offset(col * (cell + gap), row * (cell + gap)),
-                size = Size(cell, cell),
-                cornerRadius = CornerRadius(cell * 0.25f),
-            )
-        }
-    }
-}
-
-/** A round glass button for an icon (or an icon and a short label). */
-@Composable
-private fun GlassIconButton(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    val shape = WiptvShapes.pill
-    Surface(
-        onClick = onClick,
-        modifier = modifier.height(40.dp).glass(shape),
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = WiptvColors.text,
-            focusedContainerColor = WiptvColors.focus,
-            focusedContentColor = WiptvColors.onLight,
+        items = MediaType.entries.map { type ->
+            NavItem(label = type.label, selected = type == selected, onClick = { if (type != selected) onSelect(type) })
+        } + listOf(
+            NavItem(label = "Live TV", onClick = onLiveTv),
+            NavItem(label = "Apps", modifier = Modifier.focusRequester(appsRequester), onClick = onApps),
+            NavItem(
+                icon = { colour -> SearchIcon(color = colour, size = 20.dp) },
+                description = "Search",
+                modifier = Modifier.focusRequester(searchRequester),
+                onClick = onSearch,
+            ),
+            NavItem(icon = { colour -> DiceIcon(color = colour, size = 20.dp) }, description = "Surprise me", onClick = onSurprise),
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        border = focusOutline(shape),
-    ) {
-        Box(modifier = Modifier.height(40.dp).padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
-            content()
-        }
-    }
+    )
 }
 
 /** A line-drawn magnifying glass. */

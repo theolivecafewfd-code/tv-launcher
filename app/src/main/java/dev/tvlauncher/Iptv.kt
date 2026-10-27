@@ -199,6 +199,20 @@ object Iptv {
         false
     }
 
+    /** Opens the player on Live TV (its own start screen, through its "section" extra). */
+    fun openLiveTv(context: Context): Boolean = try {
+        context.startActivity(
+            Intent(Intent.ACTION_MAIN)
+                .setClassName(PLAYER, "$PLAYER.MainActivity")
+                .putExtra("section", "LIVE")
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        )
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "Couldn't open the player", e)
+        false
+    }
+
     /** Films and episodes you've started in the player, newest first. */
     suspend fun continueWatching(context: Context): List<IptvResume> = withContext(Dispatchers.IO) {
         try {

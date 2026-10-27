@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Glow
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -160,6 +161,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     // top of the rows; Apps at the top opens the tray.
     val featuredFocus = remember { FocusRequester() }
     val appsButton = remember { FocusRequester() }
+    val searchButton = remember { FocusRequester() }
     var trayOpen by remember { mutableStateOf(false) }
     val rowFocus = remember { mutableMapOf<String, FocusRequester>() }
     fun rowRequester(key: String) = rowFocus.getOrPut(key) { FocusRequester() }
@@ -395,10 +397,16 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                                 TypeSwitch(
                                     selected = mediaType,
                                     onSelect = { mediaType = it },
+                                    onLiveTv = {
+                                        if (!Iptv.openLiveTv(context)) {
+                                            Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    onApps = { trayOpen = true },
                                     onSearch = { searchOpen = true },
                                     onSurprise = { surprise() },
-                                    onApps = { trayOpen = true },
                                     appsRequester = appsButton,
+                                    searchRequester = searchButton,
                                 )
                             }
                             when {
@@ -506,7 +514,14 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                         detailFor = it
                     },
                     onPlay = playTitle,
-                    onClose = { searchOpen = false },
+                    onClose = {
+                        searchOpen = false
+                        // Back on the search icon in the top navigation.
+                        titleScope.launch {
+                            delay(50)
+                            runCatching { searchButton.requestFocus() }
+                        }
+                    },
                 )
             }
 
@@ -616,68 +631,65 @@ private fun Header(now: LocalTime, weather: WeatherNow?, update: UpdateState, on
             }
             Text(text = "${greeting(now)}, $OWNER_NAME", style = WiptvType.screen)
         }
-        Column(horizontalAlignment = Alignment.End) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .height(32.dp)
-                        .glass(WiptvShapes.pill)
-                        .padding(horizontal = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (weather != null) {
-                        WeatherIcon(sky = weather.sky, color = WiptvColors.text, size = 16.dp)
-                        Text(
-                            text = "${weather.temperature}°",
-                            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
-                        )
-                        Text(text = weather.description, maxLines = 1, style = TextStyle(fontSize = 13.sp, color = WiptvColors.secondary))
-                        Box(
-                            Modifier
-                                .width(1.dp)
-                                .height(14.dp)
-                                .background(Color.White.copy(alpha = 0.18f)),
-                        )
-                    }
-                    Text(
-                        text = now.format(DateTimeFormatter.ofPattern("HH:mm")),
-                        style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
-                    )
-                }
-                UpdateButton(update = update, onClick = onUpdateClick)
-            }
+        // Weather, clock and the build in one compact glass pill, the height of the old build
+        // pill. Only the build part takes focus (to check again, or install an update).
+        Row(
+            modifier = Modifier
+                .padding(top = 5.dp)
+                .height(30.dp)
+                .glass(WiptvShapes.pill)
+                .padding(start = 14.dp, end = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             if (weather != null) {
-                // The forecast, quieter, on its own line under the capsule.
-                Text(
-                    text = "${Weather.placeName} · ${weather.outlook}",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 6.dp, end = 14.dp),
-                    style = WiptvType.hint.copy(fontSize = 11.sp, color = WiptvColors.quiet.copy(alpha = 0.75f)),
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    WeatherIcon(sky = weather.sky, color = WiptvColors.secondary, size = 15.dp)
+                    Text(text = "${weather.temperature}°", style = StatusText)
+                }
+                StatusDivider()
             }
+            Text(text = now.format(DateTimeFormatter.ofPattern("HH:mm")), style = StatusText)
+            StatusDivider()
+            UpdateButton(update = update, onClick = onUpdateClick)
         }
     }
 }
 
+/** The status pill's text: the size of the old build pill, subdued. */
+private val StatusText = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, color = WiptvColors.secondary)
+
+/** A faint line between the status pill's parts. */
+@Composable
+private fun StatusDivider() {
+    Box(Modifier.width(1.dp).height(12.dp).background(WiptvColors.border))
+}
+
 /**
- * A pill in the header that's always there: it shows the installed build, and lights up when a
- * newer one is on GitHub. Pressing it checks again, or installs the update when there is one.
+ * The build part of the status pill, always there: it shows the installed build, and lights up
+ * when a newer one is on GitHub. OK checks again, or installs the update when there is one.
  */
 @Composable
 private fun UpdateButton(update: UpdateState, onClick: () -> Unit) {
     val label = update.label(BuildConfig.VERSION_CODE)
-    // Bright when there's something to do, quiet otherwise.
-    GlassPill(
-        text = label,
+    val loud = update.loud
+    Surface(
         onClick = onClick,
-        loud = update.loud,
-        modifier = Modifier.widthIn(max = 320.dp),
-    )
+        modifier = Modifier.height(24.dp).widthIn(max = 320.dp),
+        shape = ClickableSurfaceDefaults.shape(shape = WiptvShapes.pill),
+        colors = ClickableSurfaceDefaults.colors(
+            // Bright when there's something to do, quiet otherwise.
+            containerColor = if (loud) WiptvColors.primaryFill else Color.Transparent,
+            contentColor = if (loud) WiptvColors.onPrimary else WiptvColors.secondary,
+            focusedContainerColor = WiptvColors.primaryFill,
+            focusedContentColor = WiptvColors.onPrimary,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+    ) {
+        Box(Modifier.height(24.dp).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+            Text(text = label, maxLines = 1, style = StatusText.copy(color = LocalContentColor.current))
+        }
+    }
 }
 
 private fun greeting(now: LocalTime): String = when (now.hour) {
