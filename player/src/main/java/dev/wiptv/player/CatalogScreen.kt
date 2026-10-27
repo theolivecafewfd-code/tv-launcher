@@ -242,6 +242,12 @@ fun CatalogScreen(
             ?: itemsByCategory.values.firstNotNullOfOrNull { list -> list.firstOrNull { it.id == id } }
     }
 
+    /** Just enough of a catalogue entry, from the saved point, to fetch its details. */
+    fun resumeItemFor(point: ResumePoint): VodItem? {
+        val id = (if (kind == VodKind.MOVIE) point.key.removePrefix("movie:").toLongOrNull() else point.seriesId) ?: return null
+        return VodItem(kind = kind, id = id, name = point.title, poster = point.poster, categoryId = "", rating = null, extension = null)
+    }
+
     fun focusResume(point: ResumePoint) {
         // A film or series whose row hasn't loaded (or isn't in any row) still gets its details
         // fetched for the hero: the saved point knows its id, name and poster.
@@ -251,11 +257,6 @@ fun CatalogScreen(
         restingOn = item
     }
 
-    /** Just enough of a catalogue entry, from the saved point, to fetch its details. */
-    fun resumeItemFor(point: ResumePoint): VodItem? {
-        val id = (if (kind == VodKind.MOVIE) point.key.removePrefix("movie:").toLongOrNull() else point.seriesId) ?: return null
-        return VodItem(kind = kind, id = id, name = point.title, poster = point.poster, categoryId = "", rating = null, extension = null)
-    }
 
     // Opened from the launcher: once that film or series page is closed, go back there.
     var openedFromLauncher by remember { mutableStateOf(false) }
