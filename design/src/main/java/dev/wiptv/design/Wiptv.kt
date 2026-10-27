@@ -51,6 +51,13 @@ object WiptvColors {
     val warning = Color(0xFFFFD09B)
     val error = Color(0xFFFFB8B4)
     val progress = Color(0xFFDFEAFF)
+
+    /** A focused list row (the Live TV guide): a soft fill and a short bright bar on the left. */
+    val rowFocus = Color(0xFF30405A)
+    val rowFocusMarker = Color(0xFFDDE8FF)
+
+    /** The quiet side panel tint (Live TV categories): darker and greyer than [panel]. */
+    val panelQuiet = Color(0xFF1C2535)
 }
 
 /** Text sizes for the TV's 960 × 540 layout grid (platform sans-serif, no added fonts). */
@@ -82,6 +89,7 @@ enum class Glass(
     val washBottom: Float,
     val edgeTop: Float = 0.40f,
     val edgeBottom: Float = 0.16f,
+    val base: Color = WiptvColors.panel,
 ) {
     /** The section capsule and other navigation. */
     Nav(0.86f, 0.12f, 0.04f),
@@ -92,13 +100,13 @@ enum class Glass(
     /** Panels over video: at least 94% tint under any text. */
     OverVideo(0.94f, 0.08f, 0.02f),
 
-    /** Side panels on a plain background (Live TV categories): barely blue, with a faint edge. */
-    Quiet(0.45f, 0.05f, 0.01f, edgeTop = 0.14f, edgeBottom = 0.06f),
+    /** Side panels on a plain background (Live TV categories): dark blue-grey, with a faint edge. */
+    Quiet(0.70f, 0.03f, 0.0f, edgeTop = 0.10f, edgeBottom = 0.05f, base = WiptvColors.panelQuiet),
 }
 
 /** Paints a glass panel behind the content, in [shape]. */
 fun Modifier.glass(shape: Shape, recipe: Glass = Glass.Nav): Modifier = this
-    .background(WiptvColors.panel.copy(alpha = recipe.tint), shape)
+    .background(recipe.base.copy(alpha = recipe.tint), shape)
     .background(
         Brush.verticalGradient(listOf(Color.White.copy(alpha = recipe.washTop), Color.White.copy(alpha = recipe.washBottom))),
         shape,
