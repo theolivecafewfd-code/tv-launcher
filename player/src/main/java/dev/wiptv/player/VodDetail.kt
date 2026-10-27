@@ -109,7 +109,9 @@ fun VodDetailScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
+    // Focus starts on the main action. My List holds it while the details load, then it moves to
+    // Play or Resume once they arrive (before you'd have had time to move it yourself).
+    LaunchedEffect(movie != null || series != null) {
         repeat(40) {
             if (runCatching { firstButton.requestFocus() }.isSuccess) return@LaunchedEffect
             delay(50)
@@ -189,7 +191,8 @@ fun VodDetailScreen(
                 poster = if (loaded) item.poster else null,
                 modifier = Modifier.fillMaxSize(),
                 delayMillis = 0,
-                leftFade = 0.8f,
+                leftFade = 0.98f,
+                textScrim = 0.58f,
             )
 
             PivotScrolling(pivot = 110.dp) {
@@ -263,7 +266,7 @@ fun VodDetailScreen(
                                         maxLines = 3,
                                         overflow = TextOverflow.Ellipsis,
                                         onTextLayout = { plotCut = it.hasVisualOverflow },
-                                        modifier = Modifier.padding(top = 14.dp).widthIn(max = 580.dp),
+                                        modifier = Modifier.padding(top = 14.dp).widthIn(max = 540.dp),
                                         style = WiptvType.body.copy(lineHeight = 23.sp, color = WiptvColors.text.copy(alpha = 0.9f)),
                                     )
                                 }

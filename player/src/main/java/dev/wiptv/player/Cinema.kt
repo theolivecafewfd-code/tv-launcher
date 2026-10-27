@@ -67,6 +67,8 @@ fun CinematicBackdrop(
     modifier: Modifier = Modifier,
     delayMillis: Long = 160,
     leftFade: Float = 0.62f,
+    /** How far across the screen stays dark enough for text (fraction of the width). */
+    textScrim: Float = leftFade * 0.45f,
 ) {
     val context = LocalContext.current
     var shown by remember { mutableStateOf<Art?>(null) }
@@ -94,7 +96,7 @@ fun CinematicBackdrop(
             modifier = Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(
                     0f to WiptvColors.background,
-                    leftFade * 0.45f to WiptvColors.background.copy(alpha = 0.8f),
+                    textScrim to WiptvColors.background.copy(alpha = 0.8f),
                     leftFade to Color.Transparent,
                 ),
             ),
@@ -181,12 +183,12 @@ fun ActionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifie
                 .background(
                     when {
                         focused -> WiptvColors.focus
-                        primary -> WiptvColors.focus.copy(alpha = 0.22f)
+                        primary -> WiptvColors.focus.copy(alpha = 0.30f)
                         else -> Color.White.copy(alpha = 0.07f)
                     },
                     inner,
                 )
-                .border(1.dp, if (focused) Color.Transparent else Color.White.copy(alpha = if (primary) 0.30f else 0.14f), inner)
+                .border(1.dp, if (focused) Color.Transparent else Color.White.copy(alpha = if (primary) 0.5f else 0.14f), inner)
                 .padding(horizontal = 20.dp),
             contentAlignment = Alignment.Center,
         ) {
