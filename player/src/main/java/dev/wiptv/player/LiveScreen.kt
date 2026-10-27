@@ -542,7 +542,11 @@ private fun requesterForFirstChannel(channels: List<Channel>?, requesterFor: (Lo
     runCatching { requesterFor(first.id).requestFocus() }
 }
 
-/** A row in the groups list: quiet until focused; the selected group keeps a soft highlight. */
+/**
+ * A row in the groups list: quiet until focused, when it flips to a light fill. The selected group
+ * keeps a fainter wash and a dimmed bar, so it stays findable while focus is in the guide without
+ * competing with the guide's bright focus bar.
+ */
 @Composable
 private fun ListItem(
     onClick: () -> Unit,
@@ -556,7 +560,7 @@ private fun ListItem(
         modifier = modifier.fillMaxWidth().heightIn(min = 40.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (selected) WiptvColors.focus.copy(alpha = 0.12f) else androidx.compose.ui.graphics.Color.Transparent,
+            containerColor = if (selected) WiptvColors.focus.copy(alpha = 0.08f) else androidx.compose.ui.graphics.Color.Transparent,
             contentColor = if (selected) WiptvColors.text else WiptvColors.secondary,
             focusedContainerColor = WiptvColors.focus,
             focusedContentColor = WiptvColors.onLight,
@@ -565,7 +569,7 @@ private fun ListItem(
         border = focusOutline(shape),
     ) {
         Box(
-            modifier = Modifier.selectedMarker(selected).padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.selectedMarker(selected, WiptvColors.focus.copy(alpha = 0.45f)).padding(horizontal = 12.dp, vertical = 10.dp),
             contentAlignment = Alignment.CenterStart,
         ) { content() }
     }
