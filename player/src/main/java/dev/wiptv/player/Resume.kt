@@ -104,6 +104,13 @@ class VodStore(context: Context) {
         if (current.none { it.key == item.key }) writeFavourites(listOf(item) + current)
     }
 
+    /** Replaces its My List entry, where it is, with this fuller one (details found later). */
+    fun fillInFavourite(item: VodItem) {
+        val current = favourites()
+        if (current.none { it.key == item.key }) return
+        writeFavourites(current.map { if (it.key == item.key) item else it })
+    }
+
     /** Takes it off My List; returns true when it was there. */
     fun removeFavourite(key: String): Boolean {
         val current = favourites()
