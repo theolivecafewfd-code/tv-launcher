@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: a set-up screen the screenshot run uses to sign in to the pretend
+     provider and fill Continue watching and My List. Never part of the installed app. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name=".DemoSetupActivity"
+            android:exported="true"
+            android:theme="@style/Theme.WiptvPlayer" />
+    </application>
+</manifest>

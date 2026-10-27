@@ -26,7 +26,14 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        setContent { PlayerRoot() }
+        // Another app (or the screenshot run) can open straight to Movies or Series.
+        val section = intent.getStringExtra(EXTRA_SECTION)?.let { name -> Section.entries.firstOrNull { it.name == name } }
+        setContent { PlayerRoot(initialSection = section ?: Section.LIVE) }
+    }
+
+    companion object {
+        /** "LIVE", "MOVIES" or "SERIES": the section to open on. */
+        const val EXTRA_SECTION = "section"
     }
 
     /** A plain (non-Compose) screen showing the last crash, so it still works if Compose crashed. */
