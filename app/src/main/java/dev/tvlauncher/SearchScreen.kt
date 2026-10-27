@@ -179,6 +179,7 @@ fun SearchScreen(
                             onClick = { onOpen(title) },
                             onLongClick = { onPlay(title) },
                             modifier = if (isFirst) Modifier.focusRequester(firstResult) else Modifier,
+                            compact = true,
                         )
                         Text(
                             text = title.name,

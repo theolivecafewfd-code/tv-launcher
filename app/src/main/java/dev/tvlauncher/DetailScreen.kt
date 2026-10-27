@@ -212,6 +212,7 @@ fun DetailScreen(
                                 title = other,
                                 onClick = { onOpenOther(other) },
                                 onLongClick = { onPlayOther(other) },
+                                compact = true,
                             )
                         }
                     }

@@ -2,7 +2,24 @@ package dev.tvlauncher
 
 import androidx.compose.foundation.BorderStroke
 import androidx.tv.material3.LocalContentColor
+import dev.wiptv.design.ArtFocusGap
+import dev.wiptv.design.ArtFrame
+import dev.wiptv.design.DisplayTitles
+import dev.wiptv.design.RowScrolling
 import dev.wiptv.design.SectionCapsule
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvShapes
 import dev.wiptv.design.WiptvType
@@ -65,7 +82,7 @@ private fun Source.colours(): Pair<Color, Color> = when (this) {
 @Composable
 fun TypeSwitch(selected: MediaType, onSelect: (MediaType) -> Unit, onSearch: () -> Unit, onSurprise: () -> Unit) {
     Row(
-        modifier = Modifier.padding(start = 40.dp),
+        modifier = Modifier.padding(start = Edge),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -138,8 +155,12 @@ fun SearchIcon(color: Color, size: androidx.compose.ui.unit.Dp) {
 }
 
 /**
- * The big featured title with the next two beside it. Left and right move through [titles];
- * OK opens the current one.
+ * The featured title, over the big artwork behind the top of the screen (drawn by the home
+ * screen): which of the Top 10 it is and where it's on, the name, a details line and a short
+ * synopsis. Left and right move through [titles]; OK opens the current one, holding OK plays it.
+ *
+ * Focus is the list highlight the player uses: a short bright bar at the left edge, with the
+ * counter lit. The text block has a fixed height and fades between titles, so nothing below moves.
  */
 @Composable
 fun Featured(
@@ -150,14 +171,16 @@ fun Featured(
     onPlay: (Title) -> Unit,
 ) {
     val title = titles.getOrNull(index) ?: return
-    val shape = WiptvShapes.panel
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val marker by animateFloatAsState(if (focused) 1f else 0f, animationSpec = tween(120), label = "featuredMarker")
     Surface(
         onClick = { onOpen(title) },
         onLongClick = { onPlay(title) },
         modifier = Modifier
-            .padding(horizontal = 40.dp)
-            .fillMaxWidth()
-            .height(188.dp)
+            .padding(start = Edge - 12.dp)
+            .width(500.dp)
+            .height(176.dp)
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when {
@@ -166,69 +189,81 @@ fun Featured(
                     else -> false
                 }
             },
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        tonalElevation = 0.dp,
+        shape = ClickableSurfaceDefaults.shape(shape = WiptvShapes.small),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
-            focusedContainerColor = Color.White.copy(alpha = 0.04f),
+            contentColor = WiptvColors.text,
+            focusedContainerColor = Color.Transparent,
+            focusedContentColor = WiptvColors.text,
+            pressedContainerColor = Color.Transparent,
+            pressedContentColor = WiptvColors.text,
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        border = focusOutline(shape),
+        scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1f, pressedScale = 1f),
+        border = ClickableSurfaceDefaults.border(border = Border.None, focusedBorder = Border.None, pressedBorder = Border.None),
+        glow = ClickableSurfaceDefaults.glow(glow = Glow.None, focusedGlow = Glow.None, pressedGlow = Glow.None),
+        interactionSource = interaction,
     ) {
-        Box(Modifier.fillMaxSize()) {
-            // The backdrop on the right, fading left and down into the screen.
-            Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().fillMaxWidth(0.64f)) {
-                AsyncImage(
-                    model = title.backdropUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.horizontalGradient(
-                                0f to WiptvColors.background,
-                                0.45f to WiptvColors.background.copy(alpha = 0.45f),
-                                1f to Color.Transparent,
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    if (marker > 0f) {
+                        val h = 24.dp.toPx()
+                        drawRoundRect(
+                            color = WiptvColors.rowFocusMarker.copy(alpha = marker),
+                            topLeft = Offset(3.dp.toPx(), 52.dp.toPx() - h / 2),
+                            size = Size(3.dp.toPx(), h),
+                            cornerRadius = CornerRadius(1.5.dp.toPx()),
+                        )
+                    }
+                },
+        ) {
+            Crossfade(targetState = title, animationSpec = tween(160), label = "featuredText") { shown ->
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        // "‹ 3 of 10 ›": lit when focused, so it's clear left and right move through them.
+                        Text(
+                            text = "‹  ${index + 1} of ${titles.size}  ›",
+                            modifier = Modifier
+                                .then(
+                                    if (focused) Modifier.background(WiptvColors.focus, WiptvShapes.pill)
+                                    else Modifier.glass(WiptvShapes.pill),
+                                )
+                                .padding(horizontal = 9.dp, vertical = 2.dp),
+                            style = TextStyle(
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (focused) WiptvColors.onLight else WiptvColors.text,
                             ),
-                        ),
-                )
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(Brush.verticalGradient(0.55f to Color.Transparent, 1f to WiptvColors.background)),
-                )
-            }
-            Column(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .width(460.dp)
-                    .padding(start = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        )
+                        shown.sources.forEach { SourceTag(it) }
+                    }
                     Text(
-                        text = "${index + 1} of ${titles.size}",
-                        modifier = Modifier.glass(WiptvShapes.pill).padding(horizontal = 9.dp, vertical = 2.dp),
-                        style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WiptvColors.text),
-                    )
-                    title.sources.forEach { SourceTag(it) }
-                }
-                Text(
-                    text = title.name,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = WiptvType.hero,
-                )
-                Text(text = metaLine(title), maxLines = 1, style = WiptvType.metadata)
-                if (title.overview.isNotBlank()) {
-                    Text(
-                        text = title.overview,
-                        maxLines = 2,
+                        text = DisplayTitles.withoutYear(shown.name, shown.year),
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        style = WiptvType.metadata,
+                        modifier = Modifier.padding(top = 2.dp),
+                        style = WiptvType.hero,
                     )
+                    Text(
+                        text = metaLine(shown),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium),
+                    )
+                    if (shown.overview.isNotBlank()) {
+                        Text(
+                            text = shown.overview,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 4.dp),
+                            style = WiptvType.metadata.copy(color = WiptvColors.text.copy(alpha = 0.86f)),
+                        )
+                    }
                 }
             }
         }
@@ -240,7 +275,7 @@ private fun metaLine(title: Title): String = buildList {
     if (title.year.isNotBlank()) add(title.year)
     title.genreIds.mapNotNull { Catalog.genreName(it) }.take(2).takeIf { it.isNotEmpty() }?.let { add(it.joinToString(", ")) }
     if (title.rating > 0) add("TMDB " + String.format(Locale.UK, "%.1f", title.rating))
-}.joinToString("  ·  ")
+}.joinToString(" · ")
 
 @Composable
 private fun SourceTag(source: Source) {
@@ -254,7 +289,14 @@ private fun SourceTag(source: Source) {
     )
 }
 
-/** One row of posters, e.g. Comedy. Top 10 rows get a big number beside each poster. */
+/** Poster sizes, the same as the player's: about six across, the next peeking in. */
+internal val PosterWidth = 126.dp
+internal val PosterHeight = 189.dp
+
+/**
+ * One row of posters, e.g. Comedy, laid out like the player's rows. Top 10 rows get a big
+ * outlined number beside each poster.
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PosterRow(
@@ -267,47 +309,51 @@ fun PosterRow(
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.padding(start = 40.dp, end = 40.dp),
+            modifier = Modifier.padding(start = Edge, end = Edge, bottom = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
-            Text(
-                text = row.title,
-                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
-            )
+            Text(text = row.title, style = RowHeading)
             if (row.note.isNotBlank()) {
                 Text(
                     text = row.note,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(fontSize = 11.sp, color = Palette.quiet),
+                    modifier = Modifier.padding(bottom = 2.dp),
+                    style = WiptvType.hint,
                 )
             }
         }
         // The row remembers which poster you were on, and up and down always go to the row
         // directly above or below, whatever the posters' positions.
-        NormalScrolling {
+        RowScrolling(start = Edge, end = 72.dp) {
         LazyRow(
             modifier = Modifier
                 .focusRequester(requester)
                 .focusRestorer(),
-            contentPadding = PaddingValues(horizontal = 40.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (row.ranked) 16.dp else 12.dp),
+            contentPadding = PaddingValues(start = Edge - ArtFocusGap, end = Edge, top = 6.dp, bottom = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy((if (row.ranked) 20.dp else 16.dp) - ArtFocusGap * 2),
         ) {
             itemsIndexed(row.items, key = { _, t -> t.key }) { i, title ->
-                Row(verticalAlignment = Alignment.Bottom) {
+                Row(verticalAlignment = Alignment.Top) {
                     if (row.ranked) {
-                        Text(
-                            text = "${i + 1}",
-                            modifier = Modifier.padding(end = 2.dp),
-                            style = TextStyle(
-                                fontSize = 64.sp,
-                                lineHeight = 64.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Palette.quiet.copy(alpha = 0.7f),
-                                drawStyle = Stroke(width = 3f),
-                            ),
-                        )
+                        // The number sits against the poster's lower edge.
+                        Box(
+                            modifier = Modifier.height(PosterHeight + ArtFocusGap * 2),
+                            contentAlignment = Alignment.BottomEnd,
+                        ) {
+                            Text(
+                                text = "${i + 1}",
+                                modifier = Modifier.padding(end = 2.dp),
+                                style = TextStyle(
+                                    fontSize = 92.sp,
+                                    lineHeight = 92.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = WiptvColors.secondary.copy(alpha = 0.6f),
+                                    drawStyle = Stroke(width = 3f),
+                                ),
+                            )
+                        }
                     }
                     PosterCard(
                         title = title,
@@ -325,35 +371,64 @@ fun PosterRow(
     }
 }
 
+/**
+ * A poster in the player's frame (the outline sits just outside the picture, with a slight
+ * lift), with its title underneath, brighter when focused. [compact] is the smaller poster
+ * without a caption, for search results and "More like this".
+ */
 @Composable
 internal fun PosterCard(
     title: Title,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
+    compact: Boolean = false,
 ) {
-    val shape = RoundedCornerShape(10.dp)
-    Surface(
-        onClick = onClick,
-        onLongClick = onLongClick,
-        modifier = modifier.size(width = 84.dp, height = 126.dp),
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        colors = ClickableSurfaceDefaults.colors(containerColor = Palette.tile, focusedContainerColor = Palette.tile),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-        ),
-    ) {
-        Box(Modifier.fillMaxSize()) {
-            AsyncImage(
-                model = title.posterUrl,
-                contentDescription = title.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+    var focused by remember { mutableStateOf(false) }
+    val width = if (compact) 84.dp else PosterWidth
+    val height = if (compact) 126.dp else PosterHeight
+    Column(modifier = Modifier.width(width + ArtFocusGap * 2)) {
+        ArtFrame(
+            width = width,
+            height = height,
+            onFocusChange = { focused = it },
+            onClick = onClick,
+            onLongClick = onLongClick,
+            modifier = modifier,
+        ) {
+            // The name, for posters that are missing or still loading.
+            Text(
+                text = title.name,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center).padding(10.dp),
+                style = WiptvType.metadata.copy(color = WiptvColors.secondary),
             )
+            if (title.posterUrl != null) {
+                AsyncImage(
+                    model = title.posterUrl,
+                    contentDescription = title.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             title.sources.firstOrNull()?.let {
                 Box(Modifier.align(Alignment.TopStart).padding(5.dp)) { SourceTag(it) }
             }
+        }
+        if (!compact) {
+            Text(
+                text = title.name,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp).height(36.dp),
+                style = TextStyle(
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
+                    color = if (focused) WiptvColors.text else WiptvColors.secondary,
+                ),
+            )
         }
     }
 }
@@ -363,7 +438,7 @@ internal fun PosterCard(
 fun RowMessage(text: String) {
     Text(
         text = text,
-        modifier = Modifier.padding(horizontal = 40.dp, vertical = 12.dp),
-        style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
+        modifier = Modifier.padding(horizontal = Edge, vertical = 12.dp),
+        style = WiptvType.metadata.copy(color = WiptvColors.quiet),
     )
 }

@@ -34,4 +34,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.tv:tv-material:1.0.0")
+    // Already used by both apps; here for the shared cinematic backdrop.
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("io.coil-kt:coil-compose:2.7.0")
 }
