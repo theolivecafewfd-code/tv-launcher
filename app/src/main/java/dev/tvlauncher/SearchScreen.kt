@@ -237,7 +237,7 @@ fun SearchScreen(
                 items(results, key = { it.key }) { title ->
                     val isFirst = iptvResults.isEmpty() && title.key == results.firstOrNull()?.key
                     Box(modifier = Modifier.alpha(if (title.sources.isEmpty()) 0.45f else 1f)) {
-                        PosterCard(
+                        TitlePoster(
                             title = title,
                             onClick = { onOpen(title) },
                             onLongClick = { onPlay(title) },

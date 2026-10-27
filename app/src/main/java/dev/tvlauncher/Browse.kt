@@ -9,6 +9,15 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.tv.material3.LocalContentColor
 import dev.wiptv.design.ArtFocusGap
+import dev.wiptv.design.CARD_GROW_MS
+import dev.wiptv.design.LocalSectionActive
+import dev.wiptv.design.PosterCard
+import dev.wiptv.design.PosterPlaceholder
+import dev.wiptv.design.SectionDim
+import dev.wiptv.design.SectionHeading
+import dev.wiptv.design.SectionRow
+import dev.wiptv.design.rememberWideCard
+import dev.wiptv.design.sectionCaption
 import dev.wiptv.design.ArtFrame
 import dev.wiptv.design.DisplayTitles
 import dev.wiptv.design.MetaLine
@@ -274,84 +283,9 @@ private fun SourceTag(source: Source) {
     )
 }
 
-/** Poster sizes, the same as the player's: about six across, the next peeking in. */
-internal val PosterWidth = 126.dp
-internal val PosterHeight = 189.dp
-
-/** A row poster once it has widened: 16:9 at the poster's height. */
-private val PosterWide = 336.dp
-
-/** How long focus has to rest on a card before it widens, and how long widening takes. */
-private const val SETTLE_MS = 180L
-private const val GROW_MS = 180
-
 /**
- * Which card in a row is wide: the one with focus, once focus has rested on it for [SETTLE_MS].
- * Only one card is ever wide; a new focus cancels a pending widen, so Left and Right stay quick,
- * and leaving the row returns every card to portrait.
- */
-private class WideCard {
-    var focused by mutableStateOf<String?>(null)
-    var wide by mutableStateOf<String?>(null)
-
-    fun onFocus(key: String, has: Boolean) {
-        if (has) focused = key else if (focused == key) focused = null
-    }
-}
-
-@Composable
-private fun rememberWideCard(): WideCard {
-    val card = remember { WideCard() }
-    LaunchedEffect(card.focused) {
-        val key = card.focused
-        if (key == null) {
-            card.wide = null
-            return@LaunchedEffect
-        }
-        delay(SETTLE_MS)
-        card.wide = key
-    }
-    return card
-}
-
-/**
- * Whether the row (section) around a card has the remote's focus. The focused row is at full
- * strength; the others are softer (greyer heading and captions, artwork gently dimmed), so it's
- * clear which row you're in. Screens without rows (search, details) leave it on.
- */
-val LocalSectionActive = compositionLocalOf { true }
-
-/** Heading and caption colour for a section that doesn't have focus. */
-private val InactiveText = WiptvColors.secondary
-
-/** How dark an unfocused section's artwork goes (a plain black wash, no blur). */
-private const val INACTIVE_DIM = 0.14f
-private const val EMPHASIS_MS = 150
-
-/** A row's heading in the section's emphasis. */
-@Composable
-private fun SectionHeading(text: String, active: Boolean) {
-    val colour by animateColorAsState(if (active) WiptvColors.text else InactiveText, tween(EMPHASIS_MS), label = "heading")
-    Text(text = text, style = RowHeading.copy(color = colour))
-}
-
-/** The dark wash over a card's artwork in an unfocused section. */
-@Composable
-private fun BoxScope.SectionDim() {
-    val dim by animateFloatAsState(if (LocalSectionActive.current) 0f else INACTIVE_DIM, tween(EMPHASIS_MS), label = "dim")
-    if (dim > 0f) Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = dim)))
-}
-
-/** Caption colour: bright in the focused section, softer elsewhere. */
-@Composable
-private fun sectionCaption(): Color {
-    val colour by animateColorAsState(if (LocalSectionActive.current) WiptvColors.text else InactiveText, tween(EMPHASIS_MS), label = "caption")
-    return colour
-}
-
-/**
- * One row of posters, laid out like the player's rows. The poster you rest on widens to its
- * landscape picture, as in Continue watching.
+ * One row of posters (the shared [SectionRow] and [PosterCard], as in the player). The poster you
+ * rest on widens to its landscape picture, as in Continue watching.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -364,163 +298,80 @@ fun PosterRow(
     down: FocusRequester?,
 ) {
     val wideCard = rememberWideCard()
-    // The whole row is one section: moving between its posters keeps it bright.
-    var active by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth().onFocusChanged { active = it.hasFocus }) {
-      CompositionLocalProvider(LocalSectionActive provides active) {
-        Row(
-            modifier = Modifier.padding(start = Edge, end = Edge, bottom = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            // Just the row's name: the notes beside it ("Most popular on…", "Because you watch…")
-            // were dropped at Wayne's request to keep the rows clean.
-            SectionHeading(row.title, active)
+    // A row still loading has no titles yet: it shows placeholders that can take focus. If
+    // focus is on one when the titles arrive, it moves to the first title.
+    var waiting by remember { mutableStateOf(false) }
+    LaunchedEffect(row.items.isEmpty()) {
+        if (row.items.isEmpty() || !waiting) return@LaunchedEffect
+        waiting = false
+        repeat(20) {
+            if (runCatching { requester.requestFocus() }.isSuccess) return@LaunchedEffect
+            delay(25)
         }
-        // A row still loading has no titles yet: it shows placeholders that can take focus. If
-        // focus is on one when the titles arrive, it moves to the first title.
-        var waiting by remember { mutableStateOf(false) }
-        LaunchedEffect(row.items.isEmpty()) {
-            if (row.items.isEmpty() || !waiting) return@LaunchedEffect
-            waiting = false
-            repeat(20) {
-                if (runCatching { requester.requestFocus() }.isSuccess) return@LaunchedEffect
-                delay(25)
+    }
+    TrackAttached(requester)
+    // Straight to the row above or below, once that row is on screen.
+    val upAndDown = Modifier.focusProperties {
+        up.ifAttached()?.let { this.up = it }
+        down.ifAttached()?.let { this.down = it }
+    }
+    // Just the row's name: the notes beside it ("Most popular on…", "Because you watch…") were
+    // dropped at Wayne's request to keep the rows clean. The row remembers which poster you were
+    // on, and up and down always go to the row directly above or below.
+    SectionRow(
+        title = row.title,
+        edge = Edge,
+        rowModifier = Modifier.focusRequester(requester).focusRestorer(),
+    ) {
+        if (row.items.isEmpty()) {
+            items(6) {
+                PosterPlaceholder(onFocusChange = { if (it) waiting = true }, modifier = upAndDown)
             }
         }
-        TrackAttached(requester)
-        // Straight to the row above or below, once that row is on screen.
-        val upAndDown = Modifier.focusProperties {
-            up.ifAttached()?.let { this.up = it }
-            down.ifAttached()?.let { this.down = it }
+        itemsIndexed(row.items, key = { _, t -> t.key }) { _, title ->
+            TitlePoster(
+                title = title,
+                onClick = { onOpen(title) },
+                onLongClick = { onPlay(title) },
+                modifier = upAndDown,
+                wide = wideCard.wide == title.key,
+                onFocus = { wideCard.onFocus(title.key, it) },
+            )
         }
-        // The row remembers which poster you were on, and up and down always go to the row
-        // directly above or below, whatever the posters' positions.
-        RowScrolling(start = Edge, end = 72.dp) {
-        LazyRow(
-            modifier = Modifier
-                .focusRequester(requester)
-                .focusRestorer(),
-            contentPadding = PaddingValues(start = Edge - ArtFocusGap, end = Edge, top = 6.dp, bottom = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp - ArtFocusGap * 2),
-        ) {
-            if (row.items.isEmpty()) {
-                items(6) {
-                    Column(modifier = Modifier.width(PosterWidth + ArtFocusGap * 2)) {
-                        ArtFrame(
-                            width = PosterWidth,
-                            height = PosterHeight,
-                            onFocusChange = { if (it) waiting = true },
-                            onClick = {},
-                            modifier = upAndDown,
-                        ) {}
-                        Spacer(Modifier.height(42.dp))
-                    }
-                }
-            }
-            itemsIndexed(row.items, key = { _, t -> t.key }) { _, title ->
-                PosterCard(
-                    title = title,
-                    onClick = { onOpen(title) },
-                    onLongClick = { onPlay(title) },
-                    modifier = upAndDown,
-                    wide = wideCard.wide == title.key,
-                    onFocus = { wideCard.onFocus(title.key, it) },
-                )
-            }
-        }
-        }
-      }
     }
 }
 
 /**
- * A poster in the player's frame (the outline sits just outside the picture, with a slight
- * lift), with its title underneath, brighter when focused. [compact] is the smaller poster
- * without a caption, for search results and "More like this".
+ * A title's poster (the shared [PosterCard]) with where it's on in the top left: the IPTV tag when
+ * your provider has it, then your first service. [compact] is the smaller poster without a
+ * caption, for search results and "More like this".
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun PosterCard(
+internal fun TitlePoster(
     title: Title,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     compact: Boolean = false,
-    /** In a home row: widened to the landscape picture (see [rememberWideCard]). */
     wide: Boolean = false,
     onFocus: (Boolean) -> Unit = {},
 ) {
-    var focused by remember { mutableStateOf(false) }
-    val width by animateDpAsState(
-        when {
-            compact -> 84.dp
-            wide -> PosterWide
-            else -> PosterWidth
-        },
-        animationSpec = tween(GROW_MS),
-        label = "posterWidth",
-    )
-    val height = if (compact) 126.dp else PosterHeight
-    // On focus, the whole card, caption included, comes on screen (not just the picture), and
-    // again once it has widened (the row slides along if needed).
-    val wholeCard = remember { BringIntoViewRequester() }
-    val scope = rememberCoroutineScope()
-    LaunchedEffect(wide) {
-        if (wide) {
-            delay(GROW_MS + 20L)
-            wholeCard.bringIntoView()
-        }
-    }
-    Column(modifier = Modifier.width(width + ArtFocusGap * 2).bringIntoViewRequester(wholeCard)) {
-        ArtFrame(
-            width = width,
-            height = height,
-            onFocusChange = {
-                focused = it
-                onFocus(it)
-                if (it && !compact) scope.launch { wholeCard.bringIntoView() }
-            },
-            onClick = onClick,
-            onLongClick = onLongClick,
-            modifier = modifier,
-        ) {
-            // The name, for posters that are missing or still loading.
-            Text(
-                text = title.name,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.align(Alignment.Center).padding(10.dp),
-                style = WiptvType.metadata.copy(color = WiptvColors.secondary),
-            )
-            PosterArtwork(title = title, wide = wide)
-            // Where it's on: IPTV first when your provider has it, then your first service.
-            val onIptv = if (title.iptv != null) true else IptvBadges.has(title)
-            val source = title.sources.firstOrNull()
-            if (onIptv || source != null) {
-                Row(
-                    modifier = Modifier.align(Alignment.TopStart).padding(5.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    if (onIptv) IptvTag()
-                    source?.let { SourceTag(it) }
-                }
-            }
-            SectionDim()
-        }
-        if (!compact) {
-            Text(
-                text = title.name,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp).height(36.dp),
-                style = TextStyle(
-                    fontSize = 14.sp,
-                    lineHeight = 18.sp,
-                    fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
-                    color = sectionCaption(),
-                ),
-            )
+    PosterCard(
+        name = title.name,
+        posterUrl = title.posterUrl,
+        backdropUrl = title.backdropUrl,
+        onClick = onClick,
+        modifier = modifier,
+        onLongClick = onLongClick,
+        compact = compact,
+        wide = wide,
+        onFocus = onFocus,
+    ) {
+        val onIptv = if (title.iptv != null) true else IptvBadges.has(title)
+        val source = title.sources.firstOrNull()
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (onIptv) IptvTag()
+            source?.let { SourceTag(it) }
         }
     }
 }
@@ -538,45 +389,12 @@ fun RowMessage(text: String) {
 /** A film or series from your IPTV provider, in the same frame as the other posters, tagged "IPTV". */
 @Composable
 internal fun IptvPosterCard(title: IptvTitle, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    var focused by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.width(PosterWidth + ArtFocusGap * 2)) {
-        ArtFrame(
-            width = PosterWidth,
-            height = PosterHeight,
-            onFocusChange = { focused = it },
-            onClick = onClick,
-            modifier = modifier,
-        ) {
-            Text(
-                text = title.name,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.align(Alignment.Center).padding(10.dp),
-                style = WiptvType.metadata.copy(color = WiptvColors.secondary),
-            )
-            if (title.posterUrl != null) {
-                AsyncImage(
-                    model = title.posterUrl,
-                    contentDescription = title.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-            Box(Modifier.align(Alignment.TopStart).padding(5.dp)) { IptvTag() }
-        }
-        Text(
-            text = listOfNotNull(title.name, title.year?.takeUnless { title.name.contains(it) }).joinToString(" · "),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp).height(36.dp),
-            style = TextStyle(
-                fontSize = 14.sp,
-                lineHeight = 18.sp,
-                fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
-                color = if (focused) WiptvColors.text else WiptvColors.secondary,
-            ),
-        )
-    }
+    PosterCard(
+        name = listOfNotNull(title.name, title.year?.takeUnless { title.name.contains(it) }).joinToString(" · "),
+        posterUrl = title.posterUrl,
+        onClick = onClick,
+        modifier = modifier,
+    ) { IptvTag() }
 }
 
 /** Channel tiles: 16:9, smaller than the posters, the logo on a faint panel. */
@@ -738,12 +556,12 @@ private fun ContinueCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val width by animateDpAsState(if (wide) CardWide else CardNarrow, animationSpec = tween(GROW_MS), label = "cardWidth")
+    val width by animateDpAsState(if (wide) CardWide else CardNarrow, animationSpec = tween(CARD_GROW_MS), label = "cardWidth")
     // Once it has widened, keep the whole card on screen (the row slides along if needed).
     val wholeCard = remember { BringIntoViewRequester() }
     LaunchedEffect(wide) {
         if (wide) {
-            delay(GROW_MS + 20L)
+            delay(CARD_GROW_MS + 20L)
             wholeCard.bringIntoView()
         }
     }
@@ -833,49 +651,6 @@ private fun ContinueCard(
 }
 
 /**
- * A row poster's picture: the poster while narrow; once wide, a crossfade to the title's
- * backdrop, or the sharp poster on a dark wash made from itself when there's no backdrop.
- */
-@Composable
-private fun PosterArtwork(title: Title, wide: Boolean) {
-    Crossfade(targetState = wide, animationSpec = tween(GROW_MS), label = "posterArt") { isWide ->
-        Box(Modifier.fillMaxSize()) {
-            when {
-                isWide && title.backdropUrl != null -> AsyncImage(
-                    model = title.backdropUrl,
-                    contentDescription = title.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                isWide && title.posterUrl != null -> {
-                    Box(Modifier.fillMaxSize().background(WiptvColors.surface))
-                    AsyncImage(
-                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
-                            .data(title.posterUrl).size(12, 18).build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        alpha = 0.45f,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                    AsyncImage(
-                        model = title.posterUrl,
-                        contentDescription = title.name,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxHeight().align(Alignment.Center),
-                    )
-                }
-                title.posterUrl != null -> AsyncImage(
-                    model = title.posterUrl,
-                    contentDescription = title.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-    }
-}
-
-/**
  * The picture: the portrait poster while narrow; once wide, a crossfade to the landscape still
  * or backdrop. With no landscape picture, the sharp poster sits on a dark wash made from itself
  * (never stretched). Images come from Coil's cache after the first load.
@@ -883,7 +658,7 @@ private fun PosterArtwork(title: Title, wide: Boolean) {
 @Composable
 private fun ContinueArtwork(item: IptvResume, wide: Boolean) {
     val landscape = item.imageUrl
-    Crossfade(targetState = wide, animationSpec = tween(GROW_MS), label = "continueArt") { isWide ->
+    Crossfade(targetState = wide, animationSpec = tween(CARD_GROW_MS), label = "continueArt") { isWide ->
         Box(Modifier.fillMaxSize().background(WiptvColors.surface)) {
             when {
                 isWide && landscape != null -> AsyncImage(
