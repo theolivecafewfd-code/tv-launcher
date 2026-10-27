@@ -5,6 +5,7 @@ import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import dev.wiptv.design.glass
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -65,20 +66,21 @@ enum class QuickSetting(val label: String, val actions: List<String>) {
 @Composable
 fun QuickSettingTile(setting: QuickSetting, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(12.dp)
     Surface(
         onClick = { setting.open(context) },
         modifier = modifier
             .width(92.dp)
-            .height(81.dp),
+            .height(81.dp)
+            .glass(shape),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Palette.tile.copy(alpha = 0.7f),
+            containerColor = Color.Transparent,
             contentColor = Palette.quiet,
             focusedContainerColor = Palette.tileFocused,
             focusedContentColor = Palette.text,
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
         border = ClickableSurfaceDefaults.border(
             focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
         ),

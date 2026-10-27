@@ -1,6 +1,12 @@
 package dev.tvlauncher
 
 import androidx.compose.foundation.BorderStroke
+import dev.wiptv.design.GlassPill
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.focusOutline
+import dev.wiptv.design.glass
+import dev.wiptv.design.wiptvBackground
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -69,13 +75,14 @@ private const val OWNER_NAME = "Wayne"
 
 // Sizes are in dp on the TV's 960 x 540 layout grid (a 1080p TV at the standard TV density),
 // which is three-quarters of the 1280 x 720 mockups.
+// Colours come from the shared WIPTV glass tokens (the design module), same as the player.
 internal object Palette {
-    val background = Color(0xFF16111E)
-    val text = Color(0xFFF4F1F8)
-    val quiet = Color(0xFFB3AAC2)
-    val tile = Color(0xFF241D30)
-    val tileFocused = Color(0xFF332A44)
-    val glow = Color(0xFFEDE4FF)
+    val background = WiptvColors.background
+    val text = WiptvColors.text
+    val quiet = WiptvColors.secondary
+    val tile = WiptvColors.surface
+    val tileFocused = WiptvColors.elevated
+    val glow = WiptvColors.focus
 }
 
 @Composable
@@ -242,29 +249,10 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Palette.background),
+                .wiptvBackground(),
         ) {
-            // The featured film's backdrop, faint and darkened, tints the whole screen.
-            if (backdrop != null) {
-                AsyncImage(
-                    model = backdrop,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    alpha = 0.22f,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Palette.background.copy(alpha = 0.55f),
-                                0.7f to Palette.background.copy(alpha = 0.9f),
-                                1f to Palette.background,
-                            ),
-                        ),
-                )
-            }
+            // The featured title's backdrop now sits inside the featured area (glass design), so
+            // there's no second full-screen image to decode.
             // While choosing apps, the editor replaces the home screen so the remote can't
             // wander onto the tiles underneath. Everything scrolls as one list: header, the
             // featured title and your apps first, then the rows below.
@@ -305,7 +293,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                         ) {
                             Text(
                                 text = "Your apps",
-                                style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Palette.quiet),
+                                style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
                             )
                             // Which build is installed, so it's easy to tell whether an update landed.
                             Text(
@@ -450,43 +438,52 @@ private fun Header(now: LocalTime, weather: WeatherNow?, update: UpdateState, on
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top,
     ) {
-        Text(
-            text = "${greeting(now)}, $OWNER_NAME",
-            style = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Palette.text),
-        )
+        // The W badge and the greeting.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(
+                modifier = Modifier.size(28.dp).background(WiptvColors.focus, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(text = "W", style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WiptvColors.onLight))
+            }
+            Text(
+                text = "${greeting(now)}, $OWNER_NAME",
+                style = TextStyle(fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
+            )
+        }
         Column(horizontalAlignment = Alignment.End) {
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                UpdateButton(update = update, onClick = onUpdateClick)
                 if (weather != null) {
-                    WeatherIcon(sky = weather.sky, color = Palette.text, size = 20.dp)
+                    WeatherIcon(sky = weather.sky, color = WiptvColors.text, size = 18.dp)
                     Text(
                         text = "${weather.temperature}°",
-                        style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
+                        style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
                     )
                     Text(
                         text = weather.description,
-                        style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
+                        style = TextStyle(fontSize = 14.sp, color = WiptvColors.secondary),
                     )
                     Box(
                         Modifier
                             .width(1.dp)
                             .height(16.dp)
-                            .background(Palette.quiet.copy(alpha = 0.4f)),
+                            .background(Color.White.copy(alpha = 0.16f)),
                     )
                 }
                 Text(
                     text = now.format(DateTimeFormatter.ofPattern("HH:mm")),
-                    style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.Medium, color = Palette.text),
+                    style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium, color = WiptvColors.text),
                 )
+                UpdateButton(update = update, onClick = onUpdateClick)
             }
             if (weather != null) {
                 Text(
                     text = "${Weather.placeName} · ${weather.outlook}",
-                    modifier = Modifier.padding(top = 2.dp),
-                    style = TextStyle(fontSize = 11.sp, color = Palette.quiet),
+                    modifier = Modifier.padding(top = 4.dp),
+                    style = WiptvType.hint,
                 )
             }
         }
@@ -510,32 +507,12 @@ private fun UpdateButton(update: UpdateState, onClick: () -> Unit) {
         is UpdateState.Failed -> "Update failed · press to retry"
     }
     // Bright when there's something to do, quiet otherwise.
-    val loud = update is UpdateState.Available || update is UpdateState.Failed
-    val shape = RoundedCornerShape(50)
-    Surface(
+    GlassPill(
+        text = label,
         onClick = onClick,
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (loud) Palette.glow else Palette.tile,
-            contentColor = if (loud) Palette.background else Palette.quiet,
-            focusedContainerColor = Color.White,
-            focusedContentColor = Palette.background,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
-        glow = ClickableSurfaceDefaults.glow(
-            focusedGlow = Glow(elevationColor = Palette.glow.copy(alpha = 0.5f), elevation = 10.dp),
-        ),
-    ) {
-        Text(
-            text = label,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .padding(horizontal = 14.dp, vertical = 7.dp),
-            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-        )
-    }
+        loud = update is UpdateState.Available || update is UpdateState.Failed,
+        modifier = Modifier.widthIn(max = 320.dp),
+    )
 }
 
 private fun greeting(now: LocalTime): String = when (now.hour) {
@@ -606,12 +583,13 @@ private fun AppDock(
 /** The last tile in the dock: opens the screen for choosing which apps show. */
 @Composable
 private fun EditAppsTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(12.dp)
     Surface(
         onClick = onClick,
         modifier = modifier
             .width(144.dp)
-            .height(81.dp),
+            .height(81.dp)
+            .glass(shape),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
@@ -619,11 +597,8 @@ private fun EditAppsTile(onClick: () -> Unit, modifier: Modifier = Modifier) {
             focusedContainerColor = Palette.tileFocused,
             focusedContentColor = Palette.text,
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
-        border = ClickableSurfaceDefaults.border(
-            border = Border(border = BorderStroke(1.dp, Palette.quiet.copy(alpha = 0.5f)), shape = shape),
-            focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+        border = focusOutline(shape),
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -648,7 +623,7 @@ internal fun AppTile(
     onLongClick: (() -> Unit)? = null,
     shown: Boolean? = null,
 ) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(12.dp)
     Surface(
         onClick = onClick,
         onLongClick = onLongClick,
@@ -663,12 +638,9 @@ internal fun AppTile(
             focusedContainerColor = Palette.tileFocused,
             focusedContentColor = Palette.text,
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
         border = ClickableSurfaceDefaults.border(
             focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-        ),
-        glow = ClickableSurfaceDefaults.glow(
-            focusedGlow = Glow(elevationColor = Palette.glow.copy(alpha = 0.45f), elevation = 10.dp),
         ),
     ) {
       Box(Modifier.fillMaxSize()) {
