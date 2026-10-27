@@ -5,24 +5,35 @@ import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
+
+/** Where a short item (the apps, the featured title) settles when it's partly off screen. */
+private const val PIVOT = 0.14f
 
 /**
- * How the home screen scrolls when the remote moves focus up or down, like Netflix: anything
- * already fully on screen stays put, and a row that's partly off screen settles at the same
- * spot near the top every time, instead of being nudged just far enough to show it.
+ * How the home screen scrolls when the remote moves focus up or down. Posters (anything at least
+ * [TallItem] high) always settle with their row's heading at the top, like the player's rows, so
+ * each press moves exactly one row and the row above never peeks in. Shorter items stay put while
+ * they're fully on screen, and otherwise settle [PIVOT] of the way down.
  */
 @OptIn(ExperimentalFoundationApi::class)
-private val PivotScroll = object : BringIntoViewSpec {
+private class PivotScroll(private val rowPivot: Float, private val tall: Float) : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        if (size >= tall) return offset - rowPivot
         val fullyVisible = offset >= 0f && offset + size <= containerSize
         if (fullyVisible) return 0f
         return offset - containerSize * PIVOT
     }
 }
 
-/** Where a focused row settles: this fraction of the way down the screen. */
-private const val PIVOT = 0.14f
+/** Posters are 195 dp with their focus gap; the featured title (176 dp) and app tiles are shorter. */
+private val TallItem = 185.dp
+
+/** Space above a focused poster: room for its row's heading. */
+private val RowPivot = 34.dp
 
 /** The normal scrolling, kept so the sideways rows can use it inside the pivoting list. */
 @OptIn(ExperimentalFoundationApi::class)
@@ -33,9 +44,13 @@ private val LocalNormalScroll = staticCompositionLocalOf<BringIntoViewSpec?> { n
 @Composable
 fun PivotScrolling(content: @Composable () -> Unit) {
     val normal = LocalBringIntoViewSpec.current
+    val density = LocalDensity.current
+    val spec = remember(density) {
+        with(density) { PivotScroll(rowPivot = RowPivot.toPx(), tall = TallItem.toPx()) }
+    }
     CompositionLocalProvider(
         LocalNormalScroll provides normal,
-        LocalBringIntoViewSpec provides PivotScroll,
+        LocalBringIntoViewSpec provides spec,
         content = content,
     )
 }
