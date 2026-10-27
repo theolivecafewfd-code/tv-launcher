@@ -250,7 +250,7 @@ fun WatchScreen(
             PlayerSurface(live, attached = true, modifier = Modifier.fillMaxSize())
 
             // Loading or a problem, in the middle of the screen.
-            val message = live.error ?: if (live.buffering) "Loading ${channel.name}…" else null
+            val message = live.error ?: if (live.buffering) "Loading ${ChannelLabels.of(channel.name).name}…" else null
             if (message != null) {
                 Text(
                     text = message,
@@ -394,16 +394,22 @@ private fun ChannelListOverlay(
                             style = TextStyle(fontSize = 12.sp, color = if (playing) Palette.glow else Palette.quiet),
                         )
                         Column {
-                            Text(
-                                text = if (isFavourite(item)) "★ ${item.name}" else item.name,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = TextStyle(
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = if (playing) Palette.glow else Palette.text,
-                                ),
-                            )
+                            // The name with a trailing "| FHD |" shown as a small badge, as in the guide.
+                            val label = remember(item.name) { ChannelLabels.of(item.name) }
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(
+                                    text = if (isFavourite(item)) "★ ${label.name}" else label.name,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false),
+                                    style = TextStyle(
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (playing) Palette.glow else Palette.text,
+                                    ),
+                                )
+                                label.quality?.let { QualityBadge(it) }
+                            }
                             nowShowing(item)?.let { p ->
                                 Text(
                                     text = p.title,
@@ -512,12 +518,17 @@ private fun InfoBar(
                 )
             }
             Column(modifier = Modifier.width(640.dp)) {
-                Text(
-                    text = if (favourite) "★ ${channel.name}" else channel.name,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
-                )
+                val label = remember(channel.name) { ChannelLabels.of(channel.name) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (favourite) "★ ${label.name}" else label.name,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                        style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
+                    )
+                    label.quality?.let { QualityBadge(it) }
+                }
                 if (programme != null) {
                     Text(
                         text = "${timeRange(programme)}  ${programme.title}",
@@ -526,7 +537,7 @@ private fun InfoBar(
                         style = TextStyle(fontSize = 14.sp, color = Palette.text),
                     )
                 }
-                val back = if (previous != null) " · ▶ back to ${previous.name}" else ""
+                val back = if (previous != null) " · ▶ back to ${ChannelLabels.of(previous.name).name}" else ""
                 Text(
                     text = "$groupName · ${index + 1} of $total · ▲▼ change · ◀ channels and groups · ≡ favourite$back",
                     maxLines = 1,

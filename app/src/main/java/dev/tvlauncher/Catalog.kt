@@ -95,17 +95,19 @@ object Catalog {
     private val netflixIds = ConcurrentHashMap<String, String>()
 
     /** The four home-screen rows for TV shows or films. */
-    suspend fun rows(type: MediaType, history: List<HistoryEntry>): List<ContentRow> = coroutineScope {
-        val ofType = history.filter { it.type == type }
+    suspend fun rows(type: MediaType): List<ContentRow> = coroutineScope {
         listOf(
             async { cached("${type.path}:top") { topTen(type) } },
             async { cached("${type.path}:comedy") { genreRow(type, "comedy", "Comedy", COMEDY) } },
             async { cached("${type.path}:docs") { genreRow(type, "docs", "Documentary", DOCUMENTARY) } },
-            async {
-                val signature = ofType.take(10).joinToString(",") { it.id.toString() }
-                cached("${type.path}:recommended:$signature") { recommended(type, ofType) }
-            },
         ).awaitAll().filter { it.items.isNotEmpty() }
+    }
+
+    /** Recommended for you, loaded on its own (it takes longer, and changes with what you open). */
+    suspend fun recommendedRow(type: MediaType, history: List<HistoryEntry>): ContentRow {
+        val ofType = history.filter { it.type == type }
+        val signature = ofType.take(10).joinToString(",") { it.id.toString() }
+        return cached("${type.path}:recommended:$signature") { recommended(type, ofType) }
     }
 
     private suspend fun cached(key: String, load: suspend () -> ContentRow): ContentRow {
