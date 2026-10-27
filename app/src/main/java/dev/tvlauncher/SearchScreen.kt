@@ -11,7 +11,6 @@ import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvShapes
 import dev.wiptv.design.WiptvType
 import dev.wiptv.design.glass
-import dev.wiptv.design.wiptvBackground
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -122,7 +121,7 @@ fun SearchScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .wiptvBackground()
+                .launcherBackground()
                 .padding(top = 28.dp, start = Edge, end = Edge),
         ) {
             Row(

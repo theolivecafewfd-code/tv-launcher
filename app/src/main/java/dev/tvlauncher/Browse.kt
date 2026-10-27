@@ -421,13 +421,12 @@ fun PosterRow(
                     }
                 }
             }
-            itemsIndexed(row.items, key = { _, t -> t.key }) { i, title ->
+            itemsIndexed(row.items, key = { _, t -> t.key }) { _, title ->
                 PosterCard(
                     title = title,
                     onClick = { onOpen(title) },
                     onLongClick = { onPlay(title) },
                     modifier = upAndDown,
-                    rank = if (row.ranked) i + 1 else null,
                 )
             }
         }
@@ -449,8 +448,6 @@ internal fun PosterCard(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     compact: Boolean = false,
-    /** Top 10 position, shown inside the poster's lower left corner. */
-    rank: Int? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val width = if (compact) 84.dp else PosterWidth
@@ -484,22 +481,6 @@ internal fun PosterCard(
                     contentDescription = title.name,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
-                )
-            }
-            // Top 10: the number inside the lower left, on a soft dark gradient so it reads on
-            // light and dark posters alike.
-            if (rank != null) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))),
-                )
-                Text(
-                    text = "$rank",
-                    modifier = Modifier.align(Alignment.BottomStart).padding(start = 10.dp, bottom = 8.dp),
-                    style = TextStyle(fontSize = 26.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFF2F4FA)),
                 )
             }
             // Where it's on: IPTV first when your provider has it, then your first service.
