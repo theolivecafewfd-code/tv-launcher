@@ -1,5 +1,6 @@
 package dev.tvlauncher
 
+import android.widget.Toast
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.offset
@@ -94,7 +95,17 @@ fun DetailScreen(
     LaunchedEffect(title.key) {
         details = runCatching { Catalog.details(title) }.getOrNull()
     }
+    // Whether your IPTV provider has it (asked of WIPTV Player, from its list on the TV).
+    var iptv by remember(title.key) { mutableStateOf<IptvTitle?>(null) }
+    var iptvChecked by remember(title.key) { mutableStateOf(false) }
     LaunchedEffect(title.key) {
+        iptv = Iptv.match(context, title)
+        iptvChecked = true
+    }
+    // Focus starts on the main action. It waits briefly for the IPTV answer, so it lands on
+    // Watch on IPTV when that's the first button.
+    LaunchedEffect(title.key, iptvChecked) {
+        if (!iptvChecked) delay(600)
         repeat(20) {
             if (runCatching { primary.requestFocus() }.isSuccess) return@LaunchedEffect
             delay(50)
@@ -192,9 +203,11 @@ fun DetailScreen(
                                     modifier = Modifier.padding(top = 8.dp),
                                     style = WiptvType.metadata.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium),
                                 )
-                                if (title.sources.isNotEmpty()) {
+                                val places = listOfNotNull("your IPTV".takeIf { iptv != null }) + title.sources.map { it.longName }
+                                if (places.isNotEmpty()) {
                                     Text(
-                                        text = "On " + title.sources.joinToString(" and ") { it.longName } + " in Ireland",
+                                        text = "On " + places.dropLast(1).joinToString(", ").let { if (it.isEmpty()) "" else "$it and " } +
+                                            places.last() + if (title.sources.isNotEmpty()) " in Ireland" else "",
                                         modifier = Modifier.padding(top = 4.dp),
                                         style = WiptvType.metadata.copy(color = WiptvColors.text),
                                     )
@@ -224,13 +237,27 @@ fun DetailScreen(
                                         .padding(8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
+                                    // Your IPTV provider first when it has the title, then your services.
+                                    iptv?.let { found ->
+                                        ActionButton(
+                                            text = "▶  Watch on IPTV",
+                                            primary = true,
+                                            onClick = {
+                                                if (!Iptv.open(context, found)) {
+                                                    Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            modifier = Modifier.focusRequester(primary),
+                                        )
+                                    }
                                     title.sources.forEachIndexed { i, source ->
+                                        val first = i == 0 && iptv == null
                                         ActionButton(
                                             // "Watch on" once; a second service is just its name.
-                                            text = "▶  " + (if (i == 0) "Watch on " else "") + source.longName,
-                                            primary = i == 0,
+                                            text = "▶  " + (if (first) "Watch on " else "") + source.longName,
+                                            primary = first,
                                             onClick = { onWatch(source) },
-                                            modifier = if (i == 0) Modifier.focusRequester(primary) else Modifier,
+                                            modifier = if (first) Modifier.focusRequester(primary) else Modifier,
                                         )
                                     }
                                     if (onAnother != null) {
@@ -246,7 +273,7 @@ fun DetailScreen(
                                             if (inMyList) History(context).add(title)
                                             onLibraryChange()
                                         },
-                                        modifier = if (title.sources.isEmpty()) Modifier.focusRequester(primary) else Modifier,
+                                        modifier = if (title.sources.isEmpty() && iptv == null) Modifier.focusRequester(primary) else Modifier,
                                     )
                                     ActionButton(
                                         text = if (watched) "✓  Watched" else "Mark as watched",

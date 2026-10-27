@@ -8,12 +8,20 @@
         android:name="android.hardware.touchscreen"
         android:required="false" />
 
+    <!-- Lets the launcher ask WIPTV Player about its titles ("Watch on IPTV", search). The
+         permission is declared here too, so it works whichever app was installed first. -->
+    <permission
+        android:name="dev.wiptv.permission.CATALOG"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="dev.wiptv.permission.CATALOG" />
+
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Lets the launcher install its own updates (the user still confirms each install). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Android 11+ only lets an app see other installed apps that match these queries. -->
     <queries>
+        <package android:name="dev.wiptv.player" />
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LEANBACK_LAUNCHER" />

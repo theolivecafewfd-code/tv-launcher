@@ -59,9 +59,12 @@ internal object Palette {
 /** The player's three parts, switched with the tabs at the top left. */
 enum class Section(val label: String) { LIVE("Live TV"), MOVIES("Movies"), SERIES("Series") }
 
+/** A title another app asked the player to open (the launcher's "Watch on IPTV"). */
+data class OpenTitle(val kind: VodKind, val id: Long)
+
 /** Shows the sign-in screen until there are saved details, then Live TV, Movies or Series. */
 @Composable
-fun PlayerRoot(initialSection: Section = Section.LIVE) {
+fun PlayerRoot(initialSection: Section = Section.LIVE, open: OpenTitle? = null, onOpenFinished: () -> Unit = {}) {
     val context = LocalContext.current
     var login by remember { mutableStateOf(LoginStore.load(context)) }
     val update = rememberUpdateState()
@@ -78,6 +81,8 @@ fun PlayerRoot(initialSection: Section = Section.LIVE) {
     } else {
         var section by remember { mutableStateOf(initialSection) }
         val store = remember { VodStore(context) }
+        // Keep the list of films and series the launcher asks about up to date (about daily).
+        LaunchedEffect(current) { CatalogIndex.refreshIfStale(context, current) }
         val tabs: @Composable () -> Unit = { SectionTabs(selected = section, onSelect = { section = it }, update = update) }
         // Only one part is on screen at a time, so leaving Live TV also stops its stream.
         key(section) {
@@ -91,8 +96,16 @@ fun PlayerRoot(initialSection: Section = Section.LIVE) {
                         login = null
                     },
                 )
-                Section.MOVIES -> CatalogScreen(VodKind.MOVIE, current, update, store, tabs)
-                Section.SERIES -> CatalogScreen(VodKind.SERIES, current, update, store, tabs)
+                Section.MOVIES -> CatalogScreen(
+                    VodKind.MOVIE, current, update, store, tabs,
+                    openId = open?.takeIf { it.kind == VodKind.MOVIE }?.id,
+                    onOpenFinished = onOpenFinished,
+                )
+                Section.SERIES -> CatalogScreen(
+                    VodKind.SERIES, current, update, store, tabs,
+                    openId = open?.takeIf { it.kind == VodKind.SERIES }?.id,
+                    onOpenFinished = onOpenFinished,
+                )
             }
         }
     }

@@ -482,3 +482,55 @@ fun RowMessage(text: String) {
         style = WiptvType.metadata.copy(color = WiptvColors.quiet),
     )
 }
+
+/** A film or series from your IPTV provider, in the same frame as the other posters, tagged "IPTV". */
+@Composable
+internal fun IptvPosterCard(title: IptvTitle, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    var focused by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.width(PosterWidth + ArtFocusGap * 2)) {
+        ArtFrame(
+            width = PosterWidth,
+            height = PosterHeight,
+            onFocusChange = { focused = it },
+            onClick = onClick,
+            modifier = modifier,
+        ) {
+            Text(
+                text = title.name,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center).padding(10.dp),
+                style = WiptvType.metadata.copy(color = WiptvColors.secondary),
+            )
+            if (title.posterUrl != null) {
+                AsyncImage(
+                    model = title.posterUrl,
+                    contentDescription = title.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            Text(
+                text = "IPTV",
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(5.dp)
+                    .background(WiptvColors.focus, RoundedCornerShape(50))
+                    .padding(horizontal = 7.dp, vertical = 2.dp),
+                style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Bold, color = WiptvColors.onLight),
+            )
+        }
+        Text(
+            text = listOfNotNull(title.name, title.year?.takeUnless { title.name.contains(it) }).joinToString(" · "),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp).height(36.dp),
+            style = TextStyle(
+                fontSize = 14.sp,
+                lineHeight = 18.sp,
+                fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
+                color = if (focused) WiptvColors.text else WiptvColors.secondary,
+            ),
+        )
+    }
+}

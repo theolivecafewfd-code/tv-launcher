@@ -1,5 +1,10 @@
 package dev.tvlauncher
 
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.ui.platform.LocalContext
+import dev.wiptv.design.RowScrolling
 import androidx.compose.ui.graphics.Color
 import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvShapes
@@ -63,6 +68,9 @@ fun SearchScreen(
 ) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<Title>>(emptyList()) }
+    // Your IPTV provider's films and series, from WIPTV Player's list on the TV.
+    var iptvResults by remember { mutableStateOf<List<IptvTitle>>(emptyList()) }
+    val context = LocalContext.current
     var searching by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     var fieldFocused by remember { mutableStateOf(false) }
@@ -86,6 +94,7 @@ fun SearchScreen(
         val text = query.trim()
         if (text.length < 2) {
             results = emptyList()
+            iptvResults = emptyList()
             searching = false
             failed = false
             return@LaunchedEffect
@@ -93,6 +102,7 @@ fun SearchScreen(
         searching = true
         delay(450)
         failed = false
+        iptvResults = Iptv.search(context, text)
         results = try {
             Catalog.search(text)
         } catch (e: Exception) {
@@ -160,10 +170,12 @@ fun SearchScreen(
                     query.trim().length < 2 -> "Type at least two letters. Titles on Netflix or Prime come first."
                     searching -> "Searching…"
                     failed -> "Couldn't reach TMDB. Check the internet connection."
-                    results.isEmpty() -> "Nothing found for \"${query.trim()}\""
+                    results.isEmpty() && iptvResults.isEmpty() -> "Nothing found for \"${query.trim()}\""
+                    results.isEmpty() -> "${iptvResults.size} on your IPTV"
                     else -> {
                         val available = results.count { it.sources.isNotEmpty() }
-                        "$available on your services · ${results.size - available} elsewhere (dimmed)"
+                        val onIptv = if (iptvResults.isEmpty()) "" else "${iptvResults.size} on your IPTV · "
+                        "$onIptv$available on your services · ${results.size - available} elsewhere (dimmed)"
                     }
                 },
                 style = WiptvType.hint,
@@ -176,8 +188,33 @@ fun SearchScreen(
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // Your IPTV provider's matches first, in their own row; OK opens them in the player.
+                if (iptvResults.isNotEmpty()) {
+                    item(key = "iptv", span = { GridItemSpan(maxLineSpan) }) {
+                        Column {
+                            Text(text = "On your IPTV", modifier = Modifier.padding(bottom = 2.dp), style = RowHeading)
+                            RowScrolling(start = 0.dp, end = 72.dp) {
+                                LazyRow(
+                                    contentPadding = PaddingValues(top = 6.dp, bottom = 2.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    items(iptvResults, key = { "${it.type}:${it.id}" }) { found ->
+                                        IptvPosterCard(
+                                            title = found,
+                                            onClick = { Iptv.open(context, found) },
+                                            modifier = if (found == iptvResults.first()) Modifier.focusRequester(firstResult) else Modifier,
+                                        )
+                                    }
+                                }
+                            }
+                            if (results.isNotEmpty()) {
+                                Text(text = "Netflix, Prime and more", modifier = Modifier.padding(top = 10.dp), style = RowHeading)
+                            }
+                        }
+                    }
+                }
                 items(results, key = { it.key }) { title ->
-                    val isFirst = title.key == results.firstOrNull()?.key
+                    val isFirst = iptvResults.isEmpty() && title.key == results.firstOrNull()?.key
                     Box(modifier = Modifier.alpha(if (title.sources.isEmpty()) 0.45f else 1f)) {
                         PosterCard(
                             title = title,

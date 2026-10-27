@@ -4,6 +4,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import android.util.JsonReader
+import android.util.JsonToken
+import java.io.InputStreamReader
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -426,8 +429,60 @@ object Xtream {
 
     private fun encode(text: String): String = URLEncoder.encode(text, "UTF-8")
 
+    /**
+     * Every film or series the provider has, handed over one at a time as it downloads, so even a
+     * very large catalogue never sits in memory as a whole. For the player's own title list
+     * ([CatalogIndex]), which the launcher asks about. Blocking: call it from a background
+     * thread (it stays on the caller's thread, which the index's database transaction needs).
+     */
+    fun forEachVod(login: Login, kind: VodKind, each: (IndexedTitle) -> Unit) {
+        val action = if (kind == VodKind.MOVIE) "get_vod_streams" else "get_series"
+        val idKey = if (kind == VodKind.MOVIE) "stream_id" else "series_id"
+        val posterKey = if (kind == VodKind.MOVIE) "stream_icon" else "cover"
+        fetch("${api(login)}&action=$action") { input ->
+            val reader = JsonReader(InputStreamReader(input, Charsets.UTF_8))
+            reader.isLenient = true
+            // Some panels answer an empty catalogue with {} or nothing.
+            if (reader.peek() != JsonToken.BEGIN_ARRAY) return@fetch
+            reader.beginArray()
+            while (reader.hasNext()) {
+                if (reader.peek() != JsonToken.BEGIN_OBJECT) {
+                    reader.skipValue()
+                    continue
+                }
+                val fields = HashMap<String, String>()
+                reader.beginObject()
+                while (reader.hasNext()) {
+                    val name = reader.nextName()
+                    when (reader.peek()) {
+                        JsonToken.STRING, JsonToken.NUMBER -> fields[name] = reader.nextString()
+                        else -> reader.skipValue()
+                    }
+                }
+                reader.endObject()
+                val id = fields[idKey]?.trim()?.toLongOrNull() ?: continue
+                val title = fields["name"]?.trim().orEmpty()
+                if (title.isEmpty()) continue
+                each(
+                    IndexedTitle(
+                        kind = kind,
+                        id = id,
+                        name = title,
+                        year = yearOf(fields["releaseDate"] ?: fields["release_date"] ?: fields["year"]),
+                        tmdb = (fields["tmdb"] ?: fields["tmdb_id"])?.trim()?.toLongOrNull()?.takeIf { it > 0 },
+                        poster = imageUrl(fields[posterKey]),
+                        extension = fields["container_extension"]?.trim()?.ifBlank { null },
+                        categoryId = fields["category_id"]?.trim().orEmpty(),
+                    ),
+                )
+            }
+        }
+    }
+
+    private fun get(url: String): String = fetch(url) { it.bufferedReader().readText() }
+
     /** A GET request, following redirects by hand (including http → https, which Android won't). */
-    private fun get(url: String): String {
+    private fun <T> fetch(url: String, read: (java.io.InputStream) -> T): T {
         var current = url
         repeat(5) {
             val connection = try {
@@ -456,7 +511,7 @@ object Xtream {
                             ?: throw XtreamException("The server sent a broken redirect.")
                         current = URL(URL(current), location).toString()
                     }
-                    in 200..299 -> return connection.inputStream.bufferedReader().use { it.readText() }
+                    in 200..299 -> return connection.inputStream.use(read)
                     401, 403 -> throw XtreamException("The server refused the sign-in. Check your details, or whether your subscription has ended.")
                     else -> throw XtreamException("The server answered with an error ($code).")
                 }
