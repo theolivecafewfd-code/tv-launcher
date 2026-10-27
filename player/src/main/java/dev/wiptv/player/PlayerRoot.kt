@@ -20,6 +20,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.Alignment
+import dev.wiptv.design.GlassPill
+import dev.wiptv.design.SectionCapsule
+import dev.wiptv.design.WiptvButton
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.Wordmark
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
@@ -28,16 +37,19 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** The player's colours: the same dark purple family as the launcher. */
+/**
+ * The player's colours, now taken from the shared WIPTV glass tokens (the design module), so the
+ * launcher and the player match. Names kept so existing screens pick the new look up as they are.
+ */
 internal object Palette {
-    val background = Color(0xFF16111E)
-    val text = Color(0xFFF4F1F8)
-    val quiet = Color(0xFFB3AAC2)
-    val tile = Color(0xFF241D30)
-    val tileFocused = Color(0xFF332A44)
-    val glow = Color(0xFFEDE4FF)
-    val good = Color(0xFF7FD69A)
-    val warn = Color(0xFFFFB86B)
+    val background = WiptvColors.background
+    val text = WiptvColors.text
+    val quiet = WiptvColors.secondary
+    val tile = WiptvColors.surface
+    val tileFocused = WiptvColors.elevated
+    val glow = WiptvColors.focus
+    val good = WiptvColors.positive
+    val warn = WiptvColors.warning
 }
 
 /** The player's three parts, switched with the tabs at the top left. */
@@ -62,7 +74,7 @@ fun PlayerRoot() {
     } else {
         var section by remember { mutableStateOf(Section.LIVE) }
         val store = remember { VodStore(context) }
-        val tabs: @Composable () -> Unit = { SectionTabs(selected = section, onSelect = { section = it }) }
+        val tabs: @Composable () -> Unit = { SectionTabs(selected = section, onSelect = { section = it }, update = update) }
         // Only one part is on screen at a time, so leaving Live TV also stops its stream.
         key(section) {
             when (section) {
@@ -143,33 +155,15 @@ fun UpdatePill(update: UpdateHandle, modifier: Modifier = Modifier) {
         UpdateState.Installing -> "Installing update…"
         is UpdateState.Failed -> "Update failed · press to retry"
     }
-    val loud = state is UpdateState.Available || state is UpdateState.Failed
-    val shape = RoundedCornerShape(50)
-    Surface(
+    GlassPill(
+        text = label,
         onClick = update.onClick,
-        modifier = modifier,
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (loud) Palette.glow else Palette.tile,
-            contentColor = if (loud) Palette.background else Palette.quiet,
-            focusedContainerColor = Color.White,
-            focusedContentColor = Palette.background,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
-    ) {
-        Text(
-            text = label,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .padding(horizontal = 14.dp, vertical = 7.dp),
-            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold),
-        )
-    }
+        loud = state is UpdateState.Available || state is UpdateState.Failed,
+        modifier = modifier.widthIn(max = 320.dp),
+    )
 }
 
-/** A wide, rounded button in the player's style. */
+/** A button in the WIPTV glass style (primary ones rest on a light fill). */
 @Composable
 fun PlayerButton(
     text: String,
@@ -178,59 +172,23 @@ fun PlayerButton(
     primary: Boolean = false,
     enabled: Boolean = true,
 ) {
-    val shape = RoundedCornerShape(10.dp)
-    Surface(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier,
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (primary) Palette.glow else Palette.tile,
-            contentColor = if (primary) Palette.background else Palette.text,
-            focusedContainerColor = Color.White,
-            focusedContentColor = Palette.background,
-            disabledContainerColor = Palette.tile.copy(alpha = 0.5f),
-            disabledContentColor = Palette.quiet,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-        ),
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 22.dp, vertical = 10.dp),
-            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-        )
-    }
+    WiptvButton(text = text, onClick = onClick, modifier = modifier, primary = primary, enabled = enabled)
 }
 
-/** Live TV · Movies · Series, at the top left of each part. OK switches. */
+/**
+ * The header across the top of Live TV, Movies and Series: the wordmark, the section capsule in
+ * the middle and the update pill on the right. OK on a section switches to it.
+ */
 @Composable
-fun SectionTabs(selected: Section, onSelect: (Section) -> Unit) {
-    androidx.compose.foundation.layout.Row(
-        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(4.dp),
-    ) {
-        for (section in Section.entries) {
-            val isSelected = section == selected
-            val shape = RoundedCornerShape(50)
-            Surface(
-                onClick = { if (!isSelected) onSelect(section) },
-                shape = ClickableSurfaceDefaults.shape(shape = shape),
-                colors = ClickableSurfaceDefaults.colors(
-                    containerColor = if (isSelected) Palette.glow else Color.Transparent,
-                    contentColor = if (isSelected) Palette.background else Palette.quiet,
-                    focusedContainerColor = Color.White,
-                    focusedContentColor = Palette.background,
-                ),
-                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-            ) {
-                Text(
-                    text = section.label,
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
-                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold),
-                )
-            }
-        }
+fun SectionTabs(selected: Section, onSelect: (Section) -> Unit, update: UpdateHandle) {
+    Box(modifier = Modifier.fillMaxWidth().height(40.dp)) {
+        Wordmark(modifier = Modifier.align(Alignment.CenterStart))
+        SectionCapsule(
+            labels = Section.entries.map { it.label },
+            selected = Section.entries.indexOf(selected),
+            onSelect = { onSelect(Section.entries[it]) },
+            modifier = Modifier.align(Alignment.Center),
+        )
+        UpdatePill(update, modifier = Modifier.align(Alignment.CenterEnd))
     }
 }

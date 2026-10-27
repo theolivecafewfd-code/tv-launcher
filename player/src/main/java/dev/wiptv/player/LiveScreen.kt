@@ -48,6 +48,14 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.heightIn
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.focusOutline
+import dev.wiptv.design.glass
+import dev.wiptv.design.selectedMarker
+import dev.wiptv.design.wiptvBackground
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -248,7 +256,7 @@ fun LiveScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Palette.background)
+            .wiptvBackground()
             .onPreviewKeyEvent { event ->
                 // Play/Pause goes full screen on the preview from anywhere on this screen.
                 val key = event.nativeKeyEvent.keyCode
@@ -260,15 +268,27 @@ fun LiveScreen(
                     false
                 }
             }
-            .padding(start = 24.dp, end = 24.dp, top = 18.dp),
+            .padding(start = 32.dp, end = 32.dp, top = 20.dp),
     ) {
-        Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Groups.
-            Column(modifier = Modifier.width(190.dp).fillMaxHeight()) {
-                header()
-                Spacer(Modifier.height(8.dp))
-                UpdatePill(update)
-                Spacer(Modifier.height(8.dp))
+      Column(modifier = Modifier.fillMaxSize()) {
+        // The shared header: wordmark, Live TV · Movies · Series, update.
+        header()
+        Spacer(Modifier.height(12.dp))
+        Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            // Groups, on a glass panel.
+            Column(
+                modifier = Modifier
+                    .width(200.dp)
+                    .fillMaxHeight()
+                    .padding(bottom = 20.dp)
+                    .glass(WiptvShapes.panel)
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+            ) {
+                Text(
+                    text = "Categories",
+                    modifier = Modifier.padding(start = 12.dp, bottom = 4.dp),
+                    style = WiptvType.hint,
+                )
                 when {
                     groupsError != null -> {
                         Text(text = groupsError!!, style = TextStyle(fontSize = 13.sp, color = Palette.warn))
@@ -297,8 +317,8 @@ fun LiveScreen(
                             }
                         }
                         .focusGroup(),
-                    contentPadding = PaddingValues(vertical = 4.dp, horizontal = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp, horizontal = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     item(key = FAVOURITES_ID) {
                         val selected = selectedGroup == FAVOURITES_ID
@@ -312,7 +332,7 @@ fun LiveScreen(
                             Text(
                                 text = "★ Favourites",
                                 maxLines = 1,
-                                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Palette.glow),
+                                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
                             )
                         }
                     }
@@ -340,18 +360,12 @@ fun LiveScreen(
                             selected = false,
                             modifier = if (list.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier,
                         ) {
-                            Text(
-                                text = "Edit groups",
-                                style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
-                            )
+                            Text(text = "Edit categories", style = TextStyle(fontSize = 13.sp))
                         }
                     }
                     item(key = "account") {
                         ListItem(onClick = { showAccount = true }, selected = false) {
-                            Text(
-                                text = "Account & sign out",
-                                style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
-                            )
+                            Text(text = "Account & sign out", style = TextStyle(fontSize = 13.sp))
                         }
                     }
                 }
@@ -359,7 +373,7 @@ fun LiveScreen(
 
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 // Preview and what's on.
-                Row(modifier = Modifier.height(176.dp)) {
+                Row(modifier = Modifier.height(136.dp)) {
                     Preview(live = live, attached = watching == null, onClick = ::watchPreview)
                     Spacer(Modifier.width(16.dp))
                     NowPanel(
@@ -378,7 +392,7 @@ fun LiveScreen(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(start = 4.dp).width(ChannelCellWidth - 8.dp),
-                        style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
+                        style = WiptvType.control.copy(color = WiptvColors.text),
                     )
                     Text(
                         text = when {
@@ -407,8 +421,8 @@ fun LiveScreen(
                             }
                         }
                         .focusGroup(),
-                    contentPadding = PaddingValues(top = 2.dp, bottom = 12.dp, start = 4.dp, end = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp, start = 4.dp, end = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     itemsIndexed(channels.orEmpty(), key = { _, c -> c.id }) { index, channel ->
                         // Each row loads its own guide as it comes on screen, and again every half hour.
@@ -436,6 +450,7 @@ fun LiveScreen(
                 }
             }
         }
+      }
     }
 
     val playing = watching
@@ -534,23 +549,24 @@ private fun ListItem(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val shape = RoundedCornerShape(8.dp)
+    val shape = WiptvShapes.card
     Surface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().heightIn(min = 40.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (selected) Palette.tile else androidx.compose.ui.graphics.Color.Transparent,
-            contentColor = Palette.text,
-            focusedContainerColor = Palette.tileFocused,
-            focusedContentColor = Palette.text,
+            containerColor = if (selected) WiptvColors.focus.copy(alpha = 0.12f) else androidx.compose.ui.graphics.Color.Transparent,
+            contentColor = if (selected) WiptvColors.text else WiptvColors.secondary,
+            focusedContainerColor = WiptvColors.focus,
+            focusedContentColor = WiptvColors.onLight,
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
-        border = ClickableSurfaceDefaults.border(
-            focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-        ),
+        border = focusOutline(shape),
     ) {
-        Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) { content() }
+        Box(
+            modifier = Modifier.selectedMarker(selected).padding(horizontal = 12.dp, vertical = 10.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) { content() }
     }
 }
 
@@ -563,11 +579,13 @@ private fun ListItem(
  */
 @Composable
 private fun Preview(live: LivePlayer, attached: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(17.dp)
     var focused by remember { mutableStateOf(false) }
     Box(
         modifier = Modifier
-            .size(width = 313.dp, height = 176.dp)
+            .size(width = 242.dp, height = 136.dp)
+            .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f), WiptvShapes.panel)
+            .padding(3.dp)
             .onFocusChanged { focused = it.isFocused }
             .onKeyEvent { event ->
                 val key = event.nativeKeyEvent.keyCode
