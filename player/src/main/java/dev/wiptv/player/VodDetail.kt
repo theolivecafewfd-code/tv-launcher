@@ -229,7 +229,8 @@ fun VodDetailScreen(
 
             // Rows already on screen stay put; one coming on from below settles near the top, so
             // the header scrolls away and about five episodes show. Up on the buttons brings it back.
-            PivotScrolling(pivot = 32.dp) {
+            // Back up to the buttons or season tabs: one smooth scroll to the top, header included.
+            PivotScrolling(pivot = 32.dp, upToTopBelow = 64.dp) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -239,8 +240,6 @@ fun VodDetailScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                // Back on the buttons: show the whole header again.
-                                .onFocusChanged { if (it.hasFocus) scope.launch { listState.animateScrollToItem(0) } }
                                 .padding(start = 48.dp, end = 48.dp, top = 44.dp, bottom = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(32.dp),
                         ) {
