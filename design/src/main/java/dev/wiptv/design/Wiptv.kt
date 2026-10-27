@@ -111,6 +111,7 @@ fun Modifier.selectedMarker(selected: Boolean, color: Color = WiptvColors.focus)
     }
 
 /** The 2 dp focus outline every focusable item uses. */
+@Composable
 fun focusOutline(shape: Shape, width: Dp = 2.dp) =
     ClickableSurfaceDefaults.border(
         focusedBorder = Border(border = BorderStroke(width, WiptvColors.focus), shape = shape),
