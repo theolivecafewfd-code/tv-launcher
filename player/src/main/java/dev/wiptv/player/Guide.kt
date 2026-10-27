@@ -139,35 +139,20 @@ fun GuideRow(
     modifier: Modifier = Modifier,
     playing: Boolean = false,
     favourite: Boolean = false,
-    onLongClick: (() -> Unit)? = null,
+    onMenu: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(8.dp)
-    // Holding OK repeats the key press; the first repeat counts as a hold. The release that
-    // follows is swallowed, otherwise it would also act as a normal OK press.
-    val held = remember { booleanArrayOf(false) }
     Surface(
         onClick = onClick,
         modifier = modifier
+            // The remote's Menu (≡) button: adds the channel to Favourites, or takes it off.
+            // (Holding OK didn't reach the app reliably on the Fire Stick.)
             .onPreviewKeyEvent { event ->
-                val key = event.nativeKeyEvent.keyCode
-                val isOk = key == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
-                    key == android.view.KeyEvent.KEYCODE_ENTER ||
-                    key == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
-                when {
-                    !isOk || onLongClick == null -> false
-                    event.type == KeyEventType.KeyDown && event.nativeKeyEvent.repeatCount > 0 -> {
-                        if (!held[0]) {
-                            held[0] = true
-                            onLongClick?.invoke()
-                        }
-                        true
-                    }
-                    event.type == KeyEventType.KeyUp && held[0] -> {
-                        held[0] = false
-                        true
-                    }
-                    else -> false
+                if (onMenu == null || event.nativeKeyEvent.keyCode != android.view.KeyEvent.KEYCODE_MENU) {
+                    return@onPreviewKeyEvent false
                 }
+                if (event.type == KeyEventType.KeyUp) onMenu()
+                true
             }
             .fillMaxWidth()
             .height(46.dp),
@@ -284,7 +269,7 @@ fun NowPanel(channel: Channel?, programmes: List<Programme>?, now: Long, modifie
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(5.dp)) {
         if (channel == null) {
             Text(
-                text = "OK on a channel previews it here. OK again, or Play/Pause, watches it full screen. Hold OK to add a favourite.",
+                text = "OK on a channel previews it here. OK again, or Play/Pause, watches it full screen. Menu (≡) adds a favourite.",
                 style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
             )
             return@Column

@@ -109,6 +109,18 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
     var favourites by remember { mutableStateOf(favouritePrefs.load()) }
     val favouriteIds = favourites.map { it.id }.toSet()
 
+    /** Menu (≡) on a channel: adds it to Favourites or takes it off, with a short message. */
+    fun toggleFavourite(channel: Channel) {
+        favourites = FavouritePrefs.toggle(favourites, channel)
+        favouritePrefs.save(favourites)
+        val added = favourites.any { it.id == channel.id }
+        android.widget.Toast.makeText(
+            context,
+            if (added) "Added ${channel.name} to Favourites" else "Removed ${channel.name} from Favourites",
+            android.widget.Toast.LENGTH_SHORT,
+        ).show()
+    }
+
     // The group the preview's channel was picked from, so full screen can change channel within it.
     var previewSource by remember { mutableStateOf<Pair<String, List<Channel>>?>(null) }
 
@@ -367,7 +379,7 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                             selectedGroup == null -> ""
                             channels == null -> "Loading channels…"
                             channels.isEmpty() && selectedGroup == FAVOURITES_ID ->
-                                "No favourites yet. Hold OK on a channel to add it."
+                                "No favourites yet. Press Menu (≡) on a channel to add it."
                             channels.isEmpty() -> "No channels in this group"
                             else -> ""
                         },
@@ -406,17 +418,7 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                                 previewSource = (selectedGroup ?: "") to channels.orEmpty()
                                 if (live.channel?.id == channel.id) watchPreview() else live.play(login, format, channel)
                             },
-                            // Holding OK adds the channel to Favourites, or takes it off.
-                            onLongClick = {
-                                favourites = FavouritePrefs.toggle(favourites, channel)
-                                favouritePrefs.save(favourites)
-                                val added = favourites.any { it.id == channel.id }
-                                android.widget.Toast.makeText(
-                                    context,
-                                    if (added) "Added ${channel.name} to Favourites" else "Removed ${channel.name} from Favourites",
-                                    android.widget.Toast.LENGTH_SHORT,
-                                ).show()
-                            },
+                            onMenu = { toggleFavourite(channel) },
                             modifier = Modifier
                                 .focusRequester(requesterFor(channel.id))
                                 .onFocusChanged { focus ->
@@ -453,6 +455,8 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
             },
             nowShowing = { guide.nowShowing(it) },
             ensureGuide = { guide.ensure(it) },
+            isFavourite = { channel -> favourites.any { it.id == channel.id } },
+            onToggleFavourite = ::toggleFavourite,
             onChannel = { LastWatched.save(context, it) },
             onClose = { last, groupId ->
                 watching = null
