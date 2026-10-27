@@ -24,6 +24,8 @@ import android.net.Uri
  *   poster, backdrop. The launcher shows it as its own My List, so there's one list for both.
  *   Insert (values kind, id) adds a title from the provider's list; delete with `?kind=…&id=…`
  *   takes one off.
+ * - `content://dev.wiptv.player.catalog/channels`: your favourite live channels, in your order:
+ *   id, name (without its quality tag), logo. Never a stream address.
  *
  * Rows: kind, id, name, year, poster.
  */
@@ -38,6 +40,13 @@ class CatalogProvider : ContentProvider() {
         val status = uri.lastPathSegment == "status"
         val login = if (status || CatalogIndex.isStale(context)) LoginStore.load(context) else null
         login?.let { CatalogIndex.refreshIfStale(context, it) }
+        if (uri.lastPathSegment == "channels") {
+            val cursor = MatrixCursor(arrayOf("id", "name", "logo"))
+            FavouritePrefs(context).load().forEach { c ->
+                cursor.addRow(arrayOf<Any?>(c.id, ChannelLabels.of(c.name).name, c.logo))
+            }
+            return cursor
+        }
         if (uri.lastPathSegment == "mylist") {
             val cursor = MatrixCursor(arrayOf("kind", "id", "name", "year", "poster", "backdrop"))
             VodStore(context).favourites().forEach { f ->

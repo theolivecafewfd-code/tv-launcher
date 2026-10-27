@@ -144,6 +144,11 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     LaunchedEffect(refreshKey) { continueItems = Iptv.continueWatching(context) }
     val continueRow = remember { FocusRequester() }
 
+    // Your channels: the live channels you've starred in the player, refreshed each time you come home.
+    var channels by remember { mutableStateOf<List<IptvChannel>>(emptyList()) }
+    LaunchedEffect(refreshKey) { channels = Iptv.favouriteChannels(context) }
+    val channelRow = remember { FocusRequester() }
+
     // TV Shows or Movies, and the rows for it from TMDB, limited to your services.
     var mediaType by remember { mutableStateOf(MediaType.TV) }
     var rows by remember { mutableStateOf<List<ContentRow>>(emptyList()) }
@@ -399,7 +404,9 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                                 focusKey = focusKey,
                                 focusTick = focusTick,
                                 rowRequester = appsRow,
-                                down = if (continueItems.isNotEmpty()) continueRow else allRows.firstOrNull()?.let { rowRequester(it.key) },
+                                down = continueRow.takeIf { continueItems.isNotEmpty() }
+                                    ?: channelRow.takeIf { channels.isNotEmpty() }
+                                    ?: allRows.firstOrNull()?.let { rowRequester(it.key) },
                             )
                         }
                     }
@@ -416,6 +423,23 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                                 },
                                 requester = continueRow,
                                 up = appsRow,
+                                down = channelRow.takeIf { channels.isNotEmpty() } ?: allRows.firstOrNull()?.let { rowRequester(it.key) },
+                            )
+                        }
+                    }
+                }
+                if (channels.isNotEmpty()) {
+                    item(key = "channels") {
+                        Box(Modifier.padding(top = 14.dp)) {
+                            ChannelRow(
+                                channels = channels,
+                                onWatch = {
+                                    if (!Iptv.watchChannel(context, it)) {
+                                        Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                requester = channelRow,
+                                up = continueRow.takeIf { continueItems.isNotEmpty() } ?: appsRow,
                                 down = allRows.firstOrNull()?.let { rowRequester(it.key) },
                             )
                         }
@@ -428,7 +452,8 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                             onOpen = openTitle,
                             onPlay = playTitle,
                             requester = rowRequester(row.key),
-                            up = if (i > 0) rowRequester(allRows[i - 1].key) else if (continueItems.isNotEmpty()) continueRow else appsRow,
+                            up = if (i > 0) rowRequester(allRows[i - 1].key) else channelRow.takeIf { channels.isNotEmpty() }
+                                ?: continueRow.takeIf { continueItems.isNotEmpty() } ?: appsRow,
                             down = allRows.getOrNull(i + 1)?.let { rowRequester(it.key) },
                         )
                     }

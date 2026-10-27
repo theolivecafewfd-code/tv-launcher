@@ -23,10 +23,15 @@ private const val PIVOT = 0.14f
  * settles it [PIVOT] of the way down.
  */
 @OptIn(ExperimentalFoundationApi::class)
-private class PivotScroll(private val rowPivot: Float, private val tall: Float, private val resumeCard: Float) : BringIntoViewSpec {
+private class PivotScroll(
+    private val rowPivot: Float,
+    private val tall: Float,
+    private val resumeCard: Float,
+    private val channelTile: Float,
+) : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
-        // Posters, and Continue watching's wide cards, settle as rows do.
-        if (size >= tall || kotlin.math.abs(size - resumeCard) < 2f) return offset - rowPivot
+        // Posters, Continue watching's cards and channel tiles settle as rows do.
+        if (size >= tall || kotlin.math.abs(size - resumeCard) < 2f || kotlin.math.abs(size - channelTile) < 2f) return offset - rowPivot
         val fullyVisible = offset >= 0f && offset + size <= containerSize
         if (fullyVisible) return 0f
         // Going up to something short (the apps, the featured title, the buttons above it): carry
@@ -49,6 +54,9 @@ private val TallItem = 193.dp
  */
 private val ResumeCard = 216.dp
 
+/** A channel tile with its focus gap (108 + 2 × 3): settles like a row although it's short. */
+private val ChannelTile = 114.dp
+
 /** Space above a focused poster: room for its row's heading. */
 private val RowPivot = 34.dp
 
@@ -63,7 +71,7 @@ fun PivotScrolling(content: @Composable () -> Unit) {
     val normal = LocalBringIntoViewSpec.current
     val density = LocalDensity.current
     val spec = remember(density) {
-        with(density) { PivotScroll(rowPivot = RowPivot.toPx(), tall = TallItem.toPx(), resumeCard = ResumeCard.toPx()) }
+        with(density) { PivotScroll(rowPivot = RowPivot.toPx(), tall = TallItem.toPx(), resumeCard = ResumeCard.toPx(), channelTile = ChannelTile.toPx()) }
     }
     CompositionLocalProvider(
         LocalNormalScroll provides normal,

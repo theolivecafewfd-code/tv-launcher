@@ -379,3 +379,5 @@ Kept up to date as stages land. "Built" means the GitHub build passed; "emulator
 - **Years in names.** A trailing "(1987)" that matches the year in the details line is left off the displayed name; bare numbers ("Blade Runner 2049") are never touched (#46).
 - **Episode titles** shown cleaned ("1 · The Stolen Eagle"); the provider's title is kept unchanged in the data (#39).
 - **Start section.** The player accepts a `section` extra (LIVE, MOVIES or SERIES); the default launch destination is unchanged (#36).
+- **Details header on the way up.** Landing on the buttons or season tabs near the top of a details page scrolls the whole header back on screen in one movement (#55, #64).
+- **My List shared with the launcher.** The player's My List is the one list for both apps: the launcher adds and removes titles the provider has through `CatalogProvider`, and the player re-reads it when it comes back to the front (#64).

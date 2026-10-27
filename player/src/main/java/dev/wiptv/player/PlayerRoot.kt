@@ -64,7 +64,12 @@ data class OpenTitle(val kind: VodKind, val id: Long, val resumeKey: String? = n
 
 /** Shows the sign-in screen until there are saved details, then Live TV, Movies or Series. */
 @Composable
-fun PlayerRoot(initialSection: Section = Section.LIVE, open: OpenTitle? = null, onOpenFinished: () -> Unit = {}) {
+fun PlayerRoot(
+    initialSection: Section = Section.LIVE,
+    open: OpenTitle? = null,
+    openChannel: Long? = null,
+    onOpenFinished: () -> Unit = {},
+) {
     val context = LocalContext.current
     var login by remember { mutableStateOf(LoginStore.load(context)) }
     val update = rememberUpdateState()
@@ -91,6 +96,7 @@ fun PlayerRoot(initialSection: Section = Section.LIVE, open: OpenTitle? = null, 
                     login = current,
                     update = update,
                     header = tabs,
+                    openChannel = openChannel,
                     onSignOut = {
                         LoginStore.clear(context)
                         login = null
