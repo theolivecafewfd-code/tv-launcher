@@ -10,12 +10,14 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -36,9 +38,15 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -54,12 +62,14 @@ import kotlinx.coroutines.delay
 /** Focus key for the "Edit apps" tile at the end of the tray. */
 internal const val EDIT_TILE_KEY = "__edit_apps__"
 
-/** App tiles in the tray: 16:9 like an Android TV banner, so banners show whole. */
-private val TrayTileWidth = 156.dp
-private val TrayTileHeight = 88.dp
-
-/** The smaller square-ish tiles after the apps: quick settings and Edit apps. */
-private val TraySmallWidth = 104.dp
+/**
+ * App tiles in the tray: 16:9 like an Android TV banner, so banners show whole. About six fit
+ * across, as in Wayne's mockup; they're sized from the tray's width, between these limits.
+ */
+private val TrayTileMin = 120.dp
+private val TrayTileMax = 156.dp
+private const val TILES_ACROSS = 6
+private val TrayGap = 16.dp
 
 private val TrayShape = RoundedCornerShape(24.dp)
 private const val TRAY_MS = 200
@@ -133,25 +143,31 @@ fun AppsTray(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-                    verticalAlignment = Alignment.Bottom,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(text = "Your apps", style = WiptvType.sectionHeading, modifier = Modifier.weight(1f))
-                    Text(text = "Back to close", style = WiptvType.hint)
+                    Text(text = "Your apps", style = WiptvType.section, modifier = Modifier.weight(1f))
+                    BackIcon()
+                    Text(text = "Back to close", style = WiptvType.metadata, modifier = Modifier.padding(start = 8.dp))
                 }
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                // Six tiles across the tray's inner width, within the size limits.
+                val tileWidth = ((maxWidth - 48.dp - TrayGap * (TILES_ACROSS - 1)) / TILES_ACROSS).coerceIn(TrayTileMin, TrayTileMax)
+                val tileHeight = tileWidth * 9f / 16f
+                val smallWidth = tileHeight * 1.2f
                 RowScrolling(start = 24.dp, end = 48.dp) {
                     LazyRow(
                         state = rowState,
-                        contentPadding = PaddingValues(start = 24.dp - ArtFocusGap, end = 24.dp - ArtFocusGap, top = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp - ArtFocusGap * 2),
+                        contentPadding = PaddingValues(start = 24.dp - ArtFocusGap, end = 24.dp - ArtFocusGap, top = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(TrayGap - ArtFocusGap * 2),
                     ) {
                         items(apps, key = { it.packageName }) { app ->
-                            TrayItem(label = app.label, width = TrayTileWidth) { focused ->
+                            TrayItem(label = app.label, width = tileWidth) { focused ->
                                 AppTile(
                                     app = app,
                                     onClick = { onLaunch(app) },
                                     onLongClick = { onLongPress(app) },
-                                    width = TrayTileWidth,
-                                    height = TrayTileHeight,
+                                    width = tileWidth,
+                                    height = tileHeight,
                                     labelInside = false,
                                     modifier = Modifier
                                         .focusRequester(requesterFor(app.packageName))
@@ -163,11 +179,11 @@ fun AppsTray(
                             }
                         }
                         items(QuickSetting.entries, key = { it.key }) { setting ->
-                            TrayItem(label = setting.label, width = TraySmallWidth) { focused ->
+                            TrayItem(label = setting.label, width = smallWidth) { focused ->
                                 QuickSettingTile(
                                     setting = setting,
-                                    width = TraySmallWidth,
-                                    height = TrayTileHeight,
+                                    width = smallWidth,
+                                    height = tileHeight,
                                     showLabel = false,
                                     modifier = Modifier
                                         .focusRequester(requesterFor(setting.key))
@@ -179,11 +195,11 @@ fun AppsTray(
                             }
                         }
                         item(key = EDIT_TILE_KEY) {
-                            TrayItem(label = "Edit apps", width = TraySmallWidth) { focused ->
+                            TrayItem(label = "Edit apps", width = smallWidth) { focused ->
                                 EditAppsTile(
                                     onClick = onEdit,
-                                    width = TraySmallWidth,
-                                    height = TrayTileHeight,
+                                    width = smallWidth,
+                                    height = tileHeight,
                                     modifier = Modifier
                                         .focusRequester(requesterFor(EDIT_TILE_KEY))
                                         .onFocusChanged {
@@ -195,8 +211,23 @@ fun AppsTray(
                         }
                     }
                 }
+                }
             }
         }
+    }
+}
+
+/** A thin circle with a left arrow, beside "Back to close". */
+@Composable
+private fun BackIcon() {
+    val colour = WiptvColors.secondary
+    androidx.compose.foundation.Canvas(Modifier.size(20.dp)) {
+        val w = size.width
+        val stroke = w * 0.07f
+        drawCircle(colour, radius = w / 2 - stroke, style = Stroke(stroke))
+        drawLine(colour, Offset(w * 0.30f, w / 2), Offset(w * 0.70f, w / 2), stroke, StrokeCap.Round)
+        drawLine(colour, Offset(w * 0.30f, w / 2), Offset(w * 0.47f, w * 0.33f), stroke, StrokeCap.Round)
+        drawLine(colour, Offset(w * 0.30f, w / 2), Offset(w * 0.47f, w * 0.67f), stroke, StrokeCap.Round)
     }
 }
 
@@ -216,18 +247,24 @@ private suspend fun focusTile(
     }
 }
 
-/** A tray tile with its name underneath, brighter when the tile has focus. */
+/** A tray tile with its name centred underneath, a little bolder when the tile has focus. */
 @Composable
 private fun TrayItem(label: String, width: Dp, tile: @Composable (onFocus: (Boolean) -> Unit) -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.width(width + ArtFocusGap * 2)) {
+    Column(modifier = Modifier.width(width + ArtFocusGap * 2), horizontalAlignment = Alignment.CenterHorizontally) {
         tile { focused = it }
         Text(
             text = label,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp),
-            style = WiptvType.caption.copy(color = if (focused) WiptvColors.text else WiptvColors.secondary),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(start = ArtFocusGap, end = ArtFocusGap, top = 8.dp),
+            style = WiptvType.caption.copy(
+                fontSize = 15.sp,
+                lineHeight = 20.sp,
+                color = WiptvColors.text,
+                fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
+            ),
         )
     }
 }
