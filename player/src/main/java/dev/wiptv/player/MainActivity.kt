@@ -30,8 +30,13 @@ class MainActivity : ComponentActivity() {
         val section = intent.getStringExtra(EXTRA_SECTION)?.let { name -> Section.entries.firstOrNull { it.name == name } }
         // The launcher's "Watch on IPTV" opens one title: a film plays, a series opens its page.
         // When you're done with it, the player closes and you're back in the launcher.
-        val open = intent.getStringExtra(EXTRA_OPEN_KIND)?.let { k -> VodKind.entries.firstOrNull { it.name == k } }
-            ?.let { kind -> intent.getLongExtra(EXTRA_OPEN_ID, -1).takeIf { it >= 0 }?.let { OpenTitle(kind, it) } }
+        val resumeKey = intent.getStringExtra(EXTRA_OPEN_RESUME)
+        val open = when {
+            // The launcher's Continue watching: play that film or episode from where you stopped.
+            resumeKey != null -> OpenTitle(if (resumeKey.startsWith("movie:")) VodKind.MOVIE else VodKind.SERIES, -1, resumeKey)
+            else -> intent.getStringExtra(EXTRA_OPEN_KIND)?.let { k -> VodKind.entries.firstOrNull { it.name == k } }
+                ?.let { kind -> intent.getLongExtra(EXTRA_OPEN_ID, -1).takeIf { it >= 0 }?.let { OpenTitle(kind, it) } }
+        }
         setContent {
             PlayerRoot(
                 initialSection = when (open?.kind) {
@@ -52,6 +57,9 @@ class MainActivity : ComponentActivity() {
         /** "MOVIE" or "SERIES", with [EXTRA_OPEN_ID]: a title to open straight away. */
         const val EXTRA_OPEN_KIND = "open_kind"
         const val EXTRA_OPEN_ID = "open_id"
+
+        /** A Continue watching key ("movie:…" or "episode:…") to resume straight away. */
+        const val EXTRA_OPEN_RESUME = "open_resume"
     }
 
     /** A plain (non-Compose) screen showing the last crash, so it still works if Compose crashed. */

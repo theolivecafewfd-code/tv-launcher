@@ -242,6 +242,7 @@ fun DetailScreen(
                                             text = "▶  Watch on IPTV",
                                             primary = true,
                                             onClick = {
+                                                History(context).add(title) // Recommended learns from it
                                                 if (!Iptv.open(context, found)) {
                                                     Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
                                                 }

@@ -126,6 +126,8 @@ fun CatalogScreen(
     tabs: @Composable () -> Unit,
     /** A title the launcher asked for: a film plays at once, a series opens its page. */
     openId: Long? = null,
+    /** A Continue watching key the launcher asked to resume: plays straight away. */
+    openResume: String? = null,
     /** Called when that title is closed, so the player can hand back to the launcher. */
     onOpenFinished: () -> Unit = {},
 ) {
@@ -200,6 +202,13 @@ fun CatalogScreen(
 
     // Opened from the launcher: once that film or series page is closed, go back there.
     var openedFromLauncher by remember { mutableStateOf(false) }
+    LaunchedEffect(openResume) {
+        val key = openResume ?: return@LaunchedEffect
+        val point = store.resumePoint(key) ?: return@LaunchedEffect
+        openedFromLauncher = true
+        playingNext = null
+        playing = point
+    }
     LaunchedEffect(openId) {
         val id = openId ?: return@LaunchedEffect
         val entry = withContext(Dispatchers.IO) { CatalogIndex.find(context, kind, id) }

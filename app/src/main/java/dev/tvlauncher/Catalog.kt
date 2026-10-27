@@ -98,8 +98,6 @@ object Catalog {
     suspend fun rows(type: MediaType): List<ContentRow> = coroutineScope {
         listOf(
             async { cached("${type.path}:top") { topTen(type) } },
-            async { cached("${type.path}:comedy") { genreRow(type, "comedy", "Comedy", COMEDY) } },
-            async { cached("${type.path}:docs") { genreRow(type, "docs", "Documentary", DOCUMENTARY) } },
         ).awaitAll().filter { it.items.isNotEmpty() }
     }
 
@@ -139,7 +137,6 @@ object Catalog {
         val seen = history.map { it.id }.toSet()
         val favouriteGenres = history
             .flatMap { it.genreIds }
-            .filter { it != COMEDY && it != DOCUMENTARY }
             .groupingBy { it }
             .eachCount()
             .entries

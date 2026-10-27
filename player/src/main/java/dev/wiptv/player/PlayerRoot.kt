@@ -60,7 +60,7 @@ internal object Palette {
 enum class Section(val label: String) { LIVE("Live TV"), MOVIES("Movies"), SERIES("Series") }
 
 /** A title another app asked the player to open (the launcher's "Watch on IPTV"). */
-data class OpenTitle(val kind: VodKind, val id: Long)
+data class OpenTitle(val kind: VodKind, val id: Long, val resumeKey: String? = null)
 
 /** Shows the sign-in screen until there are saved details, then Live TV, Movies or Series. */
 @Composable
@@ -98,12 +98,14 @@ fun PlayerRoot(initialSection: Section = Section.LIVE, open: OpenTitle? = null, 
                 )
                 Section.MOVIES -> CatalogScreen(
                     VodKind.MOVIE, current, update, store, tabs,
-                    openId = open?.takeIf { it.kind == VodKind.MOVIE }?.id,
+                    openId = open?.takeIf { it.kind == VodKind.MOVIE && it.resumeKey == null }?.id,
+                    openResume = open?.takeIf { it.kind == VodKind.MOVIE }?.resumeKey,
                     onOpenFinished = onOpenFinished,
                 )
                 Section.SERIES -> CatalogScreen(
                     VodKind.SERIES, current, update, store, tabs,
-                    openId = open?.takeIf { it.kind == VodKind.SERIES }?.id,
+                    openId = open?.takeIf { it.kind == VodKind.SERIES && it.resumeKey == null }?.id,
+                    openResume = open?.takeIf { it.kind == VodKind.SERIES }?.resumeKey,
                     onOpenFinished = onOpenFinished,
                 )
             }

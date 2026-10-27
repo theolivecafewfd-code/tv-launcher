@@ -16,6 +16,8 @@ import android.net.Uri
  *   entry for one title, or no rows.
  * - `content://dev.wiptv.player.catalog/search?q=…`: films and series whose name contains q.
  *
+ * - `content://dev.wiptv.player.catalog/continue`: what you've started, newest first: key, kind,
+ *   title, subtitle, poster, image, progress (0–1), left ("38 min left"). Never the stream address.
  * - `content://dev.wiptv.player.catalog/status`: one row: signed_in, films, series, refreshed,
  *   refreshing, error.
  *
@@ -32,6 +34,24 @@ class CatalogProvider : ContentProvider() {
         val status = uri.lastPathSegment == "status"
         val login = if (status || CatalogIndex.isStale(context)) LoginStore.load(context) else null
         login?.let { CatalogIndex.refreshIfStale(context, it) }
+        if (uri.lastPathSegment == "continue") {
+            val cursor = MatrixCursor(arrayOf("key", "kind", "title", "subtitle", "poster", "image", "progress", "left"))
+            VodStore(context).resumePoints().take(20).forEach { p ->
+                cursor.addRow(
+                    arrayOf<Any?>(
+                        p.key,
+                        if (p.key.startsWith("movie:")) "MOVIE" else "SERIES",
+                        p.title,
+                        p.subtitle,
+                        p.poster,
+                        p.image,
+                        p.progress.toDouble(),
+                        timeLeft(p),
+                    ),
+                )
+            }
+            return cursor
+        }
         if (status) {
             val s = CatalogIndex.status(context)
             return MatrixCursor(arrayOf("signed_in", "films", "series", "refreshed", "refreshing", "error")).apply {

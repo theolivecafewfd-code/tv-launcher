@@ -140,6 +140,11 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     // Back home: ask again about titles the IPTV list didn't have (it may have filled in since).
     LaunchedEffect(refreshKey) { IptvBadges.forgetMisses() }
 
+    // Continue watching: what you've started in WIPTV Player, refreshed each time you come home.
+    var continueItems by remember { mutableStateOf<List<IptvResume>>(emptyList()) }
+    LaunchedEffect(refreshKey) { continueItems = Iptv.continueWatching(context) }
+    val continueRow = remember { FocusRequester() }
+
     // TV Shows or Movies, and the rows for it from TMDB, limited to your services.
     var mediaType by remember { mutableStateOf(MediaType.TV) }
     var rows by remember { mutableStateOf<List<ContentRow>>(emptyList()) }
@@ -208,7 +213,10 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
             // Holding OK plays in the first place it's on: your IPTV provider first, if it has it.
             if (only == null) {
                 val iptv = Iptv.match(context, title)
-                if (iptv != null && Iptv.open(context, iptv)) return@launch
+                if (iptv != null && Iptv.open(context, iptv)) {
+                    History(context).add(title) // so Recommended learns from it, as with Netflix and Prime
+                    return@launch
+                }
             }
             val message = TitleOpener.open(context, title, apps, only)
             if (message != null) Toast.makeText(context, message, Toast.LENGTH_LONG).show()
@@ -372,6 +380,23 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                                 focusKey = focusKey,
                                 focusTick = focusTick,
                                 rowRequester = appsRow,
+                                down = if (continueItems.isNotEmpty()) continueRow else allRows.firstOrNull()?.let { rowRequester(it.key) },
+                            )
+                        }
+                    }
+                }
+                if (continueItems.isNotEmpty()) {
+                    item(key = "continue") {
+                        Box(Modifier.padding(top = 14.dp)) {
+                            ContinueRow(
+                                items = continueItems,
+                                onResume = {
+                                    if (!Iptv.resume(context, it)) {
+                                        Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                requester = continueRow,
+                                up = appsRow,
                                 down = allRows.firstOrNull()?.let { rowRequester(it.key) },
                             )
                         }
@@ -384,7 +409,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                             onOpen = openTitle,
                             onPlay = playTitle,
                             requester = rowRequester(row.key),
-                            up = if (i == 0) appsRow else rowRequester(allRows[i - 1].key),
+                            up = if (i > 0) rowRequester(allRows[i - 1].key) else if (continueItems.isNotEmpty()) continueRow else appsRow,
                             down = allRows.getOrNull(i + 1)?.let { rowRequester(it.key) },
                         )
                     }
