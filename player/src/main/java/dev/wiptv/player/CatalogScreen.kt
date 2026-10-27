@@ -243,10 +243,18 @@ fun CatalogScreen(
     }
 
     fun focusResume(point: ResumePoint) {
-        val item = catalogueItemFor(point)
+        // A film or series whose row hasn't loaded (or isn't in any row) still gets its details
+        // fetched for the hero: the saved point knows its id, name and poster.
+        val item = catalogueItemFor(point) ?: resumeItemFor(point)
         hero = heroOf(point, item, item?.let { movieDetails[it.id] })
         restingPoint = point
         restingOn = item
+    }
+
+    /** Just enough of a catalogue entry, from the saved point, to fetch its details. */
+    fun resumeItemFor(point: ResumePoint): VodItem? {
+        val id = (if (kind == VodKind.MOVIE) point.key.removePrefix("movie:").toLongOrNull() else point.seriesId) ?: return null
+        return VodItem(kind = kind, id = id, name = point.title, poster = point.poster, categoryId = "", rating = null, extension = null)
     }
 
     // Opened from the launcher: once that film or series page is closed, go back there.
