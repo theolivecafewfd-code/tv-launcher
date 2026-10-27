@@ -105,6 +105,9 @@ fun HomeScreen(
     /** Asked for by WIPTV Player's header: "apps" opens the Apps tray, "search" opens search. */
     request: String? = null,
     requestTick: Int = 0,
+    /** Set when the player asked: closing the tray or search goes back there ([onReturn]). */
+    returnTo: String? = null,
+    onReturn: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var apps by remember { mutableStateOf<List<TvApp>>(emptyList()) }
@@ -502,6 +505,8 @@ fun HomeScreen(
                 backEnabled = menuFor == null,
                 onClose = {
                     trayOpen = false
+                    // Opened from the player: back there, as if the tray were part of it.
+                    if (returnTo != null) onReturn()
                     titleScope.launch {
                         delay(50)
                         runCatching { appsButton.requestFocus() }
@@ -519,6 +524,7 @@ fun HomeScreen(
                     onPlay = playTitle,
                     onClose = {
                         searchOpen = false
+                        if (returnTo != null) onReturn()
                         // Back on the search icon in the top navigation.
                         titleScope.launch {
                             delay(50)

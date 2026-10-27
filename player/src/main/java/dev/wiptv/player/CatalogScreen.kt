@@ -138,6 +138,8 @@ fun CatalogScreen(
     /** A surprise pick (the header's dice): its details page opens, and [onSurpriseShown] clears it. */
     surpriseId: Long? = null,
     onSurpriseShown: () -> Unit = {},
+    /** That surprise page was closed: the player goes back to where the dice was pressed. */
+    onSurpriseClosed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val noun = if (kind == VodKind.MOVIE) "films" else "series"
@@ -220,6 +222,8 @@ fun CatalogScreen(
 
     // Opened from the launcher: once that film or series page is closed, go back there.
     var openedFromLauncher by remember { mutableStateOf(false) }
+    // Opened by the header's dice: once that page is closed, back to where the dice was pressed.
+    var openedBySurprise by remember { mutableStateOf(false) }
     LaunchedEffect(openResume) {
         val key = openResume ?: return@LaunchedEffect
         val point = store.resumePoint(key) ?: return@LaunchedEffect
@@ -273,6 +277,7 @@ fun CatalogScreen(
         val id = surpriseId ?: return@LaunchedEffect
         val entry = withContext(Dispatchers.IO) { CatalogIndex.find(context, kind, id) }
         onSurpriseShown()
+        openedBySurprise = true
         detail = VodItem(
             kind = kind,
             id = id,
@@ -467,6 +472,10 @@ fun CatalogScreen(
             onClose = {
                 detail = null
                 if (openedFromLauncher) onOpenFinished()
+                if (openedBySurprise) {
+                    openedBySurprise = false
+                    onSurpriseClosed()
+                }
             },
         )
     }

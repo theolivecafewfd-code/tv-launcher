@@ -27,6 +27,13 @@ class MainActivity : ComponentActivity() {
     private val request = mutableStateOf<String?>(null)
     private val requestTick = mutableIntStateOf(0)
 
+    /**
+     * The player section that asked (LIVE, MOVIES or SERIES): backing out of the tray or search
+     * goes back there. Forgotten as soon as the launcher leaves the screen (an app or title was
+     * opened instead).
+     */
+    private val returnTo = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -46,6 +53,8 @@ class MainActivity : ComponentActivity() {
                 onLaunch = ::launch,
                 request = request.value,
                 requestTick = requestTick.intValue,
+                returnTo = returnTo.value,
+                onReturn = ::backToPlayer,
             )
         }
     }
@@ -59,13 +68,30 @@ class MainActivity : ComponentActivity() {
     private fun take(intent: Intent?) {
         val wanted = intent?.getStringExtra(EXTRA_OPEN) ?: return
         intent.removeExtra(EXTRA_OPEN)
+        returnTo.value = intent.getStringExtra(EXTRA_RETURN)
+        intent.removeExtra(EXTRA_RETURN)
         request.value = wanted
         requestTick.intValue++
+    }
+
+    override fun onStop() {
+        super.onStop()
+        returnTo.value = null
+    }
+
+    /** Back to the player, as it was, on the section that asked. */
+    private fun backToPlayer() {
+        val section = returnTo.value ?: return
+        returnTo.value = null
+        if (!Iptv.backToPlayer(this, section)) Toast.makeText(this, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
     }
 
     companion object {
         /** "apps" or "search": what WIPTV Player's header asked to open. */
         const val EXTRA_OPEN = "wiptv_open"
+
+        /** The player section to go back to when the tray or search is closed. */
+        const val EXTRA_RETURN = "wiptv_return"
     }
 
     override fun onResume() {

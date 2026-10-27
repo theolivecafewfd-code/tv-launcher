@@ -215,6 +215,24 @@ object Iptv {
         false
     }
 
+    /**
+     * Back to the player as you left it (its task comes to the front unchanged); if it has been
+     * closed meanwhile, it opens on [section].
+     */
+    fun backToPlayer(context: Context, section: String): Boolean = try {
+        context.startActivity(
+            Intent(Intent.ACTION_MAIN)
+                .setClassName(PLAYER, "$PLAYER.MainActivity")
+                .putExtra("section", section)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            seamless(context),
+        )
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "Couldn't open the player", e)
+        false
+    }
+
     /** Films and episodes you've started in the player, newest first. */
     suspend fun continueWatching(context: Context): List<IptvResume> = withContext(Dispatchers.IO) {
         try {
