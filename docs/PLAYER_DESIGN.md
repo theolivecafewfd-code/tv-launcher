@@ -1,6 +1,6 @@
 # WIPTV Player — UI design specification
 
-**Version:** 0.1 · **Date:** 27 October 2026 · **Status:** Draft for Wayne's review  
+**Version:** 0.2 · **Date:** 27 October 2026 · **Status:** Approved direction; being implemented in stages (see section 16)  
 **Repository:** [theolivecafewfd-code/tv-launcher](https://github.com/theolivecafewfd-code/tv-launcher)  
 **Code baseline:** [15519d43b08da4c701396ac9dec0e36992673a8d](https://github.com/theolivecafewfd-code/tv-launcher/commit/15519d43b08da4c701396ac9dec0e36992673a8d), including merged Movies and Series PR #29.
 
@@ -347,5 +347,32 @@ Official implementation references, consulted 27 October 2026:
 | --- | --- | --- |
 | 0.1 | 2026-10-27 | Initial draft against merged Movies and Series baseline; glass direction, remote contract, native implementation map and staged acceptance plan |
 
+| 0.2 | 2026-10-27 | Wayne approved the glass direction for both apps. Implementation status and agreed deviations recorded in section 16 |
+
 After Wayne reviews this pack, record any amendments here. When eventually adding it to GitHub, keep this file at `docs/PLAYER_DESIGN.md` and its companion folder at `docs/player-design/`. Repository publication and implementation are separate next actions; neither has been performed for this draft.
 
+
+## 16. Implementation status
+
+Kept up to date as stages land. "Built" means the GitHub build passed; "emulator" means native screenshots from the screenshot run (1080p TV profile, pretend provider); "Fire Stick" means Wayne has tried it on the stick.
+
+| Stage | Pull requests | Built | Emulator | Fire Stick |
+| --- | --- | --- | --- | --- |
+| 1 — Shared style + Live TV | #31 (design module, header, Live TV), #35 (calmer guide) | Yes | — | #31 yes; #35 pending (build 79) |
+| Launcher glass (added) | #32 | Yes | — | Pending review |
+| 2 — Live Categories drawer | Not started | | | |
+| 3 — Movies + Series | #36 (screenshot tooling), #37 (browsing), #38 (details), #39 (episodes): in review | Yes | Yes | Pending |
+| 4 — Playback + remaining surfaces | Not started | | | |
+
+**Agreed deviations from version 0.1**
+
+- **Quiet glass.** A lighter `Glass.Quiet` recipe (45% tint, faint edge) for side panels on a plain background, such as the Live TV categories, after Wayne found the panels too blue (#35).
+- **Guide rows.** No fill or programme boxes at rest: a hairline between rows, a soft wash on the programme on now, faint half-hour divisions. Focus is a light wash and outline across the whole row; the playing channel has a green ▶ and bar; favourites an amber ★ (#35).
+- **Channel column** 248 dp (was 196 dp) so names fit (#35).
+- **Posters** 126 × 189 dp, about six across with the next peeking in, at Wayne's request (the spec started at 104 × 156 dp, about seven) (#37).
+- **Continue watching** uses wide cards with the episode still or backdrop, progress and time left; a single item becomes one wide card with its details alongside (#37).
+- **Hero details for films.** Films' rows rarely carry a synopsis or backdrop, so after focus rests on a film for 0.7 s its details are fetched once and cached. This is not a request per key press (#37).
+- **Details actions.** Only the focused action is light. At rest Play/Resume has a brighter wash; other actions are quiet glass (#38).
+- **More info** panel for the full synopsis, cast and director, since the header keeps the synopsis to three lines (#38).
+- **Episode titles** shown cleaned ("1 · The Stolen Eagle"); the provider's title is kept unchanged in the data (#39).
+- **Start section.** The player accepts a `section` extra (LIVE, MOVIES or SERIES); the default launch destination is unchanged (#36).

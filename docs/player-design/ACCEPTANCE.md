@@ -1,7 +1,7 @@
 # WIPTV — implementation acceptance record
 
 **Companion:** [UI specification](../PLAYER_DESIGN.md)  
-**Status:** Unchecked template. No item below has been verified in a native build by the design-pack author.
+**Status:** In use. Progress per stage is in [section 16 of the specification](../PLAYER_DESIGN.md#16-implementation-status). Items are ticked only once checked on Wayne's Fire Stick, unless marked otherwise.
 
 Copy the relevant stage into each implementation PR, or update this record with the tested build and evidence. An unchecked item means pending, not a known failure.
 
@@ -9,19 +9,19 @@ Copy the relevant stage into each implementation PR, or update this record with 
 
 | Field | Record |
 | --- | --- |
-| Implementation commit / PR | Pending |
-| APK / build artifact | Pending |
-| Device model | Pending |
-| Android / Fire OS version | Pending |
+| Implementation commit / PR | Stage 1: #31, #35 · Launcher: #32 · Stage 3: #36–#39 (in review) |
+| APK / build artifact | Build 79 on `main` (both apps) |
+| Device model | Fire TV Stick HD (1st generation) |
+| Android / Fire OS version | Fire OS 7.7.1.7 (Android 9) |
 | Output resolution / font scale | Pending |
 | Tester and date | Pending |
 | Comparison baseline | 15519d43b08da4c701396ac9dec0e36992673a8d, or document a newer baseline |
 | Known pre-existing issues | Pending baseline check |
-| Screenshots / recordings | Pending |
+| Screenshots / recordings | Wayne's photos of builds on the TV; emulator screenshots from the Screenshots workflow (#36), on `screenshots/<branch>` branches |
 
 ## Stage 0 — baseline
 
-- [ ] Current main builds through the existing workflow.
+- [x] Current main builds through the existing workflow.
 - [ ] Capture Live TV, Movies, Series, details and playback surfaces on the target device.
 - [ ] Record existing remote actions and any existing faults without attributing them to styling.
 - [ ] Identify baseline playback behaviour while navigating and changing sections.
