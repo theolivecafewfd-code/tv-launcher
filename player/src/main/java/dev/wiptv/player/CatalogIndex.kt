@@ -45,11 +45,15 @@ object CatalogIndex {
     private fun db(context: Context): SQLiteDatabase =
         (helper ?: synchronized(this) { helper ?: Helper(context.applicationContext).also { helper = it } }).writableDatabase
 
+    /** Whether the list is missing or a day old (cheap: no sign-in needed to ask). */
+    fun isStale(context: Context): Boolean =
+        System.currentTimeMillis() - context.getSharedPreferences("catalog-index", Context.MODE_PRIVATE).getLong("refreshed", 0) >= STALE_MS
+
     /** Starts a refresh in the background when the list is missing or a day old. */
     fun refreshIfStale(context: Context, login: Login) {
         if (refreshing) return
         val prefs = context.getSharedPreferences("catalog-index", Context.MODE_PRIVATE)
-        if (System.currentTimeMillis() - prefs.getLong("refreshed", 0) < STALE_MS) return
+        if (!isStale(context)) return
         refreshing = true
         scope.launch {
             try {

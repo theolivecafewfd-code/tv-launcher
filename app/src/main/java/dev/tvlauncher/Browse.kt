@@ -36,6 +36,7 @@ import dev.wiptv.design.WiptvType
 import dev.wiptv.design.focusOutline
 import dev.wiptv.design.glass
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -250,6 +251,7 @@ fun Featured(
                                 color = if (focused) WiptvColors.onLight else WiptvColors.text,
                             ),
                         )
+                        if (IptvBadges.has(shown)) IptvTag()
                         shown.sources.forEach { SourceTag(it) }
                     }
                     Text(
@@ -282,6 +284,19 @@ private fun metaItems(title: Title): List<String> = buildList {
     if (title.year.isNotBlank()) add(title.year)
     title.genreIds.mapNotNull { Catalog.genreName(it) }.take(2).takeIf { it.isNotEmpty() }?.let { add(it.joinToString(", ")) }
     if (title.rating > 0) add("TMDB " + String.format(Locale.UK, "%.1f", title.rating))
+}
+
+/** The IPTV tag: dark with white text and a faint white edge, so it reads on any poster. */
+@Composable
+internal fun IptvTag() {
+    Text(
+        text = "IPTV",
+        modifier = Modifier
+            .background(Color(0xE6111624), RoundedCornerShape(50))
+            .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(50))
+            .padding(horizontal = 7.dp, vertical = 2.dp),
+        style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White),
+    )
 }
 
 @Composable
@@ -452,8 +467,17 @@ internal fun PosterCard(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-            title.sources.firstOrNull()?.let {
-                Box(Modifier.align(Alignment.TopStart).padding(5.dp)) { SourceTag(it) }
+            // Where it's on: IPTV first when your provider has it, then your first service.
+            val onIptv = IptvBadges.has(title)
+            val source = title.sources.firstOrNull()
+            if (onIptv || source != null) {
+                Row(
+                    modifier = Modifier.align(Alignment.TopStart).padding(5.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    if (onIptv) IptvTag()
+                    source?.let { SourceTag(it) }
+                }
             }
         }
         if (!compact) {
@@ -510,15 +534,7 @@ internal fun IptvPosterCard(title: IptvTitle, onClick: () -> Unit, modifier: Mod
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-            Text(
-                text = "IPTV",
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(5.dp)
-                    .background(WiptvColors.focus, RoundedCornerShape(50))
-                    .padding(horizontal = 7.dp, vertical = 2.dp),
-                style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Bold, color = WiptvColors.onLight),
-            )
+            Box(Modifier.align(Alignment.TopStart).padding(5.dp)) { IptvTag() }
         }
         Text(
             text = listOfNotNull(title.name, title.year?.takeUnless { title.name.contains(it) }).joinToString(" · "),

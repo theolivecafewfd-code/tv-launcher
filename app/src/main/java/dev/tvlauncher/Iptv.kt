@@ -4,7 +4,13 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** A film or series in the IPTV provider's catalogue, as WIPTV Player reports it. */
@@ -109,5 +115,33 @@ object Iptv {
         // No player, or no permission (the player isn't one of ours): just no IPTV results.
         Log.w(TAG, "Couldn't ask the player", e)
         emptyList()
+    }
+}
+
+/**
+ * Which titles your IPTV provider has, for the IPTV badge on posters. Each poster asks once (one
+ * at a time, from the player's list on the TV); answers are kept while the launcher runs, and
+ * the "no" answers are forgotten each time you come back home, in case the list has filled in.
+ */
+object IptvBadges {
+    private val known = mutableStateMapOf<String, Boolean>()
+    private val lock = Mutex()
+
+    fun forgetMisses() {
+        known.keys.filter { known[it] == false }.forEach { known.remove(it) }
+    }
+
+    @Composable
+    fun has(title: Title): Boolean {
+        val context = LocalContext.current
+        val answer = known[title.key]
+        if (answer == null) {
+            LaunchedEffect(title.key) {
+                lock.withLock {
+                    if (title.key !in known) known[title.key] = Iptv.match(context, title) != null
+                }
+            }
+        }
+        return answer == true
     }
 }

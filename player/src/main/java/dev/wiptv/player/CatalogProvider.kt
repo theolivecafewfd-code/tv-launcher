@@ -27,9 +27,12 @@ class CatalogProvider : ContentProvider() {
 
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): Cursor? {
         val context = context ?: return null
-        val login = LoginStore.load(context)
+        // Unlocking the saved sign-in takes a moment, so only for a status check or a stale list
+        // (each poster's IPTV badge asks here).
+        val status = uri.lastPathSegment == "status"
+        val login = if (status || CatalogIndex.isStale(context)) LoginStore.load(context) else null
         login?.let { CatalogIndex.refreshIfStale(context, it) }
-        if (uri.lastPathSegment == "status") {
+        if (status) {
             val s = CatalogIndex.status(context)
             return MatrixCursor(arrayOf("signed_in", "films", "series", "refreshed", "refreshing", "error")).apply {
                 addRow(arrayOf<Any?>(if (login != null) 1 else 0, s.films, s.series, s.refreshed, if (s.refreshing) 1 else 0, s.error))

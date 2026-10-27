@@ -137,6 +137,8 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     LaunchedEffect(refreshKey) {
         apps = withContext(Dispatchers.IO) { AppRepository.load(context) }
     }
+    // Back home: ask again about titles the IPTV list didn't have (it may have filled in since).
+    LaunchedEffect(refreshKey) { IptvBadges.forgetMisses() }
 
     // TV Shows or Movies, and the rows for it from TMDB, limited to your services.
     var mediaType by remember { mutableStateOf(MediaType.TV) }
