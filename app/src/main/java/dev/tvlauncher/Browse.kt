@@ -357,9 +357,11 @@ fun PosterRow(
                 delay(25)
             }
         }
+        TrackAttached(requester)
+        // Straight to the row above or below, once that row is on screen.
         val upAndDown = Modifier.focusProperties {
-            this.up = up
-            if (down != null) this.down = down
+            up.ifAttached()?.let { this.up = it }
+            down.ifAttached()?.let { this.down = it }
         }
         // The row remembers which poster you were on, and up and down always go to the row
         // directly above or below, whatever the posters' positions.

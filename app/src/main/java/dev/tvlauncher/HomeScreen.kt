@@ -612,7 +612,8 @@ private fun AppDock(
         }
     }
 
-    val toNextRow = Modifier.focusProperties { if (down != null) this.down = down }
+    TrackAttached(rowRequester)
+    val toNextRow = Modifier.focusProperties { down.ifAttached()?.let { this.down = it } }
     RowScrolling(start = Edge, end = 72.dp) {
     LazyRow(
         modifier = Modifier
