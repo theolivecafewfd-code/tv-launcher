@@ -1,5 +1,25 @@
 package dev.tvlauncher
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import dev.wiptv.design.ActionButton
+import dev.wiptv.design.ArtFocusGap
+import dev.wiptv.design.CinematicBackdrop
+import dev.wiptv.design.DisplayTitles
+import dev.wiptv.design.InfoSheet
+import dev.wiptv.design.PivotScrolling
+import dev.wiptv.design.RowScrolling
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.WiptvType
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,150 +97,211 @@ fun DetailScreen(
         }
     }
 
+    var plotCut by remember(title.key) { mutableStateOf(false) }
+    var showMore by remember(title.key) { mutableStateOf(false) }
+    val moreInfoButton = remember { FocusRequester() }
+    var refocusMoreInfo by remember { mutableStateOf(false) }
+    // Closing More info puts focus back on its button.
+    LaunchedEffect(refocusMoreInfo) {
+        if (!refocusMoreInfo) return@LaunchedEffect
+        repeat(20) {
+            if (runCatching { moreInfoButton.requestFocus() }.isSuccess) {
+                refocusMoreInfo = false
+                return@LaunchedEffect
+            }
+            delay(50)
+        }
+        refocusMoreInfo = false
+    }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val name = DisplayTitles.withoutYear(title.name, title.year)
+    val cast = details?.cast?.takeIf { it.isNotEmpty() }?.joinToString(", ")
+    val similar = details?.moreLikeThis.orEmpty()
+
     Dialog(
         onDismissRequest = onClose,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Palette.background),
-        ) {
-            // Backdrop on the right, fading into the background behind the text.
-            AsyncImage(
-                model = title.backdropUrl,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .width(620.dp)
-                    .height(350.dp),
-            )
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .width(620.dp)
-                    .height(350.dp)
-                    .background(Brush.horizontalGradient(0f to Palette.background, 0.55f to Color.Transparent)),
-            )
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .width(620.dp)
-                    .height(350.dp)
-                    .background(Brush.verticalGradient(0.6f to Color.Transparent, 1f to Palette.background)),
+        Box(modifier = Modifier.fillMaxSize().background(WiptvColors.background)) {
+            // Full-screen artwork, faded on the left and at the bottom, as in the player's details.
+            CinematicBackdrop(
+                backdrop = title.backdropUrl,
+                poster = title.posterUrl,
+                modifier = Modifier.fillMaxSize(),
+                delayMillis = 0,
+                leftFade = 0.98f,
+                textScrim = 0.58f,
             )
 
-            Column(modifier = Modifier.fillMaxSize().padding(top = 32.dp)) {
-                Column(
-                    modifier = Modifier
-                        .padding(horizontal = 40.dp)
-                        .width(500.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+            PivotScrolling(pivot = 110.dp) {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 40.dp),
                 ) {
-                    Text(
-                        text = title.name,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(fontSize = 30.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold, color = Palette.text),
-                    )
-                    Text(
-                        text = metaLine(title, details),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
-                    )
-                    if (title.sources.isNotEmpty()) {
-                        Text(
-                            text = "On " + title.sources.joinToString(" and ") { if (it == Source.PRIME) "Prime Video" else it.label } + " in Ireland",
-                            style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFC9B6FF)),
-                        )
-                    }
-                    Text(
-                        text = title.overview,
-                        maxLines = 4,
-                        overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(fontSize = 13.sp, lineHeight = 18.sp, color = Palette.text),
-                    )
-                    val people = listOfNotNull(
-                        details?.madeBy,
-                        details?.cast?.takeIf { it.isNotEmpty() }?.let { "Starring " + it.joinToString(", ") },
-                    )
-                    if (people.isNotEmpty()) {
-                        Text(
-                            text = people.joinToString("\n"),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            style = TextStyle(fontSize = 11.sp, lineHeight = 15.sp, color = Palette.quiet),
-                        )
-                    }
-                }
+                    item(key = "header") {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                // Back on the buttons: show the whole header again.
+                                .onFocusChanged { if (it.hasFocus) scope.launch { listState.animateScrollToItem(0) } }
+                                .padding(start = 48.dp, end = 48.dp, top = 44.dp, bottom = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(32.dp),
+                        ) {
+                            // Poster, sharp, with a faint edge.
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 150.dp, height = 225.dp)
+                                    .clip(WiptvShapes.card)
+                                    .background(Brush.verticalGradient(listOf(WiptvColors.elevated, WiptvColors.surface)))
+                                    .border(1.dp, Color.White.copy(alpha = 0.14f), WiptvShapes.card),
+                            ) {
+                                Text(
+                                    text = name,
+                                    maxLines = 4,
+                                    modifier = Modifier.align(Alignment.Center).padding(12.dp),
+                                    style = WiptvType.metadata,
+                                )
+                                if (title.posterUrl != null) {
+                                    AsyncImage(
+                                        model = title.posterUrl,
+                                        contentDescription = name,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                }
+                            }
 
-                Spacer(Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.padding(horizontal = 40.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    title.sources.forEachIndexed { i, source ->
-                        val label = "▶  Watch on " + if (source == Source.PRIME) "Prime Video" else source.label
-                        ActionButton(
-                            text = label,
-                            bright = i == 0,
-                            onClick = { onWatch(source) },
-                            modifier = if (i == 0) Modifier.focusRequester(primary) else Modifier,
-                        )
-                    }
-                    if (onAnother != null) {
-                        ActionButton(text = "↻  Another one", onClick = onAnother)
-                    }
-                    details?.trailerKey?.let { key ->
-                        ActionButton(text = "Trailer", onClick = { onTrailer(key) })
-                    }
-                    ActionButton(
-                        text = if (inMyList) "✓  In My List" else "+  My List",
-                        onClick = {
-                            inMyList = library.toggleMyList(title)
-                            if (inMyList) History(context).add(title)
-                            onLibraryChange()
-                        },
-                        modifier = if (title.sources.isEmpty()) Modifier.focusRequester(primary) else Modifier,
-                    )
-                    ActionButton(
-                        text = if (watched) "✓  Watched" else "Mark as watched",
-                        onClick = {
-                            watched = library.toggleWatched(title)
-                            if (watched) History(context).add(title)
-                            onLibraryChange()
-                        },
-                    )
-                }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = name,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = WiptvType.hero.copy(fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.SemiBold),
+                                )
+                                Text(
+                                    text = metaLine(title, details),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                    style = WiptvType.metadata.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium),
+                                )
+                                if (title.sources.isNotEmpty()) {
+                                    Text(
+                                        text = "On " + title.sources.joinToString(" and ") { it.longName } + " in Ireland",
+                                        modifier = Modifier.padding(top = 4.dp),
+                                        style = WiptvType.metadata.copy(color = WiptvColors.text),
+                                    )
+                                }
+                                if (title.overview.isNotBlank()) {
+                                    Text(
+                                        text = title.overview,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis,
+                                        onTextLayout = { plotCut = it.hasVisualOverflow },
+                                        modifier = Modifier.padding(top = 14.dp).widthIn(max = 540.dp),
+                                        style = WiptvType.body.copy(lineHeight = 23.sp, color = WiptvColors.text.copy(alpha = 0.9f)),
+                                    )
+                                }
 
-                val similar = details?.moreLikeThis.orEmpty()
-                if (similar.isNotEmpty()) {
-                    Spacer(Modifier.height(18.dp))
-                    Text(
-                        text = "More like this",
-                        modifier = Modifier.padding(horizontal = 40.dp),
-                        style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
-                    )
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 40.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        items(similar, key = { it.key }) { other ->
-                            PosterCard(
-                                title = other,
-                                onClick = { onOpenOther(other) },
-                                onLongClick = { onPlayOther(other) },
-                                compact = true,
-                            )
+                                // Watch on your first service is the main action; the rest are quiet.
+                                Row(
+                                    modifier = Modifier.padding(top = 18.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                ) {
+                                    title.sources.forEachIndexed { i, source ->
+                                        ActionButton(
+                                            text = "▶  Watch on " + source.longName,
+                                            primary = i == 0,
+                                            onClick = { onWatch(source) },
+                                            modifier = if (i == 0) Modifier.focusRequester(primary) else Modifier,
+                                        )
+                                    }
+                                    if (onAnother != null) {
+                                        ActionButton(text = "↻  Another one", onClick = onAnother)
+                                    }
+                                    details?.trailerKey?.let { key ->
+                                        ActionButton(text = "Trailer", onClick = { onTrailer(key) })
+                                    }
+                                    ActionButton(
+                                        text = if (inMyList) "✓  My List" else "+  My List",
+                                        onClick = {
+                                            inMyList = library.toggleMyList(title)
+                                            if (inMyList) History(context).add(title)
+                                            onLibraryChange()
+                                        },
+                                        modifier = if (title.sources.isEmpty()) Modifier.focusRequester(primary) else Modifier,
+                                    )
+                                    ActionButton(
+                                        text = if (watched) "✓  Watched" else "Mark as watched",
+                                        onClick = {
+                                            watched = library.toggleWatched(title)
+                                            if (watched) History(context).add(title)
+                                            onLibraryChange()
+                                        },
+                                    )
+                                    if (plotCut || cast != null || details?.madeBy != null) {
+                                        ActionButton(
+                                            text = "More info",
+                                            onClick = { showMore = true },
+                                            modifier = Modifier.focusRequester(moreInfoButton),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (similar.isNotEmpty()) {
+                        item(key = "similar") {
+                            Column(modifier = Modifier.padding(top = 18.dp)) {
+                                Text(
+                                    text = "More like this",
+                                    modifier = Modifier.padding(start = 48.dp, bottom = 2.dp),
+                                    style = RowHeading,
+                                )
+                                RowScrolling(start = 48.dp, end = 72.dp) {
+                                    LazyRow(
+                                        contentPadding = PaddingValues(start = 48.dp - ArtFocusGap, end = 48.dp, top = 6.dp, bottom = 2.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp - ArtFocusGap * 2),
+                                    ) {
+                                        items(similar, key = { it.key }) { other ->
+                                            PosterCard(
+                                                title = other,
+                                                onClick = { onOpenOther(other) },
+                                                onLongClick = { onPlayOther(other) },
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
+
+    if (showMore) {
+        InfoSheet(
+            title = name,
+            meta = metaLine(title, details),
+            body = title.overview,
+            sections = listOfNotNull(
+                details?.madeBy?.let { made -> made.substringBefore(" by ") + " by" to made.substringAfter(" by ") },
+                cast?.let { "Starring" to it },
+            ),
+            onClose = {
+                showMore = false
+                refocusMoreInfo = true
+            },
+        )
+    }
 }
+
+/** "Prime Video" in full on the details page. */
+private val Source.longName: String get() = if (this == Source.PRIME) "Prime Video" else label
 
 private fun metaLine(title: Title, details: TitleDetails?): String = buildList {
     add(if (title.type == MediaType.TV) "Series" else "Film")
@@ -231,30 +312,3 @@ private fun metaLine(title: Title, details: TitleDetails?): String = buildList {
     if (genres.isNotEmpty()) add(genres.take(3).joinToString(", "))
     if (title.rating > 0) add("TMDB " + String.format(Locale.UK, "%.1f", title.rating))
 }.joinToString("  ·  ")
-
-@Composable
-private fun ActionButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    bright: Boolean = false,
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        shape = ClickableSurfaceDefaults.shape(shape = RoundedCornerShape(50)),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = if (bright) Palette.glow else Color.White.copy(alpha = 0.1f),
-            contentColor = if (bright) Palette.background else Palette.text,
-            focusedContainerColor = Color.White,
-            focusedContentColor = Palette.background,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.06f),
-    ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp),
-            style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
-        )
-    }
-}

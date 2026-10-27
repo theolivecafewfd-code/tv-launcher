@@ -50,7 +50,9 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import dev.wiptv.design.ActionButton
 import dev.wiptv.design.CinematicBackdrop
+import dev.wiptv.design.InfoSheet
 import dev.wiptv.design.DisplayTitles
 import dev.wiptv.design.Glass
 import dev.wiptv.design.PivotScrolling
@@ -427,79 +429,16 @@ fun VodDetailScreen(
     }
 
     if (showMore) {
-        MoreInfo(
+        InfoSheet(
             title = title,
             meta = meta.joinToString("  ·  "),
-            plot = plot,
-            cast = cast,
-            director = director,
+            body = plot,
+            sections = listOfNotNull(cast?.let { "Starring" to it }, director?.let { "Directed by" to it }),
             onClose = {
                 showMore = false
                 refocusMoreInfo = true
             },
         )
-    }
-}
-
-/**
- * The whole synopsis, cast and director, in a dark panel on the right, about 42% of the screen
- * wide and only as tall as its text (long text scrolls within the screen). Up and Down scroll
- * it; Back closes it and focus goes back to More info.
- */
-@Composable
-private fun MoreInfo(title: String, meta: String, plot: String?, cast: String?, director: String?, onClose: () -> Unit) {
-    val scroll = rememberScrollState()
-    val scope = rememberCoroutineScope()
-    val focus = remember { FocusRequester() }
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)).padding(24.dp)) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .width(400.dp)
-                    .glass(WiptvShapes.panel, Glass.Sheet)
-                    .focusRequester(focus)
-                    .focusable()
-                    .onKeyEvent { event ->
-                        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                        val step = when (event.key) {
-                            Key.DirectionDown -> 160f
-                            Key.DirectionUp -> -160f
-                            else -> return@onKeyEvent false
-                        }
-                        scope.launch { scroll.animateScrollBy(step) }
-                        true
-                    }
-                    .verticalScroll(scroll)
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Text(text = title, style = WiptvType.screen)
-                if (meta.isNotBlank()) Text(text = meta, style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium))
-                if (!plot.isNullOrBlank()) {
-                    Text(
-                        text = plot,
-                        modifier = Modifier.padding(top = 6.dp),
-                        style = WiptvType.body.copy(lineHeight = 25.sp),
-                    )
-                }
-                if (cast != null) {
-                    Text(text = "Starring", modifier = Modifier.padding(top = 10.dp), style = WiptvType.hint)
-                    Text(text = cast, style = WiptvType.metadata.copy(color = WiptvColors.text))
-                }
-                if (director != null) {
-                    Text(text = "Directed by", modifier = Modifier.padding(top = 6.dp), style = WiptvType.hint)
-                    Text(text = director, style = WiptvType.metadata.copy(color = WiptvColors.text))
-                }
-                Text(text = "Back to close", modifier = Modifier.padding(top = 14.dp), style = WiptvType.hint)
-            }
-        }
-    }
-    LaunchedEffect(Unit) {
-        repeat(20) {
-            if (runCatching { focus.requestFocus() }.isSuccess) return@LaunchedEffect
-            delay(50)
-        }
     }
 }
 

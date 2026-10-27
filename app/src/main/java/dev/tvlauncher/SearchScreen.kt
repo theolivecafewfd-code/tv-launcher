@@ -1,5 +1,11 @@
 package dev.tvlauncher
 
+import androidx.compose.ui.graphics.Color
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.glass
+import dev.wiptv.design.wiptvBackground
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -103,37 +109,38 @@ fun SearchScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Palette.background)
-                .padding(top = 28.dp, start = 40.dp, end = 40.dp),
+                .wiptvBackground()
+                .padding(top = 28.dp, start = Edge, end = Edge),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                SearchIcon(color = Palette.text, size = 22.dp)
+                SearchIcon(color = WiptvColors.text, size = 22.dp)
+                // A glass field; focus adds the light outline every focused control has.
                 Box(
                     modifier = Modifier
                         .width(520.dp)
-                        .background(Palette.tile, RoundedCornerShape(12.dp))
+                        .glass(WiptvShapes.card)
                         .border(
-                            width = if (fieldFocused) 2.dp else 1.dp,
-                            color = if (fieldFocused) Palette.glow else Palette.quiet.copy(alpha = 0.4f),
-                            shape = RoundedCornerShape(12.dp),
+                            width = 2.dp,
+                            color = if (fieldFocused) WiptvColors.focus else Color.Transparent,
+                            shape = WiptvShapes.card,
                         )
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .padding(horizontal = 16.dp, vertical = 11.dp),
                 ) {
                     if (query.isEmpty()) {
                         Text(
                             text = "Search shows and films",
-                            style = TextStyle(fontSize = 16.sp, color = Palette.quiet),
+                            style = WiptvType.body.copy(color = WiptvColors.quiet),
                         )
                     }
                     BasicTextField(
                         value = query,
                         onValueChange = { query = it },
                         singleLine = true,
-                        textStyle = TextStyle(fontSize = 16.sp, color = Palette.text, fontWeight = FontWeight.Medium),
-                        cursorBrush = SolidColor(Palette.glow),
+                        textStyle = WiptvType.body.copy(fontWeight = FontWeight.Medium),
+                        cursorBrush = SolidColor(WiptvColors.focus),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = {
                             keyboard?.hide()
@@ -159,33 +166,24 @@ fun SearchScreen(
                         "$available on your services · ${results.size - available} elsewhere (dimmed)"
                     }
                 },
-                style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
+                style = WiptvType.hint,
             )
 
+            // Results as the player's posters, with their names underneath.
             LazyVerticalGrid(
-                columns = GridCells.Fixed(8),
+                columns = GridCells.Fixed(6),
                 contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 items(results, key = { it.key }) { title ->
                     val isFirst = title.key == results.firstOrNull()?.key
-                    Column(
-                        modifier = Modifier.alpha(if (title.sources.isEmpty()) 0.45f else 1f),
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
-                    ) {
+                    Box(modifier = Modifier.alpha(if (title.sources.isEmpty()) 0.45f else 1f)) {
                         PosterCard(
                             title = title,
                             onClick = { onOpen(title) },
                             onLongClick = { onPlay(title) },
                             modifier = if (isFirst) Modifier.focusRequester(firstResult) else Modifier,
-                            compact = true,
-                        )
-                        Text(
-                            text = title.name,
-                            maxLines = 1,
-                            style = TextStyle(fontSize = 10.sp, color = Palette.quiet),
-                            modifier = Modifier.width(84.dp),
                         )
                     }
                 }
