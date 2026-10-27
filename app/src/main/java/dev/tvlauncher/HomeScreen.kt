@@ -18,7 +18,6 @@ import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvType
 import dev.wiptv.design.focusOutline
 import dev.wiptv.design.glass
-import dev.wiptv.design.wiptvBackground
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -298,7 +297,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .wiptvBackground(),
+                .launcherBackground(),
         ) {
             // While choosing apps, the editor replaces the home screen so the remote can't
             // wander onto the tiles underneath. Everything scrolls as one list: header, the
@@ -315,6 +314,7 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                     leftFade = 0.78f,
                     textScrim = 0.46f,
                     textScrimAlpha = 0.88f,
+                    fadeToTransparent = true,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .size(width = 780.dp, height = 439.dp)

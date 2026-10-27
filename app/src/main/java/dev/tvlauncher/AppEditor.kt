@@ -17,7 +17,6 @@ import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvShapes
 import dev.wiptv.design.WiptvType
 import dev.wiptv.design.glass
-import dev.wiptv.design.wiptvBackground
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -88,7 +87,7 @@ fun AppEditor(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .wiptvBackground(),
+            .launcherBackground(),
     ) {
         Column(modifier = Modifier.padding(top = 28.dp, start = Edge, end = Edge)) {
             Row(

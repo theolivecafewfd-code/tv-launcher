@@ -138,7 +138,7 @@ fun DetailScreen(
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        Box(modifier = Modifier.fillMaxSize().background(WiptvColors.background)) {
+        Box(modifier = Modifier.fillMaxSize().launcherBackground()) {
             // Full-screen artwork, faded on the left and at the bottom, as in the player's details.
             CinematicBackdrop(
                 backdrop = title.backdropUrl,
@@ -150,6 +150,7 @@ fun DetailScreen(
                 leftFade = 1f,
                 textScrim = 0.66f,
                 textScrimAlpha = 0.88f,
+                fadeToTransparent = true,
             )
 
             // Back up to the buttons or season tabs: one smooth scroll to the top, header included.

@@ -20,11 +20,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -96,6 +100,12 @@ fun CinematicBackdrop(
     textScrim: Float = leftFade * 0.45f,
     /** How dark the screen still is at [textScrim]; the player keeps the default. */
     textScrimAlpha: Float = 0.8f,
+    /**
+     * Fade the picture itself out instead of painting the background colour over it, so it
+     * blends into whatever is behind (the launcher's gradient). Same fades; the player keeps
+     * the default.
+     */
+    fadeToTransparent: Boolean = false,
 ) {
     val context = LocalContext.current
     var shown by remember { mutableStateOf<Art?>(null) }
@@ -108,7 +118,8 @@ fun CinematicBackdrop(
         if (art != null || (backdrop == null && poster == null)) shown = art
     }
 
-    Box(modifier = modifier) {
+    // Fading to transparent needs its own layer, so the masks only cut into the picture.
+    Box(modifier = if (fadeToTransparent) modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen } else modifier) {
         Crossfade(targetState = shown, animationSpec = tween(durationMillis = 320), label = "backdrop") { art ->
             if (art != null) {
                 Image(
@@ -121,25 +132,50 @@ fun CinematicBackdrop(
             }
         }
         // Readability: dark on the left where the text sits, and into the rows at the bottom.
-        Box(
-            modifier = Modifier.fillMaxSize().background(
-                Brush.horizontalGradient(
-                    0f to WiptvColors.background,
-                    textScrim to WiptvColors.background.copy(alpha = textScrimAlpha),
-                    leftFade to Color.Transparent,
+        if (fadeToTransparent) {
+            // The same fades as masks: where the overlay would be x dark, the picture keeps 1 - x.
+            Box(
+                modifier = Modifier.fillMaxSize().drawBehind {
+                    drawRect(
+                        Brush.horizontalGradient(
+                            0f to Color.Transparent,
+                            textScrim to Color.Black.copy(alpha = 1f - textScrimAlpha),
+                            leftFade to Color.Black,
+                        ),
+                        blendMode = BlendMode.DstIn,
+                    )
+                    drawRect(
+                        Brush.verticalGradient(
+                            0f to Color.Black.copy(alpha = 0.45f),
+                            0.2f to Color.Black,
+                            0.55f to Color.Black,
+                            1f to Color.Transparent,
+                        ),
+                        blendMode = BlendMode.DstIn,
+                    )
+                },
+            )
+        } else {
+            Box(
+                modifier = Modifier.fillMaxSize().background(
+                    Brush.horizontalGradient(
+                        0f to WiptvColors.background,
+                        textScrim to WiptvColors.background.copy(alpha = textScrimAlpha),
+                        leftFade to Color.Transparent,
+                    ),
                 ),
-            ),
-        )
-        Box(
-            modifier = Modifier.fillMaxSize().background(
-                Brush.verticalGradient(
-                    0f to WiptvColors.background.copy(alpha = 0.55f),
-                    0.2f to Color.Transparent,
-                    0.55f to Color.Transparent,
-                    1f to WiptvColors.background,
+            )
+            Box(
+                modifier = Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(
+                        0f to WiptvColors.background.copy(alpha = 0.55f),
+                        0.2f to Color.Transparent,
+                        0.55f to Color.Transparent,
+                        1f to WiptvColors.background,
+                    ),
                 ),
-            ),
-        )
+            )
+        }
     }
 }
 
