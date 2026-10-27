@@ -2,6 +2,7 @@ package dev.tvlauncher
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
@@ -16,6 +17,7 @@ import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.CinematicBackdrop
 import dev.wiptv.design.DisplayTitles
 import dev.wiptv.design.InfoSheet
+import dev.wiptv.design.MetaLine
 import dev.wiptv.design.PivotScrolling
 import dev.wiptv.design.RowScrolling
 import dev.wiptv.design.WiptvColors
@@ -132,8 +134,11 @@ fun DetailScreen(
                 poster = title.posterUrl,
                 modifier = Modifier.fillMaxSize(),
                 delayMillis = 0,
-                leftFade = 0.98f,
-                textScrim = 0.58f,
+                // Darker than the player's: the text and the whole row of buttons run further
+                // across here, so the left two-thirds stay dark and the picture shows on the right.
+                leftFade = 1f,
+                textScrim = 0.66f,
+                textScrimAlpha = 0.88f,
             )
 
             PivotScrolling(pivot = 110.dp) {
@@ -182,10 +187,8 @@ fun DetailScreen(
                                     overflow = TextOverflow.Ellipsis,
                                     style = WiptvType.hero.copy(fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.SemiBold),
                                 )
-                                Text(
-                                    text = metaLine(title, details),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                                MetaLine(
+                                    items = metaItems(title, details),
                                     modifier = Modifier.padding(top = 8.dp),
                                     style = WiptvType.metadata.copy(fontSize = 15.sp, fontWeight = FontWeight.Medium),
                                 )
@@ -209,11 +212,16 @@ fun DetailScreen(
 
                                 // Watch on your first service is the main action; the rest are quiet.
                                 // When they don't all fit, the row slides along as focus moves right.
-                                RowScrolling(start = 0.dp, end = 72.dp) {
+                                // The sliding row clips at its edges, so it has 8 dp of room all round
+                                // for the focused button's outline and lift (shifted back so the
+                                // buttons still line up with the text).
+                                RowScrolling(start = 8.dp, end = 72.dp) {
                                 Row(
                                     modifier = Modifier
-                                        .padding(top = 18.dp)
-                                        .horizontalScroll(rememberScrollState()),
+                                        .padding(top = 10.dp)
+                                        .offset(x = (-8).dp)
+                                        .horizontalScroll(rememberScrollState())
+                                        .padding(8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
                                     title.sources.forEachIndexed { i, source ->
@@ -294,7 +302,8 @@ fun DetailScreen(
     if (showMore) {
         InfoSheet(
             title = name,
-            meta = metaLine(title, details),
+            meta = "",
+            metaItems = metaItems(title, details),
             body = title.overview,
             sections = listOfNotNull(
                 details?.madeBy?.let { made -> made.substringBefore(" by ") + " by" to made.substringAfter(" by ") },
@@ -311,7 +320,7 @@ fun DetailScreen(
 /** "Prime Video" in full on the details page. */
 private val Source.longName: String get() = if (this == Source.PRIME) "Prime Video" else label
 
-private fun metaLine(title: Title, details: TitleDetails?): String = buildList {
+private fun metaItems(title: Title, details: TitleDetails?): List<String> = buildList {
     add(if (title.type == MediaType.TV) "Series" else "Film")
     if (title.year.isNotBlank()) add(title.year)
     details?.length?.let { add(it) }
@@ -319,4 +328,4 @@ private fun metaLine(title: Title, details: TitleDetails?): String = buildList {
         ?: title.genreIds.mapNotNull { Catalog.genreName(it) }
     if (genres.isNotEmpty()) add(genres.take(3).joinToString(", "))
     if (title.rating > 0) add("TMDB " + String.format(Locale.UK, "%.1f", title.rating))
-}.joinToString("  ·  ")
+}

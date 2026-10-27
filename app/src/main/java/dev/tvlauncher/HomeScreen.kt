@@ -264,9 +264,14 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
             // up with the top of the list (the apps and rows pass over its faded lower edge).
             if (!editing) {
                 val shownTitle = featured.getOrNull(featuredIndex.coerceIn(0, (featured.size - 1).coerceAtLeast(0)))
+                // The text area on the left (the featured title runs to about 44% across the
+                // picture) stays dark enough for bright text, then fades so the artwork shows.
                 CinematicBackdrop(
                     backdrop = shownTitle?.backdropUrl,
                     poster = shownTitle?.posterUrl,
+                    leftFade = 0.78f,
+                    textScrim = 0.46f,
+                    textScrimAlpha = 0.88f,
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .size(width = 780.dp, height = 439.dp)
@@ -330,8 +335,6 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                             verticalAlignment = Alignment.Bottom,
                         ) {
                             Text(text = "Your apps", style = RowHeading)
-                            // Which build is installed, so it's easy to tell whether an update landed.
-                            Text(text = "Build ${BuildConfig.VERSION_CODE}", style = WiptvType.hint)
                         }
                         if (apps.isEmpty()) {
                             RowMessage("Loading apps…")
@@ -523,10 +526,13 @@ private fun Header(now: LocalTime, weather: WeatherNow?, update: UpdateState, on
                 UpdateButton(update = update, onClick = onUpdateClick)
             }
             if (weather != null) {
+                // The forecast, quieter, on its own line under the capsule.
                 Text(
                     text = "${Weather.placeName} · ${weather.outlook}",
-                    modifier = Modifier.padding(top = 4.dp, end = 4.dp),
-                    style = WiptvType.hint,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 6.dp, end = 14.dp),
+                    style = WiptvType.hint.copy(fontSize = 11.sp, color = WiptvColors.quiet.copy(alpha = 0.75f)),
                 )
             }
         }

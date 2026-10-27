@@ -61,6 +61,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Text
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.text.style.TextOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -91,6 +94,8 @@ fun CinematicBackdrop(
     leftFade: Float = 0.62f,
     /** How far across the screen stays dark enough for text (fraction of the width). */
     textScrim: Float = leftFade * 0.45f,
+    /** How dark the screen still is at [textScrim]; the player keeps the default. */
+    textScrimAlpha: Float = 0.8f,
 ) {
     val context = LocalContext.current
     var shown by remember { mutableStateOf<Art?>(null) }
@@ -120,7 +125,7 @@ fun CinematicBackdrop(
             modifier = Modifier.fillMaxSize().background(
                 Brush.horizontalGradient(
                     0f to WiptvColors.background,
-                    textScrim to WiptvColors.background.copy(alpha = 0.8f),
+                    textScrim to WiptvColors.background.copy(alpha = textScrimAlpha),
                     leftFade to Color.Transparent,
                 ),
             ),
@@ -269,7 +274,15 @@ fun ActionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifie
  * label and text pairs, such as "Starring" and the cast.
  */
 @Composable
-fun InfoSheet(title: String, meta: String, body: String?, sections: List<Pair<String, String>>, onClose: () -> Unit) {
+fun InfoSheet(
+    title: String,
+    meta: String,
+    body: String?,
+    sections: List<Pair<String, String>>,
+    onClose: () -> Unit,
+    /** The details as separate items, which wrap whole (see [MetaLine]); used instead of [meta]. */
+    metaItems: List<String>? = null,
+) {
     val scroll = rememberScrollState()
     val scope = rememberCoroutineScope()
     val focus = remember { FocusRequester() }
@@ -297,7 +310,11 @@ fun InfoSheet(title: String, meta: String, body: String?, sections: List<Pair<St
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(text = title, style = WiptvType.screen)
-                if (meta.isNotBlank()) Text(text = meta, style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium))
+                if (metaItems != null) {
+                    if (metaItems.isNotEmpty()) MetaLine(items = metaItems, style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium))
+                } else if (meta.isNotBlank()) {
+                    Text(text = meta, style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium))
+                }
                 if (!body.isNullOrBlank()) {
                     Text(
                         text = body,
@@ -317,6 +334,61 @@ fun InfoSheet(title: String, meta: String, body: String?, sections: List<Pair<St
         repeat(20) {
             if (runCatching { focus.requestFocus() }.isSuccess) return@LaunchedEffect
             delay(50)
+        }
+    }
+}
+
+/**
+ * A details line ("Series · 2011 · 5 seasons · TMDB 8.1") that wraps between items, never inside
+ * one: "TMDB 8.1" always stays together, and a separator only appears between two items on the
+ * same line, so no line starts or ends with a stray dot. An item too long for a whole line ends
+ * in "…".
+ */
+@Composable
+fun MetaLine(
+    items: List<String>,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    separator: String = "  ·  ",
+    lineGap: Dp = 2.dp,
+) {
+    Layout(
+        modifier = modifier,
+        content = {
+            items.forEach { Text(text = it, style = style, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
+            repeat((items.size - 1).coerceAtLeast(0)) { Text(text = separator, style = style, maxLines = 1, softWrap = false) }
+        },
+    ) { measurables, constraints ->
+        val limit = if (constraints.hasBoundedWidth) constraints.maxWidth else Int.MAX_VALUE
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val texts = measurables.take(items.size).map { it.measure(loose) }
+        val separators = measurables.drop(items.size).map { it.measure(loose) }
+        val gap = lineGap.roundToPx()
+        val placed = mutableListOf<Triple<Placeable, Int, Int>>()
+        var x = 0
+        var y = 0
+        var lineHeight = 0
+        var width = 0
+        texts.forEachIndexed { i, text ->
+            if (i > 0) {
+                val sep = separators[i - 1]
+                if (x + sep.width + text.width <= limit) {
+                    placed += Triple(sep, x, y)
+                    x += sep.width
+                } else {
+                    y += lineHeight + gap
+                    x = 0
+                    lineHeight = 0
+                }
+            }
+            placed += Triple(text, x, y)
+            x += text.width
+            lineHeight = maxOf(lineHeight, text.height)
+            width = maxOf(width, x)
+        }
+        val height = if (texts.isEmpty()) 0 else y + lineHeight
+        layout(width.coerceIn(constraints.minWidth, limit), height.coerceAtLeast(constraints.minHeight)) {
+            placed.forEach { (p, px, py) -> p.placeRelative(px, py) }
         }
     }
 }
