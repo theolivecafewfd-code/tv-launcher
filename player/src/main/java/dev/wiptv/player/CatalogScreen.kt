@@ -75,6 +75,20 @@ private data class Hero(
     val poster: String?,
 )
 
+/** A series' details in the shape the hero uses (the same fields a film's details have). */
+private fun SeriesDetails.asHeroDetails() = MovieDetails(
+    plot = plot,
+    genre = genre,
+    cast = cast,
+    director = "",
+    year = year,
+    durationMinutes = null,
+    backdrop = backdrop,
+    trailer = trailer,
+    rating = rating,
+    extension = "",
+)
+
 private fun heroOf(item: VodItem, details: MovieDetails? = null): Hero {
     val year = details?.year?.ifBlank { null } ?: item.year
     return Hero(
@@ -184,13 +198,16 @@ fun CatalogScreen(
     val firstPoster = remember { FocusRequester() }
     val listState = rememberLazyListState()
 
+    // Films' rows rarely carry a synopsis or backdrop, and nor do titles added to My List from the
+    // launcher (films or series): fetch their details once focus rests, and keep what's found in
+    // My List so the entry is complete next time (here and in the launcher).
     LaunchedEffect(restingOn) {
         val item = restingOn ?: return@LaunchedEffect
-        if (item.kind != VodKind.MOVIE || movieDetails.containsKey(item.id)) return@LaunchedEffect
+        if (movieDetails.containsKey(item.id)) return@LaunchedEffect
         if (item.backdrop != null && !item.plot.isNullOrBlank()) return@LaunchedEffect
         delay(700)
         val details = try {
-            Xtream.movieDetails(login, item)
+            if (item.kind == VodKind.MOVIE) Xtream.movieDetails(login, item) else Xtream.seriesDetails(login, item).asHeroDetails()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -198,6 +215,18 @@ fun CatalogScreen(
         }
         movieDetails[item.id] = details
         hero = restingPoint?.let { heroOf(it, item, details) } ?: heroOf(item, details)
+        if (myList.any { it.key == item.key }) {
+            withContext(Dispatchers.IO) {
+                store.fillInFavourite(
+                    item.copy(
+                        plot = item.plot?.ifBlank { null } ?: details.plot.ifBlank { null },
+                        backdrop = item.backdrop ?: details.backdrop,
+                        year = item.year ?: details.year.ifBlank { null },
+                        rating = item.rating ?: details.rating,
+                    ),
+                )
+            }
+        }
     }
 
     fun focusItem(item: VodItem) {
