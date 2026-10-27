@@ -1,5 +1,7 @@
 package dev.tvlauncher
 
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.tv.material3.LocalContentColor
 import dev.wiptv.design.ArtFocusGap
@@ -546,13 +548,28 @@ internal fun IptvPosterCard(title: IptvTitle, onClick: () -> Unit, modifier: Mod
     }
 }
 
-/** Continue watching cards: wide, like the player's. */
-private val ResumeWidth = 236.dp
-private val ResumeHeight = 133.dp
+/**
+ * Continue watching card sizes: portrait (2:3) at rest; the card you settle on widens to 16:9
+ * at the same height, pushing its neighbours along. Captions sit in a fixed space underneath,
+ * so the row's height never changes.
+ */
+private val CardHeight = 156.dp
+private val CardNarrow = 104.dp
+private val CardWide = 277.dp
+private val CardGap = 12.dp
+private val CaptionHeight = 58.dp
+
+/** How long focus has to rest on a card before it widens, and how long widening takes. */
+private const val SETTLE_MS = 180L
+private const val GROW_MS = 180
 
 /**
- * Continue watching: films and episodes you've started in WIPTV Player, as wide cards with the
- * episode still or backdrop (else the poster) and a progress bar. OK resumes in the player.
+ * Continue watching: films and episodes you've started in WIPTV Player. Cards are portrait
+ * posters; the one you rest on widens to its landscape picture (Netflix style), with the title,
+ * episode, time left and "OK to resume" underneath. OK resumes in the player.
+ *
+ * Only one card is ever wide. Focus shows at once as a thin outline; widening waits until focus
+ * has settled, so Left and Right stay quick. Leaving the row returns every card to portrait.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -568,82 +585,199 @@ fun ContinueRow(
         up.ifAttached()?.let { this.up = it }
         down.ifAttached()?.let { this.down = it }
     }
+    // The card with focus, and the one that's wide. A new focus cancels a pending widen.
+    var focusedKey by remember { mutableStateOf<String?>(null) }
+    var wideKey by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(focusedKey) {
+        val key = focusedKey
+        if (key == null) {
+            wideKey = null
+            return@LaunchedEffect
+        }
+        delay(SETTLE_MS)
+        wideKey = key
+    }
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = "Continue watching", modifier = Modifier.padding(start = Edge, end = Edge, bottom = 2.dp), style = RowHeading)
         RowScrolling(start = Edge, end = 72.dp) {
             LazyRow(
+                // focusRestorer: coming back to the row lands on the card you were last on.
                 modifier = Modifier.focusRequester(requester).focusRestorer(),
-                contentPadding = PaddingValues(start = Edge - ArtFocusGap, end = Edge, top = 6.dp, bottom = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp - ArtFocusGap * 2),
+                contentPadding = PaddingValues(start = Edge, end = Edge, top = 6.dp, bottom = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(CardGap),
             ) {
                 items(items, key = { it.key }) { item ->
-                    var focused by remember { mutableStateOf(false) }
-                    Column(modifier = Modifier.width(ResumeWidth + ArtFocusGap * 2)) {
-                        ArtFrame(
-                            width = ResumeWidth,
-                            height = ResumeHeight,
-                            onFocusChange = { focused = it },
-                            onClick = { onResume(item) },
-                            modifier = upAndDown,
-                        ) {
-                            val picture = item.imageUrl ?: item.posterUrl
-                            if (picture != null) {
-                                AsyncImage(
-                                    model = picture,
-                                    contentDescription = item.title,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize(),
-                                )
-                            }
-                            Box(Modifier.align(Alignment.TopStart).padding(5.dp)) { IptvTag() }
-                            if (item.progress > 0f) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .fillMaxWidth()
-                                        .height(36.dp)
-                                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))),
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomCenter)
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 10.dp, vertical = 9.dp)
-                                        .height(4.dp)
-                                        .background(Color.White.copy(alpha = 0.24f), RoundedCornerShape(50)),
-                                ) {
-                                    Box(
-                                        Modifier
-                                            .fillMaxHeight()
-                                            .fillMaxWidth(item.progress.coerceIn(0f, 1f))
-                                            .background(WiptvColors.progress, RoundedCornerShape(50)),
-                                    )
-                                }
-                            }
-                        }
-                        // The title, then the episode and time left (or "OK to resume" when focused).
-                        Text(
-                            text = item.title,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp),
-                            style = TextStyle(
-                                fontSize = 14.sp,
-                                lineHeight = 18.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = if (focused) WiptvColors.text else WiptvColors.secondary,
-                            ),
-                        )
-                        Text(
-                            text = if (focused) listOfNotNull("OK to resume", item.left).joinToString(" · ")
-                            else listOfNotNull(item.subtitle?.substringBefore(" · ")?.takeIf { it.isNotBlank() }, item.left).joinToString(" · "),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap).height(18.dp),
-                            style = WiptvType.hint,
+                    ContinueCard(
+                        item = item,
+                        wide = wideKey == item.key,
+                        focused = focusedKey == item.key,
+                        onFocusChange = { has ->
+                            if (has) focusedKey = item.key else if (focusedKey == item.key) focusedKey = null
+                        },
+                        onClick = { onResume(item) },
+                        modifier = upAndDown,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ContinueCard(
+    item: IptvResume,
+    wide: Boolean,
+    focused: Boolean,
+    onFocusChange: (Boolean) -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val width by animateDpAsState(if (wide) CardWide else CardNarrow, animationSpec = tween(GROW_MS), label = "cardWidth")
+    // Once it has widened, keep the whole card on screen (the row slides along if needed).
+    val wholeCard = remember { BringIntoViewRequester() }
+    LaunchedEffect(wide) {
+        if (wide) {
+            delay(GROW_MS + 20L)
+            wholeCard.bringIntoView()
+        }
+    }
+    val shape = RoundedCornerShape(10.dp)
+    Column(modifier = Modifier.width(width).bringIntoViewRequester(wholeCard)) {
+        Surface(
+            onClick = onClick,
+            modifier = modifier
+                .fillMaxWidth()
+                .height(CardHeight)
+                .onFocusChanged { onFocusChange(it.isFocused) },
+            tonalElevation = 0.dp,
+            shape = ClickableSurfaceDefaults.shape(shape = shape),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = WiptvColors.surface,
+                focusedContainerColor = WiptvColors.surface,
+                pressedContainerColor = WiptvColors.surface,
+            ),
+            // One thin, soft outline for focus; no lift, glow or second border.
+            scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1f, pressedScale = 1f),
+            border = ClickableSurfaceDefaults.border(
+                border = Border.None,
+                focusedBorder = Border(border = BorderStroke(2.dp, WiptvColors.focus.copy(alpha = 0.85f)), shape = shape),
+                pressedBorder = Border(border = BorderStroke(2.dp, WiptvColors.focus.copy(alpha = 0.85f)), shape = shape),
+            ),
+            glow = ClickableSurfaceDefaults.glow(glow = Glow.None, focusedGlow = Glow.None, pressedGlow = Glow.None),
+        ) {
+            Box(Modifier.fillMaxSize().clip(shape)) {
+                ContinueArtwork(item = item, wide = wide)
+                // Where it's from, top left, clear of the progress bar.
+                Box(Modifier.align(Alignment.TopStart).padding(6.dp)) { IptvTag() }
+                if (item.progress > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(28.dp)
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 7.dp)
+                            .height(3.dp)
+                            .background(Color.White.copy(alpha = 0.24f), RoundedCornerShape(50)),
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(item.progress.coerceIn(0f, 1f))
+                                .background(WiptvColors.progress, RoundedCornerShape(50)),
                         )
                     }
                 }
+            }
+        }
+        // A fixed space for the captions: the title (up to two lines), and on the focused card
+        // the episode, time left and "OK to resume", quieter.
+        Column(modifier = Modifier.fillMaxWidth().height(CaptionHeight).padding(top = 6.dp)) {
+            Text(
+                text = item.title,
+                maxLines = if (focused) 1 else 2,
+                overflow = TextOverflow.Ellipsis,
+                style = TextStyle(
+                    fontSize = 14.sp,
+                    lineHeight = 18.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (focused) WiptvColors.text else WiptvColors.secondary,
+                ),
+            )
+            if (focused) {
+                Text(
+                    text = listOfNotNull(
+                        item.subtitle?.substringBefore(" · ")?.takeIf { it.isNotBlank() },
+                        item.left,
+                        "OK to resume",
+                    ).joinToString(" · "),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = WiptvType.hint.copy(lineHeight = 15.sp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The picture: the portrait poster while narrow; once wide, a crossfade to the landscape still
+ * or backdrop. With no landscape picture, the sharp poster sits on a dark wash made from itself
+ * (never stretched). Images come from Coil's cache after the first load.
+ */
+@Composable
+private fun ContinueArtwork(item: IptvResume, wide: Boolean) {
+    val landscape = item.imageUrl
+    Crossfade(targetState = wide, animationSpec = tween(GROW_MS), label = "continueArt") { isWide ->
+        Box(Modifier.fillMaxSize().background(WiptvColors.surface)) {
+            when {
+                isWide && landscape != null -> AsyncImage(
+                    model = landscape,
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                isWide && item.posterUrl != null -> {
+                    AsyncImage(
+                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                            .data(item.posterUrl).size(12, 18).build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        alpha = 0.45f,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    AsyncImage(
+                        model = item.posterUrl,
+                        contentDescription = item.title,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxHeight().align(Alignment.Center),
+                    )
+                }
+                item.posterUrl != null -> AsyncImage(
+                    model = item.posterUrl,
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                landscape != null -> AsyncImage(
+                    model = landscape,
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                else -> Text(
+                    text = item.title,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.align(Alignment.Center).padding(8.dp),
+                    style = WiptvType.hint,
+                )
             }
         }
     }
