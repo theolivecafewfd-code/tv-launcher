@@ -61,7 +61,7 @@ enum class Section(val label: String) { LIVE("Live TV"), MOVIES("Movies"), SERIE
 
 /** Shows the sign-in screen until there are saved details, then Live TV, Movies or Series. */
 @Composable
-fun PlayerRoot() {
+fun PlayerRoot(initialSection: Section = Section.LIVE) {
     val context = LocalContext.current
     var login by remember { mutableStateOf(LoginStore.load(context)) }
     val update = rememberUpdateState()
@@ -76,7 +76,7 @@ fun PlayerRoot() {
             },
         )
     } else {
-        var section by remember { mutableStateOf(Section.LIVE) }
+        var section by remember { mutableStateOf(initialSection) }
         val store = remember { VodStore(context) }
         val tabs: @Composable () -> Unit = { SectionTabs(selected = section, onSelect = { section = it }, update = update) }
         // Only one part is on screen at a time, so leaving Live TV also stops its stream.
