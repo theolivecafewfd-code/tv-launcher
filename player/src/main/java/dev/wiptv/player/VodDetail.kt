@@ -111,6 +111,7 @@ fun VodDetailScreen(
         position = from,
         duration = resume?.duration ?: 0,
         updated = System.currentTimeMillis(),
+        image = details.backdrop ?: item.backdrop,
     )
 
     fun episodePoint(episode: Episode, from: Long) = ResumePoint(
@@ -123,6 +124,7 @@ fun VodDetailScreen(
         duration = store.resumePoint("episode:${episode.id}")?.duration ?: 0,
         updated = System.currentTimeMillis(),
         seriesId = item.id,
+        image = episode.image ?: series?.backdrop ?: item.backdrop,
     )
 
     /** Plays an episode; when it ends, the next one (or the next season's first) follows. */

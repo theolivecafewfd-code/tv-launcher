@@ -20,6 +20,8 @@ data class ResumePoint(
     val duration: Long,
     val updated: Long,
     val seriesId: Long? = null,
+    /** Wide artwork for Continue watching: the episode's still or the film's backdrop. */
+    val image: String? = null,
 ) {
     val progress: Float get() = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
 }
@@ -46,6 +48,7 @@ class VodStore(context: Context) {
                 duration = o.optLong("duration"),
                 updated = o.optLong("updated"),
                 seriesId = o.optLong("seriesId", -1).takeIf { it >= 0 },
+                image = o.optString("image").takeIf { it.isNotBlank() },
             )
         }.sortedByDescending { it.updated }
     }.getOrDefault(emptyList())
@@ -125,7 +128,8 @@ class VodStore(context: Context) {
                     .put("position", p.position)
                     .put("duration", p.duration)
                     .put("updated", p.updated)
-                    .put("seriesId", p.seriesId ?: -1),
+                    .put("seriesId", p.seriesId ?: -1)
+                    .put("image", p.image ?: ""),
             )
         }
         prefs.edit().putString("resume", array.toString()).apply()
