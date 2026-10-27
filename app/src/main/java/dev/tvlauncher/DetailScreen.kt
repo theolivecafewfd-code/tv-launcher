@@ -2,6 +2,7 @@ package dev.tvlauncher
 
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
@@ -211,11 +212,16 @@ fun DetailScreen(
 
                                 // Watch on your first service is the main action; the rest are quiet.
                                 // When they don't all fit, the row slides along as focus moves right.
-                                RowScrolling(start = 0.dp, end = 72.dp) {
+                                // The sliding row clips at its edges, so it has 8 dp of room all round
+                                // for the focused button's outline and lift (shifted back so the
+                                // buttons still line up with the text).
+                                RowScrolling(start = 8.dp, end = 72.dp) {
                                 Row(
                                     modifier = Modifier
-                                        .padding(top = 18.dp)
-                                        .horizontalScroll(rememberScrollState()),
+                                        .padding(top = 10.dp)
+                                        .offset(x = (-8).dp)
+                                        .horizontalScroll(rememberScrollState())
+                                        .padding(8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
                                     title.sources.forEachIndexed { i, source ->
