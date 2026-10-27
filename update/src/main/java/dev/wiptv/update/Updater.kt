@@ -11,6 +11,7 @@ import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -25,12 +26,29 @@ enum class WiptvApp(
     val apkName: String,
     /** The GitHub API path of the app's release. */
     val releasePath: String,
+    /** A small file in the release holding just its build number, e.g. "112". */
+    val buildFileName: String,
 ) {
     /** The launcher: a new `build-N` release per merge, always the repo's "latest". */
-    LAUNCHER("dev.tvlauncher", "WIPTV", "tv-launcher.apk", "releases/latest"),
+    LAUNCHER("dev.tvlauncher", "WIPTV", "tv-launcher.apk", "releases/latest", "tv-launcher.build.txt"),
 
     /** The player: one `player` release, replaced per merge, named "WIPTV Player build N". */
-    PLAYER("dev.wiptv.player", "WIPTV Player", "wiptv-player.apk", "releases/tags/player");
+    PLAYER("dev.wiptv.player", "WIPTV Player", "wiptv-player.apk", "releases/tags/player", "wiptv-player.build.txt");
+
+    /**
+     * The build file's download link. Release downloads aren't counted against GitHub's API
+     * limit (60 checks an hour per home connection), so this is what the pill reads first.
+     */
+    fun buildFileUrl(repo: String): String = when (this) {
+        LAUNCHER -> "https://github.com/$repo/releases/latest/download/$buildFileName"
+        PLAYER -> "https://github.com/$repo/releases/download/player/$buildFileName"
+    }
+
+    /** The APK of [build], as a plain download link. */
+    fun apkUrl(repo: String, build: Int): String = when (this) {
+        LAUNCHER -> "https://github.com/$repo/releases/download/build-$build/$apkName"
+        PLAYER -> "https://github.com/$repo/releases/download/player/$apkName"
+    }
 
     /** The build number a release stands for (the GitHub Actions run number = versionCode). */
     fun buildOf(release: JSONObject): Int? = when (this) {
@@ -87,16 +105,18 @@ object Updater {
         for (app in WiptvApp.entries) {
             val installed = installedBuild(context, app.packageName) ?: continue
             try {
-                val release = JSONObject(httpGetText(context, "https://api.github.com/repos/$repo/${app.releasePath}"))
+                // The build file first; the API only if it's missing (releases from before it existed).
+                val newest = try {
+                    fromBuildFile(context, repo, app)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.i(TAG, "No build file for ${app.label}, asking the API", e)
+                    fromApi(context, repo, app)
+                }
                 checked++
-                val build = app.buildOf(release) ?: continue
-                if (build <= installed) continue
-                val assets = release.getJSONArray("assets")
-                val url = (0 until assets.length()).map { assets.getJSONObject(it) }
-                    .firstOrNull { it.optString("name") == app.apkName }
-                    ?.optString("browser_download_url")
-                    ?: continue // a build still being published: next check will see it
-                updates += AppUpdate(app, build, url)
+                if (newest == null || newest.build <= installed) continue
+                updates += newest
             } catch (e: Exception) {
                 Log.w(TAG, "Couldn't check ${app.label}", e)
                 if (failure == null) failure = e
@@ -107,6 +127,27 @@ object Updater {
             checked == 0 && failure != null -> UpdateState.CheckFailed(describe(failure!!))
             else -> UpdateState.UpToDate
         }
+    }
+
+    /** The newest build from the release's build file. */
+    private fun fromBuildFile(context: Context, repo: String, app: WiptvApp): AppUpdate {
+        val text = httpGetText(context, app.buildFileUrl(repo))
+        val build = text.trim().toIntOrNull() ?: error("Unreadable build file")
+        return AppUpdate(app, build, app.apkUrl(repo, build))
+    }
+
+    /** The newest build from GitHub's API, or null while a build is still being published. */
+    private fun fromApi(context: Context, repo: String, app: WiptvApp): AppUpdate? {
+        val release = JSONObject(
+            httpGetText(context, "https://api.github.com/repos/$repo/${app.releasePath}", accept = "application/vnd.github+json"),
+        )
+        val build = app.buildOf(release) ?: return null
+        val assets = release.getJSONArray("assets")
+        val url = (0 until assets.length()).map { assets.getJSONObject(it) }
+            .firstOrNull { it.optString("name") == app.apkName }
+            ?.optString("browser_download_url")
+            ?: return null // a build still being published: next check will see it
+        return AppUpdate(app, build, url)
     }
 
     /** True when the user has allowed this app to install updates. */
@@ -229,8 +270,8 @@ object Updater {
         }
     }
 
-    private fun httpGetText(context: Context, url: String): String {
-        val connection = open(context, url, accept = "application/vnd.github+json")
+    private fun httpGetText(context: Context, url: String, accept: String? = null): String {
+        val connection = open(context, url, accept = accept)
         try {
             return connection.inputStream.bufferedReader().use { it.readText() }
         } finally {
