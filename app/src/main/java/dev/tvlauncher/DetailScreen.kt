@@ -101,6 +101,9 @@ fun DetailScreen(
     LaunchedEffect(title.key) {
         iptv = Iptv.match(context, title)
         iptvChecked = true
+        // Titles your provider has are kept in the player's My List (one list for both apps).
+        val found = iptv ?: return@LaunchedEffect
+        if (Iptv.myList(context).any { it.type == found.type && it.id == found.id }) inMyList = true
     }
     // Focus starts on the main action. It waits briefly for the IPTV answer, so it lands on
     // Watch on IPTV when that's the first button.
@@ -270,9 +273,21 @@ fun DetailScreen(
                                     ActionButton(
                                         text = if (inMyList) "✓  My List" else "+  My List",
                                         onClick = {
-                                            inMyList = library.toggleMyList(title)
-                                            if (inMyList) History(context).add(title)
-                                            onLibraryChange()
+                                            val add = !inMyList
+                                            scope.launch {
+                                                // On your IPTV: the player's My List, so both apps
+                                                // show it once. Otherwise (or with an older player)
+                                                // the launcher's own list.
+                                                val found = iptv
+                                                if (found != null && Iptv.setInMyList(context, found, add)) {
+                                                    if (library.isInMyList(title)) library.toggleMyList(title)
+                                                } else if (library.isInMyList(title) != add) {
+                                                    library.toggleMyList(title)
+                                                }
+                                                inMyList = add
+                                                if (add) History(context).add(title)
+                                                onLibraryChange()
+                                            }
                                         },
                                         modifier = if (title.sources.isEmpty() && iptv == null) Modifier.focusRequester(primary) else Modifier,
                                     )

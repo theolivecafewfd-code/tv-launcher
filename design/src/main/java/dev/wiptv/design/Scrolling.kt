@@ -24,7 +24,9 @@ fun PivotScrolling(
     alwaysAlign: Boolean = false,
     /**
      * Going up to something shorter than this (a details page's buttons or season tabs) carries
-     * on to the very top of the list in one movement, so the whole header shows again.
+     * on to the very top of the list in one movement, so the whole header shows again. That also
+     * applies when it's already on screen but in the top third, where the header above it can be
+     * cut off and nothing above it takes focus.
      */
     upToTopBelow: Dp? = null,
     content: @Composable () -> Unit,
@@ -36,7 +38,7 @@ fun PivotScrolling(
         object : BringIntoViewSpec {
             override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
                 // The list stops at its top, so overshooting there is safe.
-                if (upToTopPx != null && offset < 0f && size < upToTopPx) return offset - containerSize
+                if (upToTopPx != null && size < upToTopPx && offset < containerSize / 3) return offset - containerSize
                 val fullyVisible = offset >= 0f && offset + size <= containerSize
                 return if (fullyVisible && !alwaysAlign) 0f else offset - pivotPx
             }

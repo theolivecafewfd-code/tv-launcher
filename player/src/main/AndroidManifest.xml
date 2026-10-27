@@ -41,11 +41,12 @@
             </intent-filter>
         </activity>
 
-        <!-- The launcher's "Watch on IPTV" and search ask this about the provider's titles. -->
+        <!-- The launcher's "Watch on IPTV" and search ask this about the provider's titles, and
+             its My List button adds to and removes from the player's My List. -->
         <provider
             android:name=".CatalogProvider"
             android:authorities="dev.wiptv.player.catalog"
             android:exported="true"
-            android:readPermission="dev.wiptv.permission.CATALOG" />
+            android:permission="dev.wiptv.permission.CATALOG" />
     </application>
 </manifest>

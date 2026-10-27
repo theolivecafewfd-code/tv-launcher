@@ -43,8 +43,10 @@ data class Title(
     val posterUrl: String?,
     /** Services that have it, in your order of preference. */
     val sources: List<Source>,
+    /** Set for an entry from the player's My List: it opens in the player. */
+    val iptv: IptvTitle? = null,
 ) {
-    val key: String get() = "${type.path}:$id"
+    val key: String get() = if (iptv != null) "iptv:${type.path}:${iptv.id}" else "${type.path}:$id"
 }
 
 /** One row on the home screen, e.g. "Top 10 this week". */

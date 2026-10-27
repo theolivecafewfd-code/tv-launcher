@@ -94,7 +94,26 @@ class VodStore(context: Context) {
     fun toggleFavourite(item: VodItem): Boolean {
         val current = favourites()
         val added = current.none { it.key == item.key }
-        val next = if (added) listOf(item) + current else current.filterNot { it.key == item.key }
+        writeFavourites(if (added) listOf(item) + current else current.filterNot { it.key == item.key })
+        return added
+    }
+
+    /** Puts it at the front of My List, if it isn't there already (from the launcher). */
+    fun addFavourite(item: VodItem) {
+        val current = favourites()
+        if (current.none { it.key == item.key }) writeFavourites(listOf(item) + current)
+    }
+
+    /** Takes it off My List; returns true when it was there. */
+    fun removeFavourite(key: String): Boolean {
+        val current = favourites()
+        val next = current.filterNot { it.key == key }
+        if (next.size == current.size) return false
+        writeFavourites(next)
+        return true
+    }
+
+    private fun writeFavourites(next: List<VodItem>) {
         val array = JSONArray()
         for (f in next) {
             val o = JSONObject()
@@ -112,7 +131,6 @@ class VodStore(context: Context) {
             array.put(o)
         }
         prefs.edit().putString("favourites", array.toString()).apply()
-        return added
     }
 
     private fun write(points: List<ResumePoint>) {
