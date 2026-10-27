@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.heightIn
+import dev.wiptv.design.Glass
 import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvShapes
 import dev.wiptv.design.WiptvType
@@ -281,7 +282,7 @@ fun LiveScreen(
                     .width(200.dp)
                     .fillMaxHeight()
                     .padding(bottom = 20.dp)
-                    .glass(WiptvShapes.panel)
+                    .glass(WiptvShapes.panel, Glass.Quiet)
                     .padding(horizontal = 8.dp, vertical = 10.dp),
             ) {
                 Text(
@@ -422,7 +423,7 @@ fun LiveScreen(
                         }
                         .focusGroup(),
                     contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp, start = 4.dp, end = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp),
                 ) {
                     itemsIndexed(channels.orEmpty(), key = { _, c -> c.id }) { index, channel ->
                         // Each row loads its own guide as it comes on screen, and again every half hour.
@@ -584,7 +585,7 @@ private fun Preview(live: LivePlayer, attached: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(width = 242.dp, height = 136.dp)
-            .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.16f), WiptvShapes.panel)
+            .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f), WiptvShapes.panel)
             .padding(3.dp)
             .onFocusChanged { focused = it.isFocused }
             .onKeyEvent { event ->

@@ -43,6 +43,9 @@ import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvShapes
 import dev.wiptv.design.WiptvType
 import dev.wiptv.design.focusOutline
+import dev.wiptv.design.selectedMarker
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
@@ -58,7 +61,7 @@ import java.time.format.DateTimeFormatter
 private const val WINDOW_MINUTES = 120
 private const val WINDOW_MS = WINDOW_MINUTES * 60_000L
 private const val HALF_HOUR_MS = 30 * 60_000L
-internal val ChannelCellWidth = 196.dp
+internal val ChannelCellWidth = 248.dp
 
 /**
  * What's on each channel, loaded a channel at a time as rows come on screen, and refreshed
@@ -132,7 +135,11 @@ fun TimeRuler(windowStart: Long, modifier: Modifier = Modifier) {
 
 /**
  * One channel in the guide: number, logo and name, then its programmes across the next two hours.
- * The whole row is one focusable item; OK on it plays the channel full screen.
+ * The whole row is one focusable item; OK on it previews the channel (OK again goes full screen).
+ *
+ * Styled like the categories list: no boxes at rest, a hairline between rows, programmes told
+ * apart by spacing, a faint divider at each start and a soft wash on the one on now. Focus is the
+ * one strong signal: a light wash and outline across the whole row.
  */
 @Composable
 fun GuideRow(
@@ -159,33 +166,47 @@ fun GuideRow(
                 if (event.type == KeyEventType.KeyUp) onMenu()
                 true
             }
+            // A hairline under each row instead of a filled box.
+            .drawBehind {
+                drawLine(
+                    color = Color.White.copy(alpha = 0.07f),
+                    start = Offset(12.dp.toPx(), size.height - 0.5f),
+                    end = Offset(size.width - 12.dp.toPx(), size.height - 0.5f),
+                    strokeWidth = 1.dp.toPx(),
+                )
+            }
             .fillMaxWidth()
             .height(48.dp),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = WiptvColors.surface,
+            containerColor = Color.Transparent,
             contentColor = WiptvColors.text,
-            focusedContainerColor = WiptvColors.elevated,
+            focusedContainerColor = WiptvColors.focus.copy(alpha = 0.10f),
             focusedContentColor = WiptvColors.text,
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
         border = focusOutline(shape),
     ) {
-        Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            // Channel.
+        Row(
+            // The channel in the preview gets a slim green bar on the left, separate from focus.
+            modifier = Modifier.fillMaxSize().selectedMarker(playing, WiptvColors.positive),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Channel: number (▶ when it's in the preview), logo, name (★ when it's a favourite).
             Row(
-                modifier = Modifier.width(ChannelCellWidth).padding(start = 8.dp, end = 8.dp),
+                modifier = Modifier.width(ChannelCellWidth).padding(start = 10.dp, end = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                // The channel in the preview is marked with ▶.
                 Text(
                     text = if (playing) "▶" else channel.number.toString(),
-                    modifier = Modifier.width(26.dp),
-                    style = TextStyle(fontSize = 12.sp, color = if (playing) WiptvColors.focus else WiptvColors.quiet),
+                    modifier = Modifier.width(24.dp),
+                    style = TextStyle(fontSize = 12.sp, color = if (playing) WiptvColors.positive else WiptvColors.quiet),
                 )
                 Box(
-                    modifier = Modifier.size(width = 36.dp, height = 24.dp).background(WiptvColors.elevated, RoundedCornerShape(6.dp)),
+                    modifier = Modifier
+                        .size(width = 34.dp, height = 22.dp)
+                        .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(5.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (channel.logo != null) {
@@ -197,22 +218,39 @@ fun GuideRow(
                         )
                     }
                 }
+                if (favourite) {
+                    Text(text = "★", style = TextStyle(fontSize = 13.sp, color = WiptvColors.warning))
+                }
                 Text(
-                    text = if (favourite) "★ ${channel.name}" else channel.name,
+                    text = channel.name,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = TextStyle(
                         fontSize = 14.sp,
-                        fontWeight = if (playing) FontWeight.Bold else FontWeight.Medium,
-                        color = if (playing) WiptvColors.focus else WiptvColors.text,
+                        fontWeight = if (playing) FontWeight.SemiBold else FontWeight.Medium,
+                        color = WiptvColors.text,
                     ),
                 )
             }
 
-            // Programmes.
-            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 6.dp).clip(WiptvShapes.small)) {
+            // Programmes, across the same width as the time ruler above.
+            BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 val windowEnd = windowStart + WINDOW_MS
                 val shown = programmes.orEmpty().filter { it.end > windowStart && it.start < windowEnd }
+
+                // Faint half-hour divisions, lined up with the ruler's times.
+                val slots = WINDOW_MINUTES / 30
+                for (slot in 1 until slots) {
+                    Box(
+                        modifier = Modifier
+                            .offset(x = maxWidth * (slot.toFloat() / slots))
+                            .width(1.dp)
+                            .fillMaxHeight()
+                            .padding(vertical = 12.dp)
+                            .background(Color.White.copy(alpha = 0.04f)),
+                    )
+                }
+
                 when {
                     programmes == null -> GuideNote("Loading guide…")
                     shown.isEmpty() -> GuideNote("Programme information unavailable")
@@ -224,33 +262,39 @@ fun GuideRow(
                     Box(
                         modifier = Modifier
                             .offset(x = maxWidth * from)
-                            .width((maxWidth * (to - from) - 3.dp).coerceAtLeast(2.dp))
+                            .width((maxWidth * (to - from)).coerceAtLeast(2.dp))
                             .fillMaxHeight()
-                            .padding(vertical = 5.dp)
-                            .background(
-                                if (on) WiptvColors.elevated else Color.White.copy(alpha = 0.04f),
-                                WiptvShapes.small,
-                            )
-                            .border(1.dp, Color.White.copy(alpha = if (on) 0.16f else 0.08f), WiptvShapes.small)
-                            .padding(horizontal = 10.dp),
-                        contentAlignment = Alignment.CenterStart,
+                            .padding(vertical = 6.dp, horizontal = 2.dp)
+                            .background(if (on) Color.White.copy(alpha = 0.06f) else Color.Transparent, WiptvShapes.small),
                     ) {
-                        Column {
+                        // A short divider where a programme starts (not for one already running at the left edge).
+                        if (p.start > windowStart) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.CenterStart)
+                                    .width(1.dp)
+                                    .fillMaxHeight(0.6f)
+                                    .background(Color.White.copy(alpha = 0.14f)),
+                            )
+                        }
+                        Column(
+                            modifier = Modifier.align(Alignment.CenterStart).padding(horizontal = 10.dp),
+                        ) {
                             Text(
                                 text = p.title,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 style = TextStyle(
-                                    fontSize = 13.sp,
-                                    lineHeight = 16.sp,
-                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 14.sp,
+                                    lineHeight = 17.sp,
+                                    fontWeight = if (on) FontWeight.Medium else FontWeight.Normal,
                                     color = if (on) WiptvColors.text else WiptvColors.secondary,
                                 ),
                             )
                             Text(
                                 text = if (on) timeRange(p) else timeOf(p.start),
                                 maxLines = 1,
-                                style = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, color = WiptvColors.quiet),
+                                style = TextStyle(fontSize = 12.sp, lineHeight = 14.sp, color = WiptvColors.quiet),
                             )
                         }
                     }
@@ -263,7 +307,8 @@ fun GuideRow(
                             .offset(x = maxWidth * nowAt)
                             .width(2.dp)
                             .fillMaxHeight()
-                            .background(WiptvColors.focus.copy(alpha = 0.8f)),
+                            .padding(vertical = 4.dp)
+                            .background(WiptvColors.focus.copy(alpha = 0.55f), WiptvShapes.pill),
                     )
                 }
             }

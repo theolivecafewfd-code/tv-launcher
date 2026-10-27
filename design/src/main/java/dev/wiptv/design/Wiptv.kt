@@ -76,7 +76,13 @@ object WiptvShapes {
  * Glass recipes. There is no real blur (the Fire Stick can't afford it): the look comes from a
  * tinted panel, a faint white wash from the top, and a light edge that's brightest at the top.
  */
-enum class Glass(val tint: Float, val washTop: Float, val washBottom: Float) {
+enum class Glass(
+    val tint: Float,
+    val washTop: Float,
+    val washBottom: Float,
+    val edgeTop: Float = 0.40f,
+    val edgeBottom: Float = 0.16f,
+) {
     /** The section capsule and other navigation. */
     Nav(0.86f, 0.12f, 0.04f),
 
@@ -85,6 +91,9 @@ enum class Glass(val tint: Float, val washTop: Float, val washBottom: Float) {
 
     /** Panels over video: at least 94% tint under any text. */
     OverVideo(0.94f, 0.08f, 0.02f),
+
+    /** Side panels on a plain background (Live TV categories): barely blue, with a faint edge. */
+    Quiet(0.45f, 0.05f, 0.01f, edgeTop = 0.14f, edgeBottom = 0.06f),
 }
 
 /** Paints a glass panel behind the content, in [shape]. */
@@ -95,7 +104,7 @@ fun Modifier.glass(shape: Shape, recipe: Glass = Glass.Nav): Modifier = this
         shape,
     )
     .border(
-        BorderStroke(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.40f), Color.White.copy(alpha = 0.16f)))),
+        BorderStroke(1.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = recipe.edgeTop), Color.White.copy(alpha = recipe.edgeBottom)))),
         shape,
     )
 
