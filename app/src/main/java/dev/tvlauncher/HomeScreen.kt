@@ -292,7 +292,13 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                         // brings the whole top back into view, header included.
                         Column(
                             Modifier
-                                .onFocusChanged { if (it.hasFocus) scope.launch { listState.animateScrollToItem(0) } }
+                                .onFocusChanged {
+                                    if (it.hasFocus) scope.launch {
+                                        // After the focus change's own scroll has started, so this one wins.
+                                        delay(60)
+                                        listState.animateScrollToItem(0)
+                                    }
+                                }
                                 .padding(top = 20.dp),
                         ) {
                             Header(now = now, weather = weather, update = update, onUpdateClick = onUpdateClick)

@@ -1,6 +1,8 @@
 package dev.tvlauncher
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -206,13 +208,18 @@ fun DetailScreen(
                                 }
 
                                 // Watch on your first service is the main action; the rest are quiet.
+                                // When they don't all fit, the row slides along as focus moves right.
+                                RowScrolling(start = 0.dp, end = 72.dp) {
                                 Row(
-                                    modifier = Modifier.padding(top = 18.dp),
+                                    modifier = Modifier
+                                        .padding(top = 18.dp)
+                                        .horizontalScroll(rememberScrollState()),
                                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                                 ) {
                                     title.sources.forEachIndexed { i, source ->
                                         ActionButton(
-                                            text = "▶  Watch on " + source.longName,
+                                            // "Watch on" once; a second service is just its name.
+                                            text = "▶  " + (if (i == 0) "Watch on " else "") + source.longName,
                                             primary = i == 0,
                                             onClick = { onWatch(source) },
                                             modifier = if (i == 0) Modifier.focusRequester(primary) else Modifier,
@@ -248,6 +255,7 @@ fun DetailScreen(
                                             modifier = Modifier.focusRequester(moreInfoButton),
                                         )
                                     }
+                                }
                                 }
                             }
                         }
