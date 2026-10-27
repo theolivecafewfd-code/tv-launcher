@@ -84,7 +84,17 @@ private class WatchList(val channels: List<Channel>, val groupId: String, val gr
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
+fun LiveScreen(
+    login: Login,
+    update: UpdateHandle,
+    onSignOut: () -> Unit,
+    header: @Composable () -> Unit = {
+        Text(
+            text = "Live TV",
+            style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Palette.text),
+        )
+    },
+) {
     val context = LocalContext.current
     var account by remember { mutableStateOf<Account?>(null) }
     var groups by remember { mutableStateOf<List<Group>?>(null) }
@@ -255,11 +265,8 @@ fun LiveScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
         Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             // Groups.
             Column(modifier = Modifier.width(190.dp).fillMaxHeight()) {
-                Text(
-                    text = "Live TV",
-                    style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Palette.text),
-                )
-                Spacer(Modifier.height(6.dp))
+                header()
+                Spacer(Modifier.height(8.dp))
                 UpdatePill(update)
                 Spacer(Modifier.height(8.dp))
                 when {

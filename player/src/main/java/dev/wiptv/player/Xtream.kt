@@ -64,6 +64,69 @@ data class Programme(val title: String, val description: String, val start: Long
     fun isOn(now: Long) = now in start until end
 }
 
+/** Films or series: the two halves of the provider's on-demand catalogue. */
+enum class VodKind { MOVIE, SERIES }
+
+/** A film or a series as it appears in a catalogue row. */
+data class VodItem(
+    val kind: VodKind,
+    val id: Long,
+    val name: String,
+    val poster: String?,
+    val categoryId: String,
+    /** The provider's score out of 10, when it has one. */
+    val rating: Double?,
+    /** The file type films play from, like "mp4" or "mkv" (films only). */
+    val extension: String?,
+    /** Series lists carry these; for films they come with the details. */
+    val plot: String? = null,
+    val backdrop: String? = null,
+    val year: String? = null,
+) {
+    /** Remembers playback position and favourites under this. */
+    val key: String get() = "${kind.name.lowercase()}:$id"
+}
+
+/** A film's details page. */
+data class MovieDetails(
+    val plot: String,
+    val genre: String,
+    val cast: String,
+    val director: String,
+    val year: String,
+    val durationMinutes: Int?,
+    val backdrop: String?,
+    val trailer: String?,
+    val rating: Double?,
+    val extension: String,
+)
+
+/** One episode of a series. */
+data class Episode(
+    val id: Long,
+    val season: Int,
+    val number: Int,
+    val title: String,
+    val extension: String,
+    val plot: String,
+    val durationMinutes: Int?,
+    val image: String?,
+)
+
+/** A series' details page: its seasons and their episodes. */
+data class SeriesDetails(
+    val plot: String,
+    val genre: String,
+    val cast: String,
+    val year: String,
+    val backdrop: String?,
+    val trailer: String?,
+    val rating: Double?,
+    val episodes: Map<Int, List<Episode>>,
+) {
+    val seasons: List<Int> get() = episodes.keys.sorted()
+}
+
 /** A sign-in problem, worded for the screen. */
 class XtreamException(message: String) : Exception(message)
 
@@ -207,6 +270,133 @@ object Xtream {
     }
 
     private val BASE64 = Regex("^[A-Za-z0-9+/=\\s]+$")
+
+    // ---- Films and series ----
+
+    /** The provider's film or series categories, in the provider's order. */
+    suspend fun vodCategories(login: Login, kind: VodKind): List<Group> = withContext(Dispatchers.IO) {
+        val action = if (kind == VodKind.MOVIE) "get_vod_categories" else "get_series_categories"
+        val array = parseArray(get("${api(login)}&action=$action"))
+        (0 until array.length()).mapNotNull { i ->
+            val item = array.optJSONObject(i) ?: return@mapNotNull null
+            val id = item.optString("category_id").ifBlank { return@mapNotNull null }
+            Group(id, item.optString("category_name").trim().ifBlank { "Category $id" })
+        }
+    }
+
+    /** The films or series in one category, in the provider's order. */
+    suspend fun vodItems(login: Login, kind: VodKind, categoryId: String): List<VodItem> = withContext(Dispatchers.IO) {
+        val action = if (kind == VodKind.MOVIE) "get_vod_streams" else "get_series"
+        val array = parseArray(get("${api(login)}&action=$action&category_id=${encode(categoryId)}"))
+        (0 until array.length()).mapNotNull { i ->
+            val item = array.optJSONObject(i) ?: return@mapNotNull null
+            val id = number(item, if (kind == VodKind.MOVIE) "stream_id" else "series_id") ?: return@mapNotNull null
+            val name = item.optString("name").trim().ifBlank { return@mapNotNull null }
+            VodItem(
+                kind = kind,
+                id = id,
+                name = name,
+                poster = imageUrl(item.optString(if (kind == VodKind.MOVIE) "stream_icon" else "cover")),
+                categoryId = categoryId,
+                rating = decimal(item, "rating"),
+                extension = item.optString("container_extension").trim().ifBlank { null },
+                plot = text(item, "plot"),
+                backdrop = firstImage(item.opt("backdrop_path")),
+                year = yearOf(text(item, "releaseDate") ?: text(item, "release_date") ?: text(item, "year")),
+            )
+        }
+    }
+
+    /** A film's details. */
+    suspend fun movieDetails(login: Login, movie: VodItem): MovieDetails = withContext(Dispatchers.IO) {
+        val json = runCatching { JSONObject(get("${api(login)}&action=get_vod_info&vod_id=${movie.id}")) }
+            .getOrElse { if (it is XtreamException) throw it else JSONObject() }
+        val info = json.optJSONObject("info") ?: JSONObject()
+        val data = json.optJSONObject("movie_data") ?: JSONObject()
+        MovieDetails(
+            plot = text(info, "plot") ?: text(info, "description") ?: "",
+            genre = text(info, "genre") ?: "",
+            cast = text(info, "cast") ?: text(info, "actors") ?: "",
+            director = text(info, "director") ?: "",
+            year = yearOf(text(info, "releasedate") ?: text(info, "release_date")) ?: "",
+            durationMinutes = number(info, "duration_secs")?.let { (it / 60).toInt() }?.takeIf { it > 0 },
+            backdrop = firstImage(info.opt("backdrop_path")) ?: imageUrl(info.optString("movie_image")),
+            trailer = text(info, "youtube_trailer"),
+            rating = decimal(info, "rating") ?: movie.rating,
+            extension = text(data, "container_extension") ?: movie.extension ?: "mp4",
+        )
+    }
+
+    /** A series' details: its seasons and episodes. */
+    suspend fun seriesDetails(login: Login, series: VodItem): SeriesDetails = withContext(Dispatchers.IO) {
+        val json = runCatching { JSONObject(get("${api(login)}&action=get_series_info&series_id=${series.id}")) }
+            .getOrElse { if (it is XtreamException) throw it else JSONObject() }
+        val info = json.optJSONObject("info") ?: JSONObject()
+        val episodes = mutableMapOf<Int, List<Episode>>()
+        // Episodes come as {"1": [...], "2": [...]}, or on some panels as a plain list.
+        val raw = json.opt("episodes")
+        val lists: List<JSONArray> = when (raw) {
+            is JSONObject -> raw.keys().asSequence().mapNotNull { raw.optJSONArray(it) }.toList()
+            is JSONArray -> listOf(raw)
+            else -> emptyList()
+        }
+        for (list in lists) {
+            for (i in 0 until list.length()) {
+                val item = list.optJSONObject(i) ?: continue
+                val id = number(item, "id") ?: continue
+                val details = item.optJSONObject("info") ?: JSONObject()
+                val season = number(item, "season")?.toInt() ?: 1
+                val episodeNumber = number(item, "episode_num")?.toInt() ?: (i + 1)
+                val episode = Episode(
+                    id = id,
+                    season = season,
+                    number = episodeNumber,
+                    title = text(item, "title") ?: "Episode $episodeNumber",
+                    extension = text(item, "container_extension") ?: "mp4",
+                    plot = text(details, "plot") ?: "",
+                    durationMinutes = number(details, "duration_secs")?.let { (it / 60).toInt() }?.takeIf { it > 0 },
+                    image = imageUrl(details.optString("movie_image")),
+                )
+                episodes[season] = (episodes[season] ?: emptyList()) + episode
+            }
+        }
+        SeriesDetails(
+            plot = text(info, "plot") ?: series.plot ?: "",
+            genre = text(info, "genre") ?: "",
+            cast = text(info, "cast") ?: "",
+            year = yearOf(text(info, "releaseDate") ?: text(info, "release_date")) ?: series.year ?: "",
+            backdrop = firstImage(info.opt("backdrop_path")) ?: series.backdrop,
+            trailer = text(info, "youtube_trailer"),
+            rating = decimal(info, "rating") ?: series.rating,
+            episodes = episodes.mapValues { (_, list) -> list.sortedBy { it.number } },
+        )
+    }
+
+    /** Where a film plays from. */
+    fun movieUrl(login: Login, movieId: Long, extension: String): String =
+        "${login.server}/movie/${pathPart(login.username)}/${pathPart(login.password)}/$movieId.$extension"
+
+    /** Where an episode plays from. */
+    fun episodeUrl(login: Login, episodeId: Long, extension: String): String =
+        "${login.server}/series/${pathPart(login.username)}/${pathPart(login.password)}/$episodeId.$extension"
+
+    private fun text(obj: JSONObject, key: String): String? {
+        if (!obj.has(key) || obj.isNull(key)) return null
+        return obj.optString(key).trim().takeIf { it.isNotEmpty() && it != "null" }
+    }
+
+    private fun decimal(obj: JSONObject, key: String): Double? =
+        text(obj, key)?.toDoubleOrNull()?.takeIf { it > 0 }
+
+    private fun imageUrl(text: String?): String? = text?.trim()?.takeIf { it.startsWith("http") }
+
+    private fun firstImage(value: Any?): String? = when (value) {
+        is JSONArray -> (0 until value.length()).asSequence().mapNotNull { imageUrl(value.optString(it)) }.firstOrNull()
+        is String -> imageUrl(value)
+        else -> null
+    }
+
+    private fun yearOf(date: String?): String? = date?.let { Regex("(19|20)\\d{2}").find(it)?.value }
 
     /** The address a live channel plays from. */
     fun liveUrl(login: Login, channel: Channel, format: String): String =
