@@ -192,6 +192,7 @@ object Iptv {
                 .setClassName(PLAYER, "$PLAYER.MainActivity")
                 .putExtra("open_channel", channel.id)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+            seamless(context),
         )
         true
     } catch (e: Exception) {
@@ -206,6 +207,7 @@ object Iptv {
                 .setClassName(PLAYER, "$PLAYER.MainActivity")
                 .putExtra("section", "LIVE")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+            seamless(context),
         )
         true
     } catch (e: Exception) {
@@ -245,6 +247,7 @@ object Iptv {
                 .setClassName(PLAYER, "$PLAYER.MainActivity")
                 .putExtra("open_resume", item.key)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+            seamless(context),
         )
         true
     } catch (e: Exception) {
@@ -261,12 +264,19 @@ object Iptv {
                 .putExtra("open_id", title.id)
                 // A fresh player each time, so it opens on this title and closes back to here.
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+            seamless(context),
         )
         true
     } catch (e: Exception) {
         Log.w(TAG, "Couldn't open the player", e)
         false
     }
+
+    /**
+     * No slide between the apps: the player shows the same header, so it should simply appear,
+     * as if it were another tab of the launcher.
+     */
+    private fun seamless(context: Context) = android.app.ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle()
 
     private fun kindOf(type: MediaType) = if (type == MediaType.MOVIE) "MOVIE" else "SERIES"
 

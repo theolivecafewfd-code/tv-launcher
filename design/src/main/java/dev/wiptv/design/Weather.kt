@@ -1,4 +1,4 @@
-package dev.tvlauncher
+package dev.wiptv.design
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
@@ -40,9 +40,19 @@ data class WeatherNow(
 /** Current weather from Open-Meteo: free, and needs no key or account. */
 object Weather {
 
-    private const val TAG = "TvLauncherWeather"
+    private const val TAG = "WiptvWeather"
 
+    /** The last answer, kept while the app runs, so a new screen's header shows it at once. */
+    @Volatile
+    var last: WeatherNow? = null
+        private set
+
+    @Volatile
+    private var lastAt = 0L
+
+    /** The weather now; asked of Open-Meteo at most every half hour, however many headers ask. */
     suspend fun fetch(): WeatherNow? = withContext(Dispatchers.IO) {
+        last?.takeIf { System.currentTimeMillis() - lastAt < 30 * 60_000L }?.let { return@withContext it }
         try {
             val url = "https://api.open-meteo.com/v1/forecast" +
                 "?latitude=${WeatherPlace.LATITUDE}&longitude=${WeatherPlace.LONGITUDE}" +
@@ -61,7 +71,12 @@ object Weather {
                 sky = skyFor(code),
                 description = describe(code),
                 outlook = outlook(tomorrowCode, tomorrowRain, tomorrowHigh),
-            )
+            ).also {
+                last = it
+                lastAt = System.currentTimeMillis()
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Weather fetch failed", e)
             null

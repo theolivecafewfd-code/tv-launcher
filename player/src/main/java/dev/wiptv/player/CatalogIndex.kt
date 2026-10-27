@@ -155,6 +155,11 @@ object CatalogIndex {
         return found.distinctBy { Triple(it.kind, normalise(it.name), it.year) }.take(limit)
     }
 
+    /** A random film or series with a poster, for the header's Surprise me; null if the list is empty. */
+    fun random(context: Context): IndexedTitle? =
+        db(context).rawQuery("SELECT ${COLUMNS.joinToString()} FROM titles WHERE poster IS NOT NULL ORDER BY RANDOM() LIMIT 1", null)
+            .use { c -> if (c.moveToFirst()) read(c) else null }
+
     /** One title by its provider id, for opening it from the launcher. */
     fun find(context: Context, kind: VodKind, id: Long): IndexedTitle? =
         db(context).query("titles", COLUMNS, "kind = ? AND id = ?", arrayOf(kind.name, id.toString()), null, null, null, "1")

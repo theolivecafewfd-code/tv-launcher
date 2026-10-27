@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.ui.platform.LocalContext
 import dev.wiptv.design.wiptvBackground
+import dev.wiptv.design.SearchIcon
 import dev.wiptv.design.RowScrolling
 import androidx.compose.ui.graphics.Color
 import dev.wiptv.design.WiptvColors

@@ -53,6 +53,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Back to the launcher without a slide: the two apps share one header, so it should feel
+    // like changing tab.
+    @Suppress("DEPRECATION")
+    override fun finish() {
+        super.finish()
+        overridePendingTransition(0, 0)
+    }
+
     companion object {
         /** "LIVE", "MOVIES" or "SERIES": the section to open on. */
         const val EXTRA_SECTION = "section"

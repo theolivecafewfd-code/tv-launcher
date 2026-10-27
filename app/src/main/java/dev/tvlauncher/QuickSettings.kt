@@ -154,20 +154,3 @@ private fun SettingIcon(setting: QuickSetting, color: Color, size: Dp) {
     }
 }
 
-/** A line-drawn die, for Surprise Me. */
-@Composable
-fun DiceIcon(color: Color, size: Dp) {
-    Canvas(Modifier.size(size)) {
-        val w = this.size.width
-        drawRoundRect(
-            color,
-            topLeft = Offset(w * 0.08f, w * 0.08f),
-            size = Size(w * 0.84f, w * 0.84f),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.2f),
-            style = Stroke(width = w * 0.11f),
-        )
-        for ((x, y) in listOf(0.32f to 0.32f, 0.5f to 0.5f, 0.68f to 0.68f)) {
-            drawCircle(color, radius = w * 0.075f, center = Offset(w * x, w * y))
-        }
-    }
-}

@@ -6,6 +6,7 @@ import dev.wiptv.update.label
 import dev.wiptv.update.loud
 import androidx.compose.foundation.BorderStroke
 import dev.wiptv.design.wiptvBackground
+import dev.wiptv.design.WiptvHeader
 import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.ArtFrame
 import dev.wiptv.design.CinematicBackdrop
@@ -98,19 +99,15 @@ internal val RowHeading = WiptvType.sectionHeading
 
 
 @Composable
-fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
+fun HomeScreen(
+    refreshKey: Int,
+    onLaunch: (TvApp) -> Unit,
+    /** Asked for by WIPTV Player's header: "apps" opens the Apps tray, "search" opens search. */
+    request: String? = null,
+    requestTick: Int = 0,
+) {
     val context = LocalContext.current
     var apps by remember { mutableStateOf<List<TvApp>>(emptyList()) }
-    var now by remember { mutableStateOf(LocalTime.now()) }
-    var weather by remember { mutableStateOf<WeatherNow?>(null) }
-
-    // Weather for the header, refreshed every 30 minutes.
-    LaunchedEffect(Unit) {
-        while (true) {
-            Weather.fetch()?.let { weather = it }
-            delay(30 * 60_000L)
-        }
-    }
 
     // Which apps you've hidden and the order you've chosen, saved on the device.
     val dockPrefs = remember { DockPrefs(context) }
@@ -339,11 +336,12 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
             }
         }
     }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = LocalTime.now()
-            delay(15_000)
-        }
+    // From the player's header: open the Apps tray or search straight away.
+    LaunchedEffect(requestTick) {
+        if (request != "apps" && request != "search") return@LaunchedEffect
+        // At the top, so closing them puts focus back on Apps or search in the header.
+        runCatching { listState.scrollToItem(0) }
+        if (request == "apps") trayOpen = true else searchOpen = true
     }
 
     MaterialTheme(colorScheme = darkColorScheme()) {
@@ -392,9 +390,9 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                         // Going up to anything here scrolls right to the top, header included
                         // (see PivotScrolling), in one movement.
                         Column(Modifier.padding(top = 20.dp)) {
-                            Header(now = now, weather = weather, update = update, onUpdateClick = onUpdateClick)
-                            Box(Modifier.padding(top = 12.dp, bottom = 14.dp)) {
-                                TypeSwitch(
+                            // The header the player shares: greeting, status pill and navigation.
+                            WiptvHeader(
+                                nav = launcherNav(
                                     selected = mediaType,
                                     onSelect = { mediaType = it },
                                     onLiveTv = {
@@ -407,8 +405,13 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
                                     onSurprise = { surprise() },
                                     appsRequester = appsButton,
                                     searchRequester = searchButton,
-                                )
-                            }
+                                ),
+                                updateLabel = update.label(BuildConfig.VERSION_CODE),
+                                updateLoud = update.loud,
+                                onUpdateClick = onUpdateClick,
+                                modifier = Modifier.padding(horizontal = Edge),
+                            )
+                            Spacer(Modifier.height(14.dp))
                             when {
                                 !Catalog.hasKey -> RowMessage("Add your TMDB key to GitHub secrets as TMDB_API_KEY to see shows and films here.")
                                 featured.isNotEmpty() -> {
@@ -604,99 +607,6 @@ fun HomeScreen(refreshKey: Int, onLaunch: (TvApp) -> Unit) {
     }
 }
 
-/**
- * The top line: the W badge and greeting on the left; on the right the weather and clock in one
- * quiet glass capsule, then the update pill. Waterford and the outlook sit underneath, smaller.
- */
-@Composable
-private fun Header(now: LocalTime, weather: WeatherNow?, update: UpdateState, onUpdateClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Edge),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Top,
-    ) {
-        // The W badge and the greeting.
-        Row(
-            modifier = Modifier.height(40.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Box(
-                modifier = Modifier.size(26.dp).background(WiptvColors.focus, RoundedCornerShape(7.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(text = "W", style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Bold, color = WiptvColors.onLight))
-            }
-            Text(text = "${greeting(now)}, $OWNER_NAME", style = WiptvType.screen)
-        }
-        // Weather, clock and the build in one compact glass pill, the height of the old build
-        // pill. Only the build part takes focus (to check again, or install an update).
-        Row(
-            modifier = Modifier
-                .padding(top = 5.dp)
-                .height(30.dp)
-                .glass(WiptvShapes.pill)
-                .padding(start = 14.dp, end = 3.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (weather != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    WeatherIcon(sky = weather.sky, color = WiptvColors.secondary, size = 15.dp)
-                    Text(text = "${weather.temperature}°", style = StatusText)
-                }
-                StatusDivider()
-            }
-            Text(text = now.format(DateTimeFormatter.ofPattern("HH:mm")), style = StatusText)
-            StatusDivider()
-            UpdateButton(update = update, onClick = onUpdateClick)
-        }
-    }
-}
-
-/** The status pill's text: the size of the old build pill, subdued. */
-private val StatusText = TextStyle(fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium, color = WiptvColors.secondary)
-
-/** A faint line between the status pill's parts. */
-@Composable
-private fun StatusDivider() {
-    Box(Modifier.width(1.dp).height(12.dp).background(WiptvColors.border))
-}
-
-/**
- * The build part of the status pill, always there: it shows the installed build, and lights up
- * when a newer one is on GitHub. OK checks again, or installs the update when there is one.
- */
-@Composable
-private fun UpdateButton(update: UpdateState, onClick: () -> Unit) {
-    val label = update.label(BuildConfig.VERSION_CODE)
-    val loud = update.loud
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.height(24.dp).widthIn(max = 320.dp),
-        shape = ClickableSurfaceDefaults.shape(shape = WiptvShapes.pill),
-        colors = ClickableSurfaceDefaults.colors(
-            // Bright when there's something to do, quiet otherwise.
-            containerColor = if (loud) WiptvColors.primaryFill else Color.Transparent,
-            contentColor = if (loud) WiptvColors.onPrimary else WiptvColors.secondary,
-            focusedContainerColor = WiptvColors.primaryFill,
-            focusedContentColor = WiptvColors.onPrimary,
-        ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-    ) {
-        Box(Modifier.height(24.dp).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
-            Text(text = label, maxLines = 1, style = StatusText.copy(color = LocalContentColor.current))
-        }
-    }
-}
-
-private fun greeting(now: LocalTime): String = when (now.hour) {
-    in 5..11 -> "Good morning"
-    in 12..17 -> "Good afternoon"
-    else -> "Good evening"
-}
 
 /** App tiles: the 16:9 size of an Android TV banner, so banners show whole. */
 internal val TileWidth = 144.dp
