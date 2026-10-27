@@ -28,7 +28,15 @@ jobs:
         run: |
           if [ -n "$TMDB_API_KEY" ]; then echo "::notice::TMDB key found"; else echo "::warning::TMDB_API_KEY secret is missing, so the film carousel will be empty"; fi
           chmod +x gradlew
-          ./gradlew :app:assembleRelease :player:assembleRelease --stacktrace
+          # On failure, repeat the compiler's errors as annotations, so they can be read without the full log.
+          set +e
+          ./gradlew :app:assembleRelease :player:assembleRelease 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            grep -E "^e: |What went wrong|^> " build.log | head -40 | while IFS= read -r line; do echo "::error::$line"; done
+            exit "$status"
+          fi
           cp app/build/outputs/apk/release/app-release.apk tv-launcher.apk
           cp player/build/outputs/apk/release/player-release.apk wiptv-player.apk
 
