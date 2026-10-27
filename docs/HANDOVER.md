@@ -39,7 +39,7 @@ The `design` module now holds what both apps use: tokens (`WiptvColors` includin
 
 1. Any fixes from Wayne's check of build 159 (shared My List, details header).
 2. **Your channels row (#65, waiting for Wayne's check):** only the live channels Wayne has starred in the player (Menu ≡), logo and name, no what's-on; OK plays it full screen in the player, Back goes to its group in Live TV.
-3. **Catch-up** in the player, for channels with `tv_archive`.
+3. **Catch-up (#66, waiting for Wayne's check):** Right on a channel shows its schedule from yesterday to tomorrow; ⟲ programmes replay from the start. A full scrolling 48-hour grid is a possible later job.
 4. **Playback overlays and remaining screens** (design stage 4): live info bar and lists, film progress overlay, login, account, editors and updater in the glass style.
 5. **Live Categories drawer** (design stage 2): on hold while Wayne looks at another option.
 6. **Launcher as Home on the Fire Stick:** Home on Fire needs `WRITE_SECURE_SETTINGS` granted over ADB from the Chromebook.

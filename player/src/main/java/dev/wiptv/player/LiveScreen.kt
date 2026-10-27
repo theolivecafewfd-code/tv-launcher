@@ -214,6 +214,11 @@ fun LiveScreen(
     fun groupName(id: String?): String =
         if (id == FAVOURITES_ID) "Favourites" else groups?.firstOrNull { it.id == id }?.name.orEmpty()
 
+    // A channel's schedule (Right on its row), and a past programme playing from it (catch-up).
+    var scheduleFor by remember { mutableStateOf<Channel?>(null) }
+    var catchUp by remember { mutableStateOf<Pair<Channel, ResumePoint>?>(null) }
+    val vodStore = remember { VodStore(context) }
+
     // Opening a channel from the launcher: nothing else starts playing meanwhile.
     var opening by remember { mutableStateOf(openChannel != null) }
 
@@ -475,6 +480,7 @@ fun LiveScreen(
                                 if (live.channel?.id == channel.id) watchPreview() else live.play(login, format, channel)
                             },
                             onMenu = { toggleFavourite(channel) },
+                            onSchedule = { scheduleFor = channel },
                             modifier = Modifier
                                 .focusRequester(requesterFor(channel.id))
                                 .onFocusChanged { focus ->
@@ -486,6 +492,55 @@ fun LiveScreen(
             }
         }
       }
+    }
+
+    scheduleFor?.let { channel ->
+        ScheduleSheet(
+            channel = channel,
+            login = login,
+            now = now,
+            onWatchLive = {
+                scheduleFor = null
+                previewSource = (selectedGroup ?: "") to (channels?.takeIf { l -> l.any { it.id == channel.id } } ?: listOf(channel))
+                live.play(login, format, channel)
+                watchPreview()
+            },
+            onCatchUp = { programme ->
+                // One stream at a time: the live preview stops while catch-up plays.
+                live.hold()
+                catchUp = channel to ResumePoint(
+                    key = "catchup:${channel.id}:${programme.start}",
+                    title = programme.title,
+                    subtitle = ChannelLabels.of(channel.name).name + " · " +
+                        java.text.SimpleDateFormat("EEE d MMM, HH:mm", java.util.Locale.UK).format(java.util.Date(programme.start)),
+                    poster = channel.logo,
+                    url = Xtream.catchUpUrl(login, channel, programme, account?.timezone),
+                    position = 0,
+                    duration = programme.end - programme.start,
+                    updated = System.currentTimeMillis(),
+                )
+            },
+            onClose = {
+                scheduleFor = null
+                pendingFocus = channel.id
+            },
+        )
+    }
+
+    catchUp?.let { (channel, point) ->
+        val finish = {
+            catchUp = null
+            // Back to the schedule, with the preview playing live again.
+            previewSource = (selectedGroup ?: "") to (channels?.takeIf { l -> l.any { it.id == channel.id } } ?: listOf(channel))
+            live.play(login, format, channel)
+        }
+        VodPlayerScreen(
+            start = point,
+            store = vodStore,
+            onFinished = finish,
+            onClose = finish,
+            rememberPosition = false,
+        )
     }
 
     val playing = watching

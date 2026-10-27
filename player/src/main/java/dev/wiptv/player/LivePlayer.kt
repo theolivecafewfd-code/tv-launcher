@@ -96,6 +96,15 @@ class LivePlayer(context: Context) {
 
     fun pauseForBackground() = exo.stop()
 
+    /**
+     * Stops the stream for something else to play (catch-up), so only one stream is ever open.
+     * Coming back from the background doesn't restart it; [play] the channel again afterwards.
+     */
+    fun hold() {
+        exo.stop()
+        exo.clearMediaItems()
+    }
+
     fun resumeFromBackground() {
         if (exo.currentMediaItem != null) {
             exo.seekToDefaultPosition()
