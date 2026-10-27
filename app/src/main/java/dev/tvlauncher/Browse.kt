@@ -321,6 +321,42 @@ private fun SourceTag(source: Source) {
 internal val PosterWidth = 126.dp
 internal val PosterHeight = 189.dp
 
+/** A row poster once it has widened: 16:9 at the poster's height. */
+private val PosterWide = 336.dp
+
+/** How long focus has to rest on a card before it widens, and how long widening takes. */
+private const val SETTLE_MS = 180L
+private const val GROW_MS = 180
+
+/**
+ * Which card in a row is wide: the one with focus, once focus has rested on it for [SETTLE_MS].
+ * Only one card is ever wide; a new focus cancels a pending widen, so Left and Right stay quick,
+ * and leaving the row returns every card to portrait.
+ */
+private class WideCard {
+    var focused by mutableStateOf<String?>(null)
+    var wide by mutableStateOf<String?>(null)
+
+    fun onFocus(key: String, has: Boolean) {
+        if (has) focused = key else if (focused == key) focused = null
+    }
+}
+
+@Composable
+private fun rememberWideCard(): WideCard {
+    val card = remember { WideCard() }
+    LaunchedEffect(card.focused) {
+        val key = card.focused
+        if (key == null) {
+            card.wide = null
+            return@LaunchedEffect
+        }
+        delay(SETTLE_MS)
+        card.wide = key
+    }
+    return card
+}
+
 /**
  * Whether the row (section) around a card has the remote's focus. The focused row is at full
  * strength; the others are softer (greyer heading and captions, artwork gently dimmed), so it's
@@ -356,7 +392,10 @@ private fun sectionCaption(): Color {
     return colour
 }
 
-/** One row of posters, laid out like the player's rows. Top 10 numbers sit inside the posters. */
+/**
+ * One row of posters, laid out like the player's rows. The poster you rest on widens to its
+ * landscape picture, as in Continue watching.
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PosterRow(
@@ -367,6 +406,7 @@ fun PosterRow(
     up: FocusRequester,
     down: FocusRequester?,
 ) {
+    val wideCard = rememberWideCard()
     // The whole row is one section: moving between its posters keeps it bright.
     var active by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().onFocusChanged { active = it.hasFocus }) {
@@ -427,6 +467,8 @@ fun PosterRow(
                     onClick = { onOpen(title) },
                     onLongClick = { onPlay(title) },
                     modifier = upAndDown,
+                    wide = wideCard.wide == title.key,
+                    onFocus = { wideCard.onFocus(title.key, it) },
                 )
             }
         }
@@ -448,19 +490,38 @@ internal fun PosterCard(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     compact: Boolean = false,
+    /** In a home row: widened to the landscape picture (see [rememberWideCard]). */
+    wide: Boolean = false,
+    onFocus: (Boolean) -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
-    val width = if (compact) 84.dp else PosterWidth
+    val width by animateDpAsState(
+        when {
+            compact -> 84.dp
+            wide -> PosterWide
+            else -> PosterWidth
+        },
+        animationSpec = tween(GROW_MS),
+        label = "posterWidth",
+    )
     val height = if (compact) 126.dp else PosterHeight
-    // On focus, the whole card, caption included, comes on screen (not just the picture).
+    // On focus, the whole card, caption included, comes on screen (not just the picture), and
+    // again once it has widened (the row slides along if needed).
     val wholeCard = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
+    LaunchedEffect(wide) {
+        if (wide) {
+            delay(GROW_MS + 20L)
+            wholeCard.bringIntoView()
+        }
+    }
     Column(modifier = Modifier.width(width + ArtFocusGap * 2).bringIntoViewRequester(wholeCard)) {
         ArtFrame(
             width = width,
             height = height,
             onFocusChange = {
                 focused = it
+                onFocus(it)
                 if (it && !compact) scope.launch { wholeCard.bringIntoView() }
             },
             onClick = onClick,
@@ -475,14 +536,7 @@ internal fun PosterCard(
                 modifier = Modifier.align(Alignment.Center).padding(10.dp),
                 style = WiptvType.metadata.copy(color = WiptvColors.secondary),
             )
-            if (title.posterUrl != null) {
-                AsyncImage(
-                    model = title.posterUrl,
-                    contentDescription = title.name,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
+            PosterArtwork(title = title, wide = wide)
             // Where it's on: IPTV first when your provider has it, then your first service.
             val onIptv = IptvBadges.has(title)
             val source = title.sources.firstOrNull()
@@ -579,17 +633,13 @@ private val CardWide = 384.dp
 private val CardGap = 14.dp
 private val CaptionHeight = 58.dp
 
-/** How long focus has to rest on a card before it widens, and how long widening takes. */
-private const val SETTLE_MS = 180L
-private const val GROW_MS = 180
-
 /**
  * Continue watching: films and episodes you've started in WIPTV Player. Cards are portrait
  * posters; the one you rest on widens to its landscape picture (Netflix style), with the title,
  * episode, time left and "OK to resume" underneath. OK resumes in the player.
  *
- * Only one card is ever wide. Focus shows at once as a thin outline; widening waits until focus
- * has settled, so Left and Right stay quick. Leaving the row returns every card to portrait.
+ * Focus shows at once as a thin outline; widening waits until focus has settled (see
+ * [rememberWideCard]).
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -605,18 +655,7 @@ fun ContinueRow(
         up.ifAttached()?.let { this.up = it }
         down.ifAttached()?.let { this.down = it }
     }
-    // The card with focus, and the one that's wide. A new focus cancels a pending widen.
-    var focusedKey by remember { mutableStateOf<String?>(null) }
-    var wideKey by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(focusedKey) {
-        val key = focusedKey
-        if (key == null) {
-            wideKey = null
-            return@LaunchedEffect
-        }
-        delay(SETTLE_MS)
-        wideKey = key
-    }
+    val wideCard = rememberWideCard()
     // The whole row is one section: moving between cards keeps it bright.
     var active by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().onFocusChanged { active = it.hasFocus }) {
@@ -632,11 +671,9 @@ fun ContinueRow(
                 items(items, key = { it.key }) { item ->
                     ContinueCard(
                         item = item,
-                        wide = wideKey == item.key,
-                        focused = focusedKey == item.key,
-                        onFocusChange = { has ->
-                            if (has) focusedKey = item.key else if (focusedKey == item.key) focusedKey = null
-                        },
+                        wide = wideCard.wide == item.key,
+                        focused = wideCard.focused == item.key,
+                        onFocusChange = { wideCard.onFocus(item.key, it) },
                         onClick = { onResume(item) },
                         modifier = upAndDown,
                     )
@@ -745,6 +782,49 @@ private fun ContinueCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     style = WiptvType.hint.copy(lineHeight = 15.sp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A row poster's picture: the poster while narrow; once wide, a crossfade to the title's
+ * backdrop, or the sharp poster on a dark wash made from itself when there's no backdrop.
+ */
+@Composable
+private fun PosterArtwork(title: Title, wide: Boolean) {
+    Crossfade(targetState = wide, animationSpec = tween(GROW_MS), label = "posterArt") { isWide ->
+        Box(Modifier.fillMaxSize()) {
+            when {
+                isWide && title.backdropUrl != null -> AsyncImage(
+                    model = title.backdropUrl,
+                    contentDescription = title.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                isWide && title.posterUrl != null -> {
+                    Box(Modifier.fillMaxSize().background(WiptvColors.surface))
+                    AsyncImage(
+                        model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                            .data(title.posterUrl).size(12, 18).build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        alpha = 0.45f,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    AsyncImage(
+                        model = title.posterUrl,
+                        contentDescription = title.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxHeight().align(Alignment.Center),
+                    )
+                }
+                title.posterUrl != null -> AsyncImage(
+                    model = title.posterUrl,
+                    contentDescription = title.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }
