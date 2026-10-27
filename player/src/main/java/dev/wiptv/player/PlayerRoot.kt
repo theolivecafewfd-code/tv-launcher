@@ -95,8 +95,14 @@ fun PlayerRoot(
         // The title the launcher opened us on: only until you move to another section, so going
         // back to that section doesn't open it again.
         var launchOpen by remember { mutableStateOf(open) }
-        // A surprise pick (the dice), opened on its details page in its section.
+        // A surprise pick (the dice), opened on its details page in its section; closing that page
+        // goes back to the section you rolled from.
         var surprise by remember { mutableStateOf<IndexedTitle?>(null) }
+        var surpriseFrom by remember { mutableStateOf<Section?>(null) }
+        val surpriseClosed = {
+            surpriseFrom?.let { section = it }
+            surpriseFrom = null
+        }
         // Keep the list of films and series the launcher asks about up to date (about daily).
         LaunchedEffect(current) { CatalogIndex.refreshIfStale(context, current) }
         val tabs: @Composable () -> Unit = {
@@ -114,6 +120,7 @@ fun PlayerRoot(
                         } else {
                             launchOpen = null
                             surprise = pick
+                            surpriseFrom = section
                             section = if (pick.kind == VodKind.MOVIE) Section.MOVIES else Section.SERIES
                         }
                     }
@@ -141,6 +148,7 @@ fun PlayerRoot(
                     onOpenFinished = onOpenFinished,
                     surpriseId = surprise?.takeIf { it.kind == VodKind.MOVIE }?.id,
                     onSurpriseShown = { surprise = null },
+                    onSurpriseClosed = surpriseClosed,
                 )
                 Section.SERIES -> CatalogScreen(
                     VodKind.SERIES, current, update, store, tabs,
@@ -149,6 +157,7 @@ fun PlayerRoot(
                     onOpenFinished = onOpenFinished,
                     surpriseId = surprise?.takeIf { it.kind == VodKind.SERIES }?.id,
                     onSurpriseShown = { surprise = null },
+                    onSurpriseClosed = surpriseClosed,
                 )
             }
         }
@@ -255,11 +264,11 @@ fun SectionTabs(selected: Section, onSelect: (Section) -> Unit, onSurprise: () -
             section("TV Shows", Section.SERIES),
             section("Movies", Section.MOVIES),
             section("Live TV", Section.LIVE),
-            NavItem(label = "Apps", onClick = { Launcher.open(context, "apps") }),
+            NavItem(label = "Apps", onClick = { Launcher.open(context, "apps", selected) }),
             NavItem(
                 icon = { colour -> SearchIcon(color = colour, size = 20.dp) },
                 description = "Search",
-                onClick = { Launcher.open(context, "search") },
+                onClick = { Launcher.open(context, "search", selected) },
             ),
             NavItem(icon = { colour -> DiceIcon(color = colour, size = 20.dp) }, description = "Surprise me", onClick = onSurprise),
         ),
@@ -273,17 +282,21 @@ fun SectionTabs(selected: Section, onSelect: (Section) -> Unit, onSurprise: () -
 private object Launcher {
     private const val PACKAGE = "dev.tvlauncher"
 
-    /** Hands over to the launcher with the Apps tray or search open, then closes the player. */
-    fun open(context: android.content.Context, what: String) {
+    /**
+     * Hands over to the launcher with the Apps tray or search open. The player stays as it is
+     * behind (its stream stops while it's out of sight), and backing out of the tray or search
+     * brings it straight back on [from].
+     */
+    fun open(context: android.content.Context, what: String, from: Section) {
         try {
             context.startActivity(
                 android.content.Intent(android.content.Intent.ACTION_MAIN)
                     .setClassName(PACKAGE, "$PACKAGE.MainActivity")
                     .putExtra("wiptv_open", what)
+                    .putExtra("wiptv_return", from.name)
                     .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
                 android.app.ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle(),
             )
-            (context as? android.app.Activity)?.finish()
         } catch (e: Exception) {
             android.widget.Toast.makeText(context, "Couldn't open WIPTV", android.widget.Toast.LENGTH_SHORT).show()
         }
