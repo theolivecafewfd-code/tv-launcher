@@ -439,7 +439,8 @@ object Xtream {
         val action = if (kind == VodKind.MOVIE) "get_vod_streams" else "get_series"
         val idKey = if (kind == VodKind.MOVIE) "stream_id" else "series_id"
         val posterKey = if (kind == VodKind.MOVIE) "stream_icon" else "cover"
-        fetch("${api(login)}&action=$action") { input ->
+        // The whole catalogue can take a provider well over 30 seconds to start sending.
+        fetch("${api(login)}&action=$action", readTimeoutMs = 120_000) { input ->
             val reader = JsonReader(InputStreamReader(input, Charsets.UTF_8))
             reader.isLenient = true
             // Some panels answer an empty catalogue with {} or nothing.
@@ -482,14 +483,14 @@ object Xtream {
     private fun get(url: String): String = fetch(url) { it.bufferedReader().readText() }
 
     /** A GET request, following redirects by hand (including http → https, which Android won't). */
-    private fun <T> fetch(url: String, read: (java.io.InputStream) -> T): T {
+    private fun <T> fetch(url: String, readTimeoutMs: Int = 30_000, read: (java.io.InputStream) -> T): T {
         var current = url
         repeat(5) {
             val connection = try {
                 (URL(current).openConnection() as HttpURLConnection).apply {
                     instanceFollowRedirects = false
                     connectTimeout = 15_000
-                    readTimeout = 30_000
+                    readTimeout = readTimeoutMs
                     setRequestProperty("User-Agent", "WIPTVPlayer/${BuildConfig.VERSION_NAME}")
                 }
             } catch (e: Exception) {
