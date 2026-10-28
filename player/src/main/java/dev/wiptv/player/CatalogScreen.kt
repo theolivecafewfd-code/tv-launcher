@@ -303,6 +303,7 @@ fun CatalogScreen(
             subtitle = null,
             poster = item.poster,
             url = Xtream.movieUrl(login, id, details.extension),
+            extension = details.extension,
             position = saved?.position ?: 0,
             duration = saved?.duration ?: 0,
             updated = System.currentTimeMillis(),
@@ -550,7 +551,8 @@ fun CatalogScreen(
     playing?.let { point ->
         key(point.key) {
             VodPlayerScreen(
-                start = point,
+                // A saved point has no address of its own: it's built from the current login.
+                start = point.withUrl(login),
                 store = store,
                 onFinished = {
                     // Straight on to the next episode, if there is one.

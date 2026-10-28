@@ -89,9 +89,15 @@ object CatalogIndex {
         )
     }
 
-    /** Replaces one kind's titles. If the download fails part-way, the old ones stay. */
+    /**
+     * Replaces one kind's titles. If the download fails part-way, or the provider sends nothing
+     * (an error reply, or an empty one, while we had titles), the old ones stay.
+     */
     private fun refresh(context: Context, login: Login, kind: VodKind) {
         val db = db(context)
+        val before = db.rawQuery("SELECT COUNT(*) FROM titles WHERE kind = ?", arrayOf(kind.name))
+            .use { c -> if (c.moveToFirst()) c.getInt(0) else 0 }
+        var added = 0
         db.beginTransaction()
         try {
             db.delete("titles", "kind = ?", arrayOf(kind.name))
@@ -110,7 +116,10 @@ object CatalogIndex {
                 t.extension?.let { insert.bindString(8, it) }
                 insert.bindString(9, t.categoryId)
                 insert.executeInsert()
+                added++
             }
+            // Not committed, so the delete above is undone and the last good list stays.
+            if (added == 0 && before > 0) throw XtreamException("The provider sent no ${kind.name.lowercase()} titles")
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
