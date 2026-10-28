@@ -154,12 +154,21 @@ fun HomeScreen(
 
     // Continue watching: what you've started in WIPTV Player, refreshed each time you come home.
     var continueItems by remember { mutableStateOf<List<IptvResume>>(emptyList()) }
-    LaunchedEffect(refreshKey) { continueItems = Iptv.continueWatching(context) }
+    // Whether each row from the player has answered once, so the first focus waits for them all.
+    var continueLoaded by remember { mutableStateOf(false) }
+    LaunchedEffect(refreshKey) {
+        continueItems = Iptv.continueWatching(context)
+        continueLoaded = true
+    }
     val continueRow = remember { FocusRequester() }
 
     // Your channels: the live channels you've starred in the player, refreshed each time you come home.
     var channels by remember { mutableStateOf<List<IptvChannel>>(emptyList()) }
-    LaunchedEffect(refreshKey) { channels = Iptv.favouriteChannels(context) }
+    var channelsLoaded by remember { mutableStateOf(false) }
+    LaunchedEffect(refreshKey) {
+        channels = Iptv.favouriteChannels(context)
+        channelsLoaded = true
+    }
     val channelRow = remember { FocusRequester() }
 
     // TV Shows or Movies: Recommended for you follows it (My List shows both, at Wayne's request).
@@ -243,7 +252,11 @@ fun HomeScreen(
     var myList by remember { mutableStateOf(library.myList()) }
     var playerList by remember { mutableStateOf<List<IptvTitle>>(emptyList()) }
     var listChanges by remember { mutableIntStateOf(0) }
-    LaunchedEffect(refreshKey, listChanges) { playerList = Iptv.myList(context) }
+    var playerListLoaded by remember { mutableStateOf(false) }
+    LaunchedEffect(refreshKey, listChanges) {
+        playerList = Iptv.myList(context)
+        playerListLoaded = true
+    }
     val allRows = remember(myList, playerList, mediaType, recommendedRow, recommendedLoading) {
         // My List has shows and films together, the same on TV Shows and Movies. A title in both
         // lists (added before they were joined) shows once, as the launcher's.
@@ -260,16 +273,45 @@ fun HomeScreen(
     }
 
     // The top of the screen, as in the player: the focused card's artwork, title and synopsis.
-    // Until a card has focus it shows the first title in the rows.
-    var hero by remember(mediaType) { mutableStateOf<Hero?>(null) }
-    val shownHero = hero ?: allRows.firstNotNullOfOrNull { it.items.firstOrNull() }?.let(::heroOf)
-    // Continue watching has no synopsis of its own: it comes from TMDB, looked up by name once
-    // you rest on the card, and remembered.
+    // Until a card has focus it shows the first Recommended title (for TV Shows or Movies), else
+    // the first in the rows. One state for both tabs (cleared on switching), so a row that kept
+    // an older focus handler still updates it.
+    var hero by remember { mutableStateOf<Hero?>(null) }
+    LaunchedEffect(mediaType) { hero = null }
+    // Titles from the player's My List, and Continue watching, have no synopsis of their own: it
+    // comes from TMDB, looked up by name once you rest on the card, and remembered.
+    val titleDetails = remember { mutableStateMapOf<String, Title?>() }
     val continueDetails = remember { mutableStateMapOf<String, Title?>() }
+    fun withDetails(title: Title): Title {
+        val found = titleDetails[title.key] ?: return title
+        return title.copy(
+            overview = title.overview.ifBlank { found.overview },
+            backdropUrl = title.backdropUrl ?: found.backdropUrl,
+            genreIds = title.genreIds.ifEmpty { found.genreIds },
+            rating = if (title.rating > 0) title.rating else found.rating,
+            year = title.year.ifBlank { found.year },
+        )
+    }
+    val fallbackTitle = allRows.firstOrNull { it.key == "recommended" }?.items?.firstOrNull()
+        ?: allRows.firstNotNullOfOrNull { it.items.firstOrNull() }
+    val shownHero = hero ?: fallbackTitle?.let { heroOf(withDetails(it)) }
     var heroJob by remember { mutableStateOf<Job?>(null) }
     fun focusTitle(title: Title) {
         heroJob?.cancel()
-        hero = heroOf(title)
+        hero = heroOf(withDetails(title))
+        if (title.overview.isNotBlank() || title.key in titleDetails) return
+        heroJob = titleScope.launch {
+            delay(400)
+            val found = try {
+                Catalog.lookup(sameName(title.name), title.year.ifBlank { null }, title.type)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                return@launch // not remembered, so it's tried again next time
+            }
+            titleDetails[title.key] = found
+            hero = heroOf(withDetails(title))
+        }
     }
     fun focusResume(item: IptvResume) {
         heroJob?.cancel()
@@ -315,13 +357,18 @@ fun HomeScreen(
         ?: channelRow.takeIf { channels.isNotEmpty() }
         ?: allRows.firstOrNull()?.let { rowRequester(it.key) }
 
-    // When the home screen opens, focus starts on the first card (or on Apps if there's none).
+    // When the home screen opens, focus starts on the first card (or on Apps if there's none),
+    // once the player's rows have all answered, so a row arriving later can't push the focus to
+    // the middle of the list.
     var placedFocus by remember { mutableStateOf(false) }
-    val anyRow = continueItems.isNotEmpty() || channels.isNotEmpty() || allRows.any { it.items.isNotEmpty() }
-    LaunchedEffect(anyRow) {
-        if (placedFocus) return@LaunchedEffect
+    val listState = rememberLazyListState()
+    val firstLoadsDone = continueLoaded && channelsLoaded && playerListLoaded
+    val anyRow = continueItems.isNotEmpty() || channels.isNotEmpty() || allRows.isNotEmpty()
+    LaunchedEffect(firstLoadsDone, anyRow) {
+        if (placedFocus || !firstLoadsDone) return@LaunchedEffect
         val target = if (anyRow) {
             delay(100)
+            runCatching { listState.scrollToItem(0) }
             firstRowBelowTop() ?: return@LaunchedEffect
         } else {
             delay(3_000)
@@ -338,7 +385,6 @@ fun HomeScreen(
 
     // Check GitHub for a newer build when the screen opens, then at most every 30 minutes.
     val scope = rememberCoroutineScope()
-    val listState = rememberLazyListState()
     var update by remember { mutableStateOf<UpdateState>(UpdateState.Checking) }
     var lastUpdateCheck by remember { mutableLongStateOf(0L) }
     val checkNow: () -> Unit = {
