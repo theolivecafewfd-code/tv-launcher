@@ -1,70 +1,72 @@
 # Handover: where WIPTV stands
 
-27 October 2026, Claude Code session (updated after #64). Read [CLAUDE.md](../CLAUDE.md) first for the rules.
+28 October 2026, Claude Code session (updated after #79). Read [CLAUDE.md](../CLAUDE.md) first for the rules.
 
 ## Where things are
 
-Everything up to **PR #64 is merged**, and both apps are released from `main` at **build 159**. Updates install with the pill in either app.
+Everything up to **PR #79 is merged**, and both apps are released from `main` at **build 196**. Updates install with the pill in either app. Wayne has checked everything up to build 196 on the Fire Stick ("both looking the same now").
+
+The two apps now look and behave as one: the same header, the same glass, the same posters, rows, cards and top-of-screen hero, and they open each other without a slide animation.
 
 **Done and checked on the Fire Stick**
-- **Launcher:** TV Shows | Movies home, details, search, Surprise me, Waterford weather, app dock with quick settings (#1–#17).
-- **Launcher in the player's style (#47–#51):** the featured title's artwork large at the top right; greeting, weather and clock in a glass capsule; player-size posters with names; app tiles and quick settings in the poster frame; details page like the player's (Watch on first and bright, More info panel, More like this); search, Choose your apps and the hold-OK menu restyled. Rows settle one per press with their heading at the top.
-- **Player, Live TV:** sign-in, groups, guide, preview, favourites on Menu, full screen (#19–#28, #31, #35). Softer guide focus, no programme boxes, FHD/HD/SD badges, quieter categories panel (#43); the now line runs behind text and one programme shows per slot (#44).
-- **Player, Movies and Series:** rows, details, seasons and episodes, Continue watching, My List, resume, next episode, cinematic redesign (#29, #37–#39, #41, #46).
-- **Update pill (#45):** reads a small build-number file in each release instead of GitHub's API.
-- **Launcher link (#52–#54):** "▶ Watch on IPTV" first on details when the provider has the title (a film plays, a series opens its page; Back returns to the launcher); hold OK tries IPTV first; search has an "On your IPTV" row and a status line; posters carry a dark "IPTV" badge.
-- **Scrolling and crash fixes (#55–#57):** one smooth scroll back to the top; a crash on quick Down presses fixed (`TrackAttached` / `ifAttached` guard on focus targets); the featured header no longer cut off.
-- **Home rows (#58–#61):** the home screen is Continue watching (from the player), Top 10 this week, My List and Recommended for you; Comedy and Documentary were removed. Top 10 is new and popular (TV first aired in the last 18 months, films released in the last 12). Continue watching cards are portrait 144 × 216 dp and the one you rest on widens to 384 dp landscape. The focused row is bright; the others have softer text and a 14% dark wash.
-- **#62:** charcoal-navy launcher background (#101620 with a static #1A2533 → #0B1018 glow) and a 2% grain tile; Top 10 numbers removed.
-- **#63:** every home row widens the poster you rest on to its 16:9 backdrop (126 → 336 dp), like Continue watching.
-
-**Charcoal glass and the Apps tray (#67, waiting for Wayne's check):** both apps on the version 0.2 tokens; the launcher's Your apps row replaced by an Apps tray opened from the top navigation (see PLAYER_DESIGN.md §16).
-
-**Merged, waiting for Wayne's check (build 159)**
-- **#64:** on details pages (both apps), landing on the buttons or season tabs near the top scrolls the whole header back on screen. **One My List for both apps:** titles your provider has live in the player's My List and show in the launcher's My List row (they open in the player); the launcher's "+ My List" adds to or removes from the player's list; titles the provider doesn't have stay in the launcher's own list. Each title shows once.
+- **Launcher home (#58–#63, #79):** TV Shows | Movies. The header and the focused card's artwork, title, details and synopsis stay at the top (the shared `HeroInfo` over `CinematicBackdrop`), as in the player; the rows scroll underneath, one row per press, the focused row at the top (shared `PivotScrolling(alwaysAlign = true)`). Rows: Continue watching (from the player), Your channels, Top 10 this week, My List, Recommended for you. The old featured Top 10 block is gone (#79). The poster you rest on widens to its backdrop.
+- **Continue watching on the launcher (#79):** the hero shows the episode, "Resume from 1:24:03" (the player's provider sends `resume_from`) and the time left; the synopsis, and the picture if the player has none, come from a TMDB search by the cleaned name once you rest on a card, cached for the session.
+- **Your channels (#65):** the live channels starred in the player (Menu ≡), logo and name; OK plays full screen, Back goes to that channel's group in Live TV. The hero shows the name and "Live TV · OK to watch" (no programme info yet).
+- **Back on the launcher home (#78):** asks "Leave WIPTV?" (Stay focused; Leave finishes the activity). Back in the tray, search, details and menus still closes those first.
+- **Charcoal glass and the Apps tray (#67):** version 0.2 tokens in both apps; Apps in the top navigation opens a tray over the bottom of the screen.
+- **One header for both apps (#68, #69):** greeting, a status pill (weather icon and temperature, clock, build) and one navigation capsule: TV Shows · Movies · Live TV · Apps · search · dice. In the player, Apps and search hand back to the launcher with them open; Back returns to where you came from (#70).
+- **Shared pieces (#73–#75):** posters, rows, row emphasis and the expanding card (`Posters.kt`); one Continue watching card; one list row (`Rows.kt`) for the guide, episodes, schedule, full-screen lists and menus; the playback overlays (`Playback.kt`).
+- **Catch-up (#66, #76):** Right on a channel shows its schedule from yesterday to tomorrow; ⟲ programmes replay from the start. Channels that keep recordings carry a small catch-up badge in the lists.
+- **Player details (#71, #72, #77):** the hero fills in for My List and Continue watching titles; More like this on details pages, as on the launcher; widened film posters show their backdrop once the details arrive; sign-in and account in the glass style.
+- **Earlier:** launcher details, search, Surprise me, weather, apps and quick settings (#1–#17); the player's Live TV, Movies and Series (#19–#46); the update pill (#45); the launcher link (#52–#54); one My List for both apps (#64).
 
 ## How the launcher link works
 
-- The player keeps the provider's films and series in a small SQLite list on the TV (`CatalogIndex`: names, years, posters, ids, never stream addresses or the login), refreshed about daily. The whole-catalogue download is streamed (`Xtream.forEachVod`) and may take up to two minutes to start.
-- `CatalogProvider` (authority `dev.wiptv.player.catalog`) answers `match`, `search`, `status`, `continue` (Continue watching), `mylist` (My List; insert and delete too) and `channels` (starred live channels). It's guarded by the signature permission `dev.wiptv.permission.CATALOG` for reads and writes, declared in both apps so install order doesn't matter.
-- Titles match by TMDB id when the provider has one, else by a normalised name (no language tags, years, quality labels) and a year within one.
-- The launcher opens a title with `open_kind`/`open_id` extras on the player's `MainActivity`, or resumes with `open_resume` (new, cleared task); when that title is closed, the player finishes and you're back in the launcher.
-- A starred channel opens with `open_channel`: full screen in its own group, and Back goes to that group in Live TV (not back to the launcher).
-- Home refreshes Continue watching and the player's My List each time you come back; the player re-reads My List when it returns to the front.
-- If IPTV results don't show, the search screen's "IPTV: …" line says why.
+- The player keeps the provider's films and series in a small SQLite list on the TV (`CatalogIndex`: names, years, posters, ids, never stream addresses or the login), refreshed about daily.
+- `CatalogProvider` (authority `dev.wiptv.player.catalog`) answers `match`, `search`, `status`, `continue` (Continue watching, with `resume_from` since #79), `mylist` (insert and delete too) and `channels` (starred live channels). It's guarded by the signature permission `dev.wiptv.permission.CATALOG`, declared in both apps so install order doesn't matter. The launcher reads new columns by name, so an older player still works.
+- Titles match by TMDB id when the provider has one, else by a normalised name and a year within one.
+- The launcher opens the player with extras on its `MainActivity`: `open_kind`/`open_id` (a title), `open_resume` (Continue watching), `open_channel` (a starred channel), `section=LIVE`. The player hands back with `wiptv_open=apps|search` and `wiptv_return=<section>`. Both use `ActivityOptions.makeCustomAnimation(context, 0, 0)`, so there's no slide.
 
 ## Shared design pieces
 
-The `design` module is the single source of the look for both apps: the charcoal-glass tokens (`WiptvColors`: background `#0B111B`, raised `#111A27`, surface `#192332`, elevated `#233041`, text `#F2F4F8` / `#AFB8C7` / `#8793A5`, accent and primary fill `#DCE7FA` with `#101724` text, 12% white border), semantic type (`WiptvType.pageTitle`, `sectionHeading`, `body`, `metadata`, `caption`), the background (`wiptvBackground()`: gradient plus the 2% grain tile in the design module's resources), `Glass` recipes (`Nav`, `Drawer`, `Quiet`, `Sheet`, `Tray`), `CinematicBackdrop`, `ArtFrame` (poster/tile frame with the focus gap), `ActionButton`, `InfoSheet` (More info), `MetaLine` (details line that wraps between items), `DisplayTitles.withoutYear`, and the scrolling helpers. It depends on Coil and core-ktx, which both apps already had. Change these carefully: the player's look is the accepted baseline.
+The `design` module is the single source of the look for both apps. Change things there so both stay the same.
 
-## What's next (in Wayne's order)
+- Tokens: `WiptvColors` (version 0.2 charcoal), `WiptvType`, `WiptvShapes`, `Glass` recipes (`Nav`, `Drawer`, `OverVideo`, `Quiet`, `Sheet`, `Tray`), `wiptvBackground()`.
+- `Header.kt`: `WiptvHeader` and the weather (cached for 30 minutes).
+- `Hero.kt`: `Hero` and `HeroInfo`, the focused card's title, details and synopsis at a fixed height (#79).
+- `Posters.kt`: `PosterCard`, `PosterPlaceholder`, `SectionRow`, row emphasis, `rememberWideCard`, `ContinueCard`.
+- `Rows.kt` (`ListRow`) and `Playback.kt` (`PlaybackPanel`, `PlaybackProgress`, `KeyHints`).
+- `Cinematic.kt`: `CinematicBackdrop`, `ArtFrame`, `ActionButton`, `InfoSheet`, `MetaLine`, `DisplayTitles`.
+- `Wiptv.kt`: `WiptvButton`, `GlassPill`, `focusOutline`.
+- `Scrolling.kt`: `PivotScrolling`, `RowScrolling`.
 
-1. Any fixes from Wayne's check of build 159 (shared My List, details header).
-2. **Your channels row (#65, waiting for Wayne's check):** only the live channels Wayne has starred in the player (Menu ≡), logo and name, no what's-on; OK plays it full screen in the player, Back goes to its group in Live TV.
-3. **Catch-up (#66, waiting for Wayne's check):** Right on a channel shows its schedule from yesterday to tomorrow; ⟲ programmes replay from the start. A full scrolling 48-hour grid is a possible later job.
-4. **Playback overlays and remaining screens** (design stage 4): live info bar and lists, film progress overlay, login, account, editors and updater in the glass style.
-5. **Live Categories drawer** (design stage 2): on hold while Wayne looks at another option.
-6. **Launcher as Home on the Fire Stick:** Home on Fire needs `WRITE_SECURE_SETTINGS` granted over ADB from the Chromebook.
-7. **Later:** a certified Google TV / Android TV stick, where the launcher can be the real Home screen.
+## What's next (ideas, in Wayne's rough order)
+
+1. **What's on for Your channels:** the launcher's hero could show a starred channel's now and next from the player's guide (needs a small addition to the `channels` answer). Asked about on 28 October; not started.
+2. **Full TV guide grid:** a scrolling 48-hour grid in Live TV (the per-channel schedule already exists).
+3. **Launcher as Home on the Fire Stick:** Home on Fire needs `WRITE_SECURE_SETTINGS` granted over ADB from the Chromebook.
+4. **Shared edit screens** (Choose your apps and Edit groups): low priority.
+5. **Live Categories drawer** (design stage 2): on hold.
+6. **Later:** a certified Google TV / Android TV stick, where the launcher can be the real Home screen.
 
 ## Things to know
 
 - **Builds:** there's no Android SDK in cloud sessions; CI on the PR is the compile check. Each PR build uses a run number, so release numbers skip (a merge after one PR build lands two numbers higher).
 - **Release check:** after a merge, `releases/download/player/wiptv-player.build.txt` and `releases/latest/download/tv-launcher.build.txt` show the published build numbers.
-- **Provider data quirks:** some episodes carry other shows' titles, and some series have no details for newer seasons (Money Heist 4–5). Both come from the provider. The guide sometimes lists two programmes in the same slot; the app shows the first.
+- **Provider data quirks:** some episodes carry other shows' titles, and some series have no details for newer seasons. Both come from the provider. The guide sometimes lists two programmes in the same slot; the app shows the first.
 
 ## Useful pointers
 
 | Where | What |
 | --- | --- |
-| `app/.../HomeScreen.kt`, `Browse.kt`, `Scrolling.kt`, `Background.kt` | Launcher home: header, featured title, rows (expanding cards, section emphasis), apps, scrolling rules, background |
-| `app/.../Iptv.kt`, `Library.kt` | Launcher side of the player link (match, search, Continue watching, My List) and the launcher's own My List |
+| `app/.../HomeScreen.kt`, `Browse.kt`, `Scrolling.kt` | Launcher home: header, hero, rows, exit confirm; focus guards (`TrackAttached` / `ifAttached`) |
+| `app/.../AppsTray.kt`, `AppEditor.kt`, `QuickSettings.kt` | The Apps tray, Choose your apps, quick settings |
+| `app/.../Iptv.kt`, `Library.kt` | Launcher side of the player link, and the launcher's own My List |
+| `app/.../DetailScreen.kt`, `SearchScreen.kt`, `Catalog.kt` | Launcher details, search, TMDB rows and lookups |
 | `player/.../CatalogIndex.kt`, `CatalogProvider.kt` | The player's title list and what it answers the launcher |
-| `app/.../DetailScreen.kt`, `SearchScreen.kt`, `AppEditor.kt` | Launcher details, search, Choose your apps and the hold-OK menu |
-| `app/.../Catalog.kt` | TMDB rows, details, search; Recommended loads separately |
 | `player/.../Xtream.kt` | All provider calls (`player_api.php`) and parsing; stream URL builders |
-| `player/.../LiveScreen.kt`, `Guide.kt`, `ChannelLabels.kt`, `WatchScreen.kt` | Live TV, guide rows, quality badges, full screen |
-| `player/.../CatalogScreen.kt`, `VodDetail.kt`, `EpisodeTitles.kt`, `Resume.kt` | Movies and Series, details, episodes, resume and My List |
-| `design/.../Wiptv.kt`, `Cinematic.kt`, `Scrolling.kt` | Shared tokens, glass, cinematic pieces, scrolling |
-| `update/.../Updater.kt` | The shared update pill (build files first, API as fallback) |
+| `player/.../LiveScreen.kt`, `Guide.kt`, `Schedule.kt`, `WatchScreen.kt` | Live TV, guide rows, schedule and catch-up, full screen |
+| `player/.../CatalogScreen.kt`, `VodDetail.kt`, `VodPlayer.kt`, `Resume.kt` | Movies and Series, details, playback, resume and My List |
+| `design/...` | Everything shared (see above) |
+| `update/.../Updater.kt` | The shared update pill |
 | `tools/screenshots/` | Pretend provider and emulator script (manual workflow, only on request) |
