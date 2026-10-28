@@ -179,6 +179,8 @@ fun HomeScreen(
         rowsFailed = false
         val loaded = try {
             Catalog.rows(mediaType)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             rowsFailed = true
             emptyList()
@@ -393,6 +395,8 @@ fun HomeScreen(
                     update = UpdateState.Downloading(percent, app)
                 }
                 update = UpdateState.Installing
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 update = UpdateState.Failed(e.message ?: "download failed", target)
             }
