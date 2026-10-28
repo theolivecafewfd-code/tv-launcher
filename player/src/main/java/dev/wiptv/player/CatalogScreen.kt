@@ -210,7 +210,7 @@ fun CatalogScreen(
         val item = restingOn ?: return@LaunchedEffect
         if (movieDetails.containsKey(item.id)) return@LaunchedEffect
         if (item.backdrop != null && !item.plot.isNullOrBlank()) return@LaunchedEffect
-        delay(700)
+        delay(400)
         val details = try {
             if (item.kind == VodKind.MOVIE) Xtream.movieDetails(login, item) else Xtream.seriesDetails(login, item).asHeroDetails()
         } catch (e: CancellationException) {
@@ -434,7 +434,7 @@ fun CatalogScreen(
                                     PosterCard(
                                         name = item.name,
                                         posterUrl = item.poster,
-                                        backdropUrl = item.backdrop,
+                                        backdropUrl = item.backdrop ?: movieDetails[item.id]?.backdrop,
                                         onFocus = { has ->
                                             if (has) focusItem(item)
                                             wideCard.onFocus(item.key, has)
@@ -493,7 +493,7 @@ fun CatalogScreen(
                                         PosterCard(
                                             name = item.name,
                                             posterUrl = item.poster,
-                                            backdropUrl = item.backdrop,
+                                            backdropUrl = item.backdrop ?: movieDetails[item.id]?.backdrop,
                                             onFocus = { has ->
                                                 if (has) {
                                                     waiting = false
@@ -529,24 +529,28 @@ fun CatalogScreen(
     }
 
     detail?.let { item ->
-        VodDetailScreen(
-            item = item,
-            login = login,
-            store = store,
-            onPlay = { point, next ->
-                playing = point
-                playingNext = next
-            },
-            onListChanged = { refresh++ },
-            onClose = {
-                detail = null
-                if (openedFromLauncher) onOpenFinished()
-                if (openedBySurprise) {
-                    openedBySurprise = false
-                    onSurpriseClosed()
-                }
-            },
-        )
+        // A fresh page for each title (More like this swaps one for another).
+        key(item.key) {
+            VodDetailScreen(
+                item = item,
+                login = login,
+                store = store,
+                onPlay = { point, next ->
+                    playing = point
+                    playingNext = next
+                },
+                onListChanged = { refresh++ },
+                onOpenOther = { detail = it },
+                onClose = {
+                    detail = null
+                    if (openedFromLauncher) onOpenFinished()
+                    if (openedBySurprise) {
+                        openedBySurprise = false
+                        onSurpriseClosed()
+                    }
+                },
+            )
+        }
     }
 
     playing?.let { point ->

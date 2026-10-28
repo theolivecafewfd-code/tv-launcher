@@ -1,6 +1,12 @@
 package dev.wiptv.player
 
 import dev.wiptv.design.wiptvBackground
+import dev.wiptv.design.glass
+import dev.wiptv.design.Wordmark
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.Glass
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -114,17 +120,21 @@ fun LoginScreen(update: UpdateHandle, onSignedIn: (Login) -> Unit) {
     ) {
         UpdatePill(update, modifier = Modifier.align(Alignment.TopEnd))
 
+        Wordmark(modifier = Modifier.align(Alignment.TopStart))
+
+        // The form on a dark glass panel in the middle of the screen.
         Column(
-            modifier = Modifier.align(Alignment.Center).width(460.dp),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .width(520.dp)
+                .glass(WiptvShapes.panel, Glass.Sheet)
+                .padding(horizontal = 30.dp, vertical = 26.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = "Sign in to your provider",
-                style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Palette.text),
-            )
+            Text(text = "Sign in to your provider", style = WiptvType.pageTitle)
             Text(
                 text = "Use the Xtream Codes details your IPTV provider sent you. They're kept on this TV only, encrypted.",
-                style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
+                style = WiptvType.metadata,
             )
             Spacer(Modifier.height(4.dp))
 
@@ -146,7 +156,7 @@ fun LoginScreen(update: UpdateHandle, onSignedIn: (Login) -> Unit) {
                 )
             }
             error?.let {
-                Text(text = it, style = TextStyle(fontSize = 13.sp, color = Palette.warn))
+                Text(text = it, style = WiptvType.metadata.copy(color = WiptvColors.warning))
             }
         }
     }
@@ -182,25 +192,27 @@ fun LoginScreen(update: UpdateHandle, onSignedIn: (Login) -> Unit) {
 /** One of the three boxes: shows its label and current value; OK opens the keyboard. */
 @Composable
 private fun FieldButton(field: Field, value: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(10.dp)
+    // A quiet dark box with a faint edge; focused, it lifts to the raised slate with the pale
+    // outline every focusable thing uses.
+    val shape = WiptvShapes.card
     Surface(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = ClickableSurfaceDefaults.shape(shape = shape),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Palette.tile,
-            contentColor = Palette.text,
-            focusedContainerColor = Palette.tileFocused,
-            focusedContentColor = Palette.text,
+            containerColor = WiptvColors.surface.copy(alpha = 0.72f),
+            contentColor = WiptvColors.text,
+            focusedContainerColor = WiptvColors.elevated,
+            focusedContentColor = WiptvColors.text,
         ),
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.02f),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
         border = ClickableSurfaceDefaults.border(
-            border = Border(border = BorderStroke(1.dp, Palette.quiet.copy(alpha = 0.3f)), shape = shape),
-            focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
+            border = Border(border = BorderStroke(1.dp, WiptvColors.border), shape = shape),
+            focusedBorder = Border(border = BorderStroke(2.dp, WiptvColors.focus), shape = shape),
         ),
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-            Text(text = field.label, style = TextStyle(fontSize = 11.sp, color = Palette.quiet))
+            Text(text = field.label, style = WiptvType.hint)
             val shown = when {
                 value.isEmpty() -> field.hint
                 field == Field.PASSWORD -> "•".repeat(value.length.coerceAtMost(16))
@@ -212,7 +224,7 @@ private fun FieldButton(field: Field, value: String, onClick: () -> Unit, modifi
                 style = TextStyle(
                     fontSize = 15.sp,
                     fontWeight = if (value.isEmpty()) FontWeight.Normal else FontWeight.Medium,
-                    color = if (value.isEmpty()) Palette.quiet.copy(alpha = 0.7f) else Palette.text,
+                    color = if (value.isEmpty()) WiptvColors.quiet else WiptvColors.text,
                 ),
             )
         }
@@ -245,23 +257,23 @@ private fun EditDialog(field: Field, initial: String, onDone: (String) -> Unit, 
                 .padding(top = 40.dp, start = 48.dp, end = 48.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(text = field.label, style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Palette.text))
+            Text(text = field.label, style = WiptvType.pageTitle)
             Box(
                 modifier = Modifier
                     .width(560.dp)
-                    .background(Palette.tile, RoundedCornerShape(12.dp))
-                    .border(2.dp, Palette.glow, RoundedCornerShape(12.dp))
+                    .background(WiptvColors.elevated, WiptvShapes.card)
+                    .border(2.dp, WiptvColors.focus, WiptvShapes.card)
                     .padding(horizontal = 14.dp, vertical = 10.dp),
             ) {
                 if (text.isEmpty()) {
-                    Text(text = field.hint, style = TextStyle(fontSize = 16.sp, color = Palette.quiet))
+                    Text(text = field.hint, style = WiptvType.body.copy(color = WiptvColors.quiet))
                 }
                 BasicTextField(
                     value = text,
                     onValueChange = { text = it },
                     singleLine = true,
-                    textStyle = TextStyle(fontSize = 16.sp, color = Palette.text, fontWeight = FontWeight.Medium),
-                    cursorBrush = SolidColor(Palette.glow),
+                    textStyle = WiptvType.body.copy(fontWeight = FontWeight.Medium),
+                    cursorBrush = SolidColor(WiptvColors.focus),
                     visualTransformation = if (field == Field.PASSWORD && !reveal) {
                         PasswordVisualTransformation()
                     } else {

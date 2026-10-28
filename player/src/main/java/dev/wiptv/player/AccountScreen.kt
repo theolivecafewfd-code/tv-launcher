@@ -1,6 +1,12 @@
 package dev.wiptv.player
 
 import dev.wiptv.design.wiptvBackground
+import dev.wiptv.design.glass
+import dev.wiptv.design.Wordmark
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.Glass
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -90,21 +96,17 @@ fun AccountScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
             modifier = Modifier.align(Alignment.TopStart).padding(top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(
-                text = "WIPTV Player",
-                style = TextStyle(fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Palette.text),
-            )
-            Text(
-                text = "${login.username} · ${hostOf(login.server)}",
-                style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
-            )
+            Wordmark()
+            Spacer(Modifier.height(10.dp))
+            Text(text = "Your account", style = WiptvType.pageTitle)
+            Text(text = "${login.username} · ${hostOf(login.server)}", style = WiptvType.metadata)
             Spacer(Modifier.height(18.dp))
 
             val current = account
             when {
                 current != null -> AccountCard(current)
-                error != null -> Text(text = error!!, style = TextStyle(fontSize = 14.sp, color = Palette.warn))
-                else -> Text(text = "Checking your account…", style = TextStyle(fontSize = 14.sp, color = Palette.quiet))
+                error != null -> Text(text = error!!, style = WiptvType.metadata.copy(color = WiptvColors.warning))
+                else -> Text(text = "Checking your account…", style = WiptvType.metadata)
             }
 
             Spacer(Modifier.height(18.dp))
@@ -120,10 +122,7 @@ fun AccountScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                 )
             }
             Spacer(Modifier.height(10.dp))
-            Text(
-                text = "Back returns to Live TV. The TV guide, films and series are coming in the next updates.",
-                style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
-            )
+            Text(text = "Back returns to Live TV.", style = WiptvType.hint)
         }
     }
 }
@@ -133,8 +132,8 @@ private fun AccountCard(account: Account) {
     Column(
         modifier = Modifier
             .width(520.dp)
-            .background(Palette.tile, RoundedCornerShape(14.dp))
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .glass(WiptvShapes.panel, Glass.Sheet)
+            .padding(horizontal = 22.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         InfoRow(
@@ -160,14 +159,10 @@ private fun AccountCard(account: Account) {
 }
 
 @Composable
-private fun InfoRow(label: String, value: String, colour: Color = Palette.text) {
+private fun InfoRow(label: String, value: String, colour: Color = WiptvColors.text) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = label,
-            modifier = Modifier.width(150.dp),
-            style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
-        )
-        Text(text = value, style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = colour))
+        Text(text = label, modifier = Modifier.width(150.dp), style = WiptvType.metadata)
+        Text(text = value, style = WiptvType.body.copy(fontWeight = FontWeight.Medium, color = colour))
     }
 }
 
