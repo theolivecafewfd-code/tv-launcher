@@ -6,14 +6,14 @@ Oct 27, 2026 · Wayne
 
 ## Status
 
-**WIPTV** (the launcher) and **WIPTV Player** (the IPTV app) are both live on the Fire TV Stick HD, at **build 159**, in one shared style. The launcher now looks like the player: cinematic artwork, player-size posters, the same details page and More info panel, on a charcoal background. Its home rows are Continue watching (from the player), Top 10, My List (shared with the player) and Recommended, and the poster you rest on widens to its picture. The player has Live TV with a calmer guide and quality badges, and Movies and Series with the cinematic redesign. One update pill in either app updates both, without hitting GitHub's limits. The launcher is still opened from the apps list; making it the Home screen is waiting for access to the Chromebook. Work is now done in Claude Code; see [the handover](HANDOVER.md).
+**WIPTV** (the launcher) and **WIPTV Player** (the IPTV app) are both live on the Fire TV Stick HD, at **build 196**, in one shared charcoal-glass style: the same header, posters, rows and hero in both, so going from one to the other feels like changing tab. The launcher's home keeps the focused card's artwork and synopsis at the top, like the player, over Continue watching, Your channels, Top 10, My List (shared with the player) and Recommended. The player has Live TV with a schedule and catch-up, and Movies and Series. One update pill in either app updates both, without hitting GitHub's limits. The launcher is still opened from the apps list; making it the Home screen is waiting for access to the Chromebook. Work is now done in Claude Code; see [the handover](HANDOVER.md).
 
 | Area | Status | Notes |
 | --- | --- | --- |
 | Build pipeline and updates | Done | Every pull request builds both apps; merges publish releases one at a time; the pill reads a build-number file in each release (#33, #34, #45) |
-| Launcher home: TV Shows \| Movies | Done | Featured Top 10 over large artwork; Continue watching, Top 10 this week (new and popular), My List, Recommended for you; expanding cards; focused row stands out (#58–#63) |
+| Launcher home: TV Shows \| Movies | Done | Fixed header and hero (the focused card's artwork and synopsis), as in the player (#79); Continue watching, Your channels, Top 10 this week, My List, Recommended for you; expanding cards; Back asks before leaving (#78) |
 | Launcher details, search, Surprise me | Done | Details like the player's: Watch on, Trailer, My List, Mark as watched, More info, More like this |
-| Launcher header, dock and quick settings | Done | Greeting; weather and clock in a glass capsule; hide and reorder apps; Wi-Fi, Bluetooth, Display & sound and Settings tiles |
+| Launcher header, Apps tray and quick settings | Done | The shared header (#68, #69); Apps tray (#67); hide and reorder apps; Wi-Fi, Bluetooth, Display & sound and Settings tiles |
 | Launcher in the player's style | Done | #47–#51, #62 (charcoal background, no Top 10 numbers) |
 | Player: sign-in and account | Done | Xtream Codes login stored encrypted on the TV; account expiry and screen limit |
 | Player: Live TV | Done | Groups, guide, preview, Edit groups, favourites on Menu (≡); soft row focus, no programme boxes, FHD/HD/SD badges (#43, #44) |
@@ -21,9 +21,9 @@ Oct 27, 2026 · Wayne
 | Player: Movies and Series | Done | Rows, details, seasons and episodes, Continue watching, My List, resume, next episode; cinematic redesign and refinements (#37–#41, #46) |
 | Native screenshots | Done | Emulator run against a pretend provider, only on request (#36) |
 | Player: Live Categories drawer | On hold | Design stage 2; Wayne is looking at another option |
-| Player: playback overlays and remaining screens | Not started | Design stage 4: overlays, login, account, editors, updater |
-| Player: catch-up | Not started | Rewind on channels that support it |
-| Launcher link | In progress | Done: "Watch on IPTV" first on details, IPTV in search and hold-OK, IPTV badges (#52–#54); Continue watching (#58); one My List for both apps (#64). Next: favourite channels as a row |
+| Player: playback overlays and remaining screens | Mostly done | Overlays (#75), sign-in and account (#77); the edit screens are left |
+| Player: catch-up | Done | A channel's schedule from yesterday to tomorrow, ⟲ replays from the start (#66); catch-up badge on channels (#76). A full guide grid may follow |
+| Launcher link | Done | "Watch on IPTV" first on details, IPTV in search and hold-OK, IPTV badges (#52–#54); Continue watching (#58); one My List for both apps (#64); Your channels (#65); one header, Back to where you came from (#69, #70). Next idea: what's on for Your channels |
 | Optional extras | Not started | IMDb and Rotten Tomatoes scores (needs an OMDb key); Prime via Fire TV search |
 | Fire Stick as Home screen | Waiting | Home on Fire needs a permission granted over ADB from another device; to be done from the Chromebook |
 | Own stick | Idea | A certified Google TV / Android TV stick, where WIPTV can be the real Home screen; budget matters |
@@ -49,8 +49,9 @@ The home screen as built (Launcher v2), driven by the remote's arrow keys. The e
 
 | Screen | What's on it | Data from |
 | --- | --- | --- |
-| Home, first screen | Greeting, update pill, weather, clock; TV Shows \| Movies \| Search \| Surprise me; featured title (left and right through the Top 10); Your apps with quick settings and Edit apps | TMDB, Open-Meteo, apps on the TV |
-| Home, scrolled | Continue watching, Top 10 this week, My List, Recommended for you | WIPTV Player; TMDB, filtered to Netflix and Prime in Ireland |
+| Home, top | Greeting; weather, clock and build in one pill; TV Shows · Movies · Live TV · Apps · search · Surprise me; the focused card's artwork, title, details and synopsis | TMDB, Open-Meteo, WIPTV Player |
+| Home, rows | Continue watching, Your channels, Top 10 this week, My List, Recommended for you | WIPTV Player; TMDB, filtered to Netflix and Prime in Ireland |
+| Apps tray | Your apps, quick settings and Edit apps, over the bottom of the screen | Apps on the TV |
 | Details | Name, year, length, genres, score, where it's on, plot, director or creators, cast; Watch on, Trailer, My List, Mark as watched; More like this | TMDB, YouTube, Wikidata (Netflix ids) |
 | Search | Results as you type; your services first, the rest dimmed | TMDB |
 | Surprise me | A random well-rated pick you haven't watched, with Another one | TMDB |
@@ -144,12 +145,11 @@ Every merge publishes a new build of both apps. Each app checks GitHub when it o
 
 Remaining work, in order. Progress for every area is in the Status table at the top.
 
-1. **Launcher link:** "Watch on IPTV" is done (#52–#54); next, the player's Continue watching, favourites and chosen provider categories as launcher rows (keeping the home screen to about four rows).
-2. **Live Categories drawer** (design stage 2), if Wayne still wants it.
-3. **Catch-up** in the player.
-4. **Playback overlays and remaining screens** (design stage 4).
-5. **Make the launcher the Fire Stick's Home screen** with Home on Fire, granted over ADB from the Chromebook.
-6. **Optional extras:** IMDb and Rotten Tomatoes scores; Prime via Fire TV search.
+1. **What's on for Your channels** on the launcher (now and next from the player's guide), if Wayne wants it.
+2. **Full TV guide grid** in Live TV (48 hours).
+3. **Make the launcher the Fire Stick's Home screen** with Home on Fire, granted over ADB from the Chromebook.
+4. **Shared edit screens** (low priority) and the **Live Categories drawer** (on hold).
+5. **Optional extras:** IMDb and Rotten Tomatoes scores; Prime via Fire TV search.
 
 ## Safety and recovery
 

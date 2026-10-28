@@ -8,7 +8,7 @@ Guidance for Claude working in this repo. Read [docs/HANDOVER.md](docs/HANDOVER.
 
 | Module | Package | What it is |
 | --- | --- | --- |
-| `app/` | `dev.tvlauncher` | **WIPTV**, the launcher: greeting, Waterford weather, clock; TV Shows \| Movies home with a featured Top 10 and rows from TMDB (Netflix and Prime in Ireland); details, search, Surprise me; app dock with quick settings |
+| `app/` | `dev.tvlauncher` | **WIPTV**, the launcher: greeting, Waterford weather, clock; TV Shows \| Movies home with the focused card's artwork and synopsis at the top and rows from TMDB (Netflix and Prime in Ireland) and the player; details, search, Surprise me; Apps tray with quick settings |
 | `player/` | `dev.wiptv.player` | **WIPTV Player**, an Xtream Codes IPTV app: Live TV (preview, guide, favourites, full screen), Movies and Series (rows, details, seasons, episodes, Continue watching, My List) |
 | `design/` | `dev.wiptv.design` | Shared glass look: `WiptvColors`, `WiptvType`, `WiptvShapes`, `Modifier.glass(shape, Glass.*)`, `focusOutline`, `SectionCapsule`, `WiptvButton`, `GlassPill`, `PivotScrolling` / `RowScrolling` |
 | `update/` | `dev.wiptv.update` | Shared updater: the pill in either app checks both releases and installs whichever app is out of date |
