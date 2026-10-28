@@ -14,6 +14,7 @@ import androidx.tv.material3.Glow
 import dev.wiptv.design.wiptvBackground
 import dev.wiptv.design.Glass
 import dev.wiptv.design.WiptvButton
+import dev.wiptv.design.ListRow
 import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvShapes
 import dev.wiptv.design.WiptvType
@@ -185,56 +186,17 @@ fun AppMenu(
     }
 }
 
-/**
- * A choice in the menu, styled like the player's lists: no box at rest; focus is a soft fill
- * across the row and a short bright bar at its left edge, with no outline or scaling.
- */
+/** A choice in the menu: the shared list row (no box at rest; the soft fill and bar on focus). */
 @Composable
 private fun MenuItem(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val fill by animateColorAsState(
-        targetValue = if (focused) WiptvColors.rowFocus else WiptvColors.rowFocus.copy(alpha = 0f),
-        animationSpec = tween(120),
-        label = "menuFill",
-    )
-    val marker by animateFloatAsState(if (focused) 1f else 0f, animationSpec = tween(120), label = "menuMarker")
-    Surface(
+    ListRow(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
-        tonalElevation = 0.dp,
-        shape = ClickableSurfaceDefaults.shape(shape = WiptvShapes.small),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = WiptvColors.secondary,
-            focusedContainerColor = Color.Transparent,
-            focusedContentColor = WiptvColors.text,
-            pressedContainerColor = Color.Transparent,
-            pressedContentColor = WiptvColors.text,
-        ),
-        scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1f, pressedScale = 1f),
-        border = ClickableSurfaceDefaults.border(border = Border.None, focusedBorder = Border.None, pressedBorder = Border.None),
-        glow = ClickableSurfaceDefaults.glow(glow = Glow.None, focusedGlow = Glow.None, pressedGlow = Glow.None),
-        interactionSource = interaction,
-    ) {
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 11.dp),
+    ) { focused ->
         Text(
             text = text,
-            modifier = Modifier
-                .fillMaxWidth()
-                .drawBehind {
-                    drawRoundRect(fill, cornerRadius = CornerRadius(8.dp.toPx()))
-                    if (marker > 0f) {
-                        val h = 24.dp.toPx()
-                        drawRoundRect(
-                            color = WiptvColors.rowFocusMarker.copy(alpha = marker),
-                            topLeft = Offset(3.dp.toPx(), (size.height - h) / 2),
-                            size = Size(3.dp.toPx(), h),
-                            cornerRadius = CornerRadius(1.5.dp.toPx()),
-                        )
-                    }
-                }
-                .padding(horizontal = 14.dp, vertical = 11.dp),
-            style = WiptvType.control.copy(fontSize = 15.sp),
+            style = WiptvType.control.copy(fontSize = 15.sp, color = if (focused) WiptvColors.text else WiptvColors.secondary),
         )
     }
 }
