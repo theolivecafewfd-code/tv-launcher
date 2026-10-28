@@ -24,6 +24,10 @@ data class Hero(
     val plot: String?,
     val backdrop: String?,
     val poster: String?,
+    /** How far through it is (a live programme), shown as a thin bar under the details. */
+    val progress: Float? = null,
+    /** One quiet line at the bottom, such as what's on next. */
+    val note: String? = null,
 )
 
 /**
@@ -65,13 +69,26 @@ fun HeroInfo(
                 style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium),
             )
         }
+        if (hero.progress != null) {
+            PlaybackProgress(fraction = hero.progress, modifier = Modifier.padding(top = 8.dp).width(220.dp))
+        }
         if (!hero.plot.isNullOrBlank()) {
+            val room = 3 - (if (titleLines > 1) 1 else 0) - (if (hero.note != null || hero.progress != null) 1 else 0)
             Text(
                 text = hero.plot,
-                maxLines = if (titleLines > 1) 2 else 3,
+                maxLines = room.coerceAtLeast(1),
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = 8.dp),
                 style = WiptvType.metadata.copy(color = WiptvColors.text.copy(alpha = 0.86f)),
+            )
+        }
+        if (hero.note != null) {
+            Text(
+                text = hero.note,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 6.dp),
+                style = WiptvType.metadata.copy(color = WiptvColors.secondary),
             )
         }
     }

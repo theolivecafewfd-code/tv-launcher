@@ -308,9 +308,23 @@ fun HomeScreen(
             hero = heroOf(item, found)
         }
     }
+    // Your channels: what's on now and next, from the player's guide, once you rest on a channel.
+    // Kept for a few minutes, or until the programme ends.
+    val onNow = remember { mutableMapOf<Long, Pair<Long, List<IptvProgramme>>>() }
     fun focusChannel(channel: IptvChannel) {
         heroJob?.cancel()
-        hero = Hero(title = channel.name, meta = "Live TV · OK to watch", plot = null, backdrop = null, poster = null)
+        val now = System.currentTimeMillis()
+        val cached = onNow[channel.id]?.takeIf { (at, list) ->
+            now - at < 5 * 60_000L && (list.firstOrNull()?.end ?: Long.MAX_VALUE) > now
+        }?.second
+        hero = heroOf(channel, cached.orEmpty(), now)
+        if (cached != null) return
+        heroJob = titleScope.launch {
+            delay(400)
+            val list = Iptv.onNow(context, channel)
+            onNow[channel.id] = System.currentTimeMillis() to list
+            hero = heroOf(channel, list, System.currentTimeMillis())
+        }
     }
 
     /** The first row: Continue watching, Your channels, or the first poster row. */
@@ -788,3 +802,23 @@ private fun heroOf(item: IptvResume, tmdb: Title?) = Hero(
     backdrop = item.imageUrl ?: tmdb?.backdropUrl,
     poster = item.posterUrl ?: tmdb?.posterUrl,
 )
+
+/**
+ * A starred channel: its name, what's on now (times, title, how far through, description) and
+ * what's next. With no guide, just the name.
+ */
+private fun heroOf(channel: IptvChannel, programmes: List<IptvProgramme>, now: Long): Hero {
+    val current = programmes.firstOrNull()?.takeIf { it.start <= now }
+    val next = if (current != null) programmes.getOrNull(1) else programmes.firstOrNull()
+    return Hero(
+        title = channel.name,
+        meta = if (current == null) "Live TV · OK to watch" else "Now · ${hhmm(current.start)}–${hhmm(current.end)} · ${current.title}",
+        plot = current?.description?.ifBlank { null },
+        backdrop = null,
+        poster = null,
+        progress = current?.let { ((now - it.start).toFloat() / (it.end - it.start)).coerceIn(0f, 1f) },
+        note = next?.let { "Next · ${hhmm(it.start)} · ${it.title}" },
+    )
+}
+
+private fun hhmm(time: Long): String = java.text.SimpleDateFormat("HH:mm", java.util.Locale.UK).format(java.util.Date(time))

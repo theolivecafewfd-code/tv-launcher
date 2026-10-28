@@ -30,6 +30,9 @@ data class IptvResume(
     val resumeFrom: String? = null,
 )
 
+/** A programme on a live channel, from the player's guide. Times in milliseconds. */
+data class IptvProgramme(val title: String, val description: String, val start: Long, val end: Long)
+
 /** A live channel you've starred in WIPTV Player. */
 data class IptvChannel(val id: Long, val name: String, val logoUrl: String?)
 
@@ -183,6 +186,23 @@ object Iptv {
             }.orEmpty()
         } catch (e: Exception) {
             Log.w(TAG, "Couldn't ask the player for its channels", e)
+            emptyList()
+        }
+    }
+
+    /** What's on [channel] now and next (up to two), or nothing if the player can't say. */
+    suspend fun onNow(context: Context, channel: IptvChannel): List<IptvProgramme> = withContext(Dispatchers.IO) {
+        try {
+            val uri = base.buildUpon().appendPath("onnow").appendQueryParameter("id", channel.id.toString()).build()
+            context.contentResolver.query(uri, null, null, null, null)?.use { c ->
+                val out = mutableListOf<IptvProgramme>()
+                while (c.moveToNext()) {
+                    out += IptvProgramme(title = c.getString(0), description = c.getString(1).orEmpty(), start = c.getLong(2), end = c.getLong(3))
+                }
+                out
+            }.orEmpty()
+        } catch (e: Exception) {
+            Log.w(TAG, "Couldn't ask the player what's on", e)
             emptyList()
         }
     }
