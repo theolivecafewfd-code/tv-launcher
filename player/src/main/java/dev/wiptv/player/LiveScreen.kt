@@ -51,6 +51,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.heightIn
 import dev.wiptv.design.Glass
+import dev.wiptv.design.KeyHints
+import androidx.activity.compose.BackHandler
 import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvShapes
 import dev.wiptv.design.WiptvType
@@ -214,8 +216,11 @@ fun LiveScreen(
     fun groupName(id: String?): String =
         if (id == FAVOURITES_ID) "Favourites" else groups?.firstOrNull { it.id == id }?.name.orEmpty()
 
-    // A channel's schedule (Right on its row), and a past programme playing from it (catch-up).
-    var scheduleFor by remember { mutableStateOf<Channel?>(null) }
+    // The full guide (Right on a channel): the channel it was opened from, and the programme
+    // highlighted in it. A past programme playing from it is catch-up.
+    var gridFrom by remember { mutableStateOf<Channel?>(null) }
+    var gridPick by remember { mutableStateOf<Pair<Channel, Programme?>?>(null) }
+    val fullGuide = remember(login) { FullGuideStore(login) }
     var catchUp by remember { mutableStateOf<Pair<Channel, ResumePoint>?>(null) }
     val vodStore = remember { VodStore(context) }
 
@@ -239,6 +244,23 @@ fun LiveScreen(
         val (groupId, list) = previewSource?.takeIf { (_, l) -> l.any { it.id == current.id } }
             ?: (current.groupId to listOf(current))
         watching = WatchList(list, groupId, groupName(groupId), list.indexOfFirst { it.id == current.id }.coerceAtLeast(0))
+    }
+
+    /** Replays a past programme from the start (catch-up), from the full guide. */
+    fun startCatchUp(channel: Channel, programme: Programme) {
+        // One stream at a time: the live preview stops while catch-up plays.
+        live.hold()
+        catchUp = channel to ResumePoint(
+            key = "catchup:${channel.id}:${programme.start}",
+            title = programme.title,
+            subtitle = ChannelLabels.of(channel.name).name + " · " +
+                java.text.SimpleDateFormat("EEE d MMM, HH:mm", java.util.Locale.UK).format(java.util.Date(programme.start)),
+            poster = channel.logo,
+            url = Xtream.catchUpUrl(login, channel, programme, account?.timezone),
+            position = 0,
+            duration = programme.end - programme.start,
+            updated = System.currentTimeMillis(),
+        )
     }
 
     // From the launcher's channel row: that channel full screen, changing channel within its own
@@ -315,8 +337,8 @@ fun LiveScreen(
         header()
         Spacer(Modifier.height(12.dp))
         Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Groups, on a glass panel.
-            Column(
+            // Groups, on a glass panel (not while the full guide is open: it has the whole width).
+            if (gridFrom == null) Column(
                 modifier = Modifier
                     .width(200.dp)
                     .fillMaxHeight()
@@ -416,15 +438,60 @@ fun LiveScreen(
                 Row(modifier = Modifier.height(136.dp)) {
                     Preview(live = live, attached = watching == null, onClick = ::watchPreview)
                     Spacer(Modifier.width(16.dp))
-                    NowPanel(
-                        channel = live.channel,
-                        programmes = live.channel?.let { guide.programmes(it.id) },
-                        now = now,
-                        modifier = Modifier.weight(1f).padding(top = 2.dp),
-                    )
+                    val pick = gridPick
+                    if (gridFrom != null && pick != null) {
+                        // The full guide: what's highlighted in it.
+                        GuideDetailPanel(
+                            channel = pick.first,
+                            programme = pick.second,
+                            loaded = fullGuide.programmes(pick.first.id) != null,
+                            now = now,
+                            modifier = Modifier.weight(1f).padding(top = 2.dp),
+                        )
+                    } else {
+                        NowPanel(
+                            channel = live.channel,
+                            programmes = live.channel?.let { guide.programmes(it.id) },
+                            now = now,
+                            modifier = Modifier.weight(1f).padding(top = 2.dp),
+                        )
+                    }
                 }
                 Spacer(Modifier.height(10.dp))
 
+                val from = gridFrom
+                if (from != null) {
+                    // The full guide: this group's channels, yesterday to tomorrow.
+                    val gridChannels = channels.orEmpty().ifEmpty { listOf(from) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = groupName(selectedGroup).ifBlank { "Full guide" },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = 4.dp).width(ChannelCellWidth - 8.dp),
+                            style = WiptvType.control.copy(color = WiptvColors.text),
+                        )
+                        KeyHints(listOf("◀ ▶ through the day", "▲ ▼ channels", "OK watch", "≡ favourite", "Back to Live TV"))
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    GuideGrid(
+                        channels = gridChannels,
+                        startIndex = gridChannels.indexOfFirst { it.id == from.id }.coerceAtLeast(0),
+                        store = fullGuide,
+                        now = now,
+                        playingId = live.channel?.id,
+                        favouriteIds = favouriteIds,
+                        onSelect = { channel, programme -> gridPick = channel to programme },
+                        // What's on now: into the preview; OK again on the one in the preview goes full screen.
+                        onWatch = { channel ->
+                            previewSource = (selectedGroup ?: "") to gridChannels
+                            if (live.channel?.id == channel.id) watchPreview() else live.play(login, format, channel)
+                        },
+                        onCatchUp = ::startCatchUp,
+                        onToggleFavourite = { toggleFavourite(it) },
+                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                    )
+                } else {
                 // The selected group's channels, as a guide.
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
@@ -480,7 +547,10 @@ fun LiveScreen(
                                 if (live.channel?.id == channel.id) watchPreview() else live.play(login, format, channel)
                             },
                             onMenu = { toggleFavourite(channel) },
-                            onSchedule = { scheduleFor = channel },
+                            onGuide = {
+                                gridPick = channel to null
+                                gridFrom = channel
+                            },
                             modifier = Modifier
                                 .focusRequester(requesterFor(channel.id))
                                 .onFocusChanged { focus ->
@@ -489,48 +559,23 @@ fun LiveScreen(
                         )
                     }
                 }
+                }
             }
         }
       }
     }
 
-    scheduleFor?.let { channel ->
-        ScheduleSheet(
-            channel = channel,
-            login = login,
-            now = now,
-            onWatchLive = {
-                scheduleFor = null
-                previewSource = (selectedGroup ?: "") to (channels?.takeIf { l -> l.any { it.id == channel.id } } ?: listOf(channel))
-                live.play(login, format, channel)
-                watchPreview()
-            },
-            onCatchUp = { programme ->
-                // One stream at a time: the live preview stops while catch-up plays.
-                live.hold()
-                catchUp = channel to ResumePoint(
-                    key = "catchup:${channel.id}:${programme.start}",
-                    title = programme.title,
-                    subtitle = ChannelLabels.of(channel.name).name + " · " +
-                        java.text.SimpleDateFormat("EEE d MMM, HH:mm", java.util.Locale.UK).format(java.util.Date(programme.start)),
-                    poster = channel.logo,
-                    url = Xtream.catchUpUrl(login, channel, programme, account?.timezone),
-                    position = 0,
-                    duration = programme.end - programme.start,
-                    updated = System.currentTimeMillis(),
-                )
-            },
-            onClose = {
-                scheduleFor = null
-                pendingFocus = channel.id
-            },
-        )
+    // Back in the full guide: Live TV again, on the channel it was opened from.
+    BackHandler(enabled = gridFrom != null && watching == null && catchUp == null) {
+        pendingFocus = gridFrom?.id
+        gridFrom = null
+        gridPick = null
     }
 
     catchUp?.let { (channel, point) ->
         val finish = {
             catchUp = null
-            // Back to the schedule, with the preview playing live again.
+            // Back to the full guide, with the preview playing live again.
             previewSource = (selectedGroup ?: "") to (channels?.takeIf { l -> l.any { it.id == channel.id } } ?: listOf(channel))
             live.play(login, format, channel)
         }
