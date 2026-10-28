@@ -97,13 +97,6 @@ object Catalog {
     private val rowCache = ConcurrentHashMap<String, Cached<ContentRow>>()
     private val netflixIds = ConcurrentHashMap<String, String>()
 
-    /** The four home-screen rows for TV shows or films. */
-    suspend fun rows(type: MediaType): List<ContentRow> = coroutineScope {
-        listOf(
-            async { cached("${type.path}:top") { topTen(type) } },
-        ).awaitAll().filter { it.items.isNotEmpty() }
-    }
-
     /** Recommended for you, loaded on its own (it takes longer, and changes with what you open). */
     suspend fun recommendedRow(type: MediaType, history: List<HistoryEntry>): ContentRow {
         val ofType = history.filter { it.type == type }
@@ -116,23 +109,6 @@ object Catalog {
         val row = load()
         if (row.items.isNotEmpty()) rowCache[key] = Cached(row, SystemClock.elapsedRealtime())
         return row
-    }
-
-    /**
-     * New and popular: the most popular shows that started in the last 18 months, or films
-     * released in the last year, on your services. (Plain popularity filled the row with
-     * long-running shows from years ago.)
-     */
-    private suspend fun topTen(type: MediaType): ContentRow {
-        val today = java.time.LocalDate.now()
-        val recent = when (type) {
-            MediaType.TV -> "first_air_date.gte=${today.minusMonths(18)}&first_air_date.lte=$today"
-            MediaType.MOVIE -> "primary_release_date.gte=${today.minusMonths(12)}&primary_release_date.lte=$today"
-        }
-        val items = merged(type, "sort_by=popularity.desc&vote_count.gte=20&$recent", byRating = false)
-            .filter { it.backdropUrl != null }
-            .take(10)
-        return ContentRow("top", "Top 10 this week", "Most popular on your services in Ireland", ranked = true, items = items)
     }
 
     private suspend fun genreRow(type: MediaType, key: String, title: String, genre: Int): ContentRow {
