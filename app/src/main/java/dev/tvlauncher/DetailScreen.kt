@@ -327,7 +327,7 @@ fun DetailScreen(
                                         horizontalArrangement = Arrangement.spacedBy(16.dp - ArtFocusGap * 2),
                                     ) {
                                         items(similar, key = { it.key }) { other ->
-                                            PosterCard(
+                                            TitlePoster(
                                                 title = other,
                                                 onClick = { onOpenOther(other) },
                                                 onLongClick = { onPlayOther(other) },
