@@ -1,5 +1,14 @@
 package dev.wiptv.player
 
+import androidx.compose.ui.text.style.TextOverflow
+import dev.wiptv.design.Glass
+import dev.wiptv.design.KeyHints
+import dev.wiptv.design.PlaybackPanel
+import dev.wiptv.design.PlaybackProgress
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.glass
 import android.view.KeyEvent as AndroidKeyEvent
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
@@ -233,7 +242,7 @@ fun VodPlayerScreen(
                     text = message,
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                        .glass(WiptvShapes.pill, Glass.OverVideo)
                         .padding(horizontal = 18.dp, vertical = 10.dp),
                     style = TextStyle(
                         fontSize = 15.sp,
@@ -261,48 +270,40 @@ fun VodPlayerScreen(
     }
 }
 
-/** Title, a progress bar and the times, along the bottom of the picture. */
+/**
+ * Along the bottom of the picture, in the shared playback panel: the title (with ❚❚ when paused)
+ * and what time it'll finish, the episode, the progress bar, then where you are, what the remote
+ * does and the full length.
+ */
 @Composable
 private fun ProgressBar(title: String, subtitle: String?, position: Long, duration: Long, paused: Boolean) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))))
-            .padding(start = 40.dp, end = 40.dp, top = 48.dp, bottom = 24.dp),
-    ) {
-        Text(
-            text = if (paused) "❚❚  $title" else title,
-            style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
-        )
-        if (subtitle != null) {
-            Text(text = subtitle, style = TextStyle(fontSize = 13.sp, color = Palette.quiet))
-        }
-        Spacer(Modifier.height(10.dp))
-        val fraction = if (duration > 0) (position.toFloat() / duration).coerceIn(0f, 1f) else 0f
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .background(Palette.tile, RoundedCornerShape(2.dp)),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(fraction)
-                    .background(Palette.glow, RoundedCornerShape(2.dp)),
-            )
-        }
-        Spacer(Modifier.height(6.dp))
-        Row {
+    PlaybackPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = clockOf(position),
+                text = if (paused) "❚❚  $title" else title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
-                style = TextStyle(fontSize = 12.sp, color = Palette.text),
+                style = WiptvType.section.copy(fontWeight = FontWeight.SemiBold),
             )
-            Text(
-                text = "◀ 10s · OK pause · 30s ▶ · " + if (duration > 0) clockOf(duration) else "",
-                style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
-            )
+            if (duration > 0) {
+                Text(
+                    text = "Ends " + timeOf(System.currentTimeMillis() + (duration - position).coerceAtLeast(0)),
+                    style = WiptvType.control.copy(color = WiptvColors.secondary),
+                )
+            }
+        }
+        if (subtitle != null) {
+            Text(text = subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis, style = WiptvType.metadata)
+        }
+        PlaybackProgress(
+            fraction = if (duration > 0) position.toFloat() / duration else 0f,
+            modifier = Modifier.padding(top = 12.dp),
+        )
+        Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(text = clockOf(position), style = WiptvType.hint.copy(color = WiptvColors.text))
+            KeyHints(hints = listOf("◀ 10s", "OK pause", "30s ▶"), modifier = Modifier.weight(1f).padding(horizontal = 16.dp))
+            if (duration > 0) Text(text = clockOf(duration), style = WiptvType.hint.copy(color = WiptvColors.text))
         }
     }
 }

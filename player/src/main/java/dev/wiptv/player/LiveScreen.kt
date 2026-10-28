@@ -566,6 +566,7 @@ fun LiveScreen(
                 }
             },
             nowShowing = { guide.nowShowing(it) },
+            upNext = { guide.upNext(it) },
             ensureGuide = { guide.ensure(it) },
             isFavourite = { channel -> favourites.any { it.id == channel.id } },
             onToggleFavourite = ::toggleFavourite,

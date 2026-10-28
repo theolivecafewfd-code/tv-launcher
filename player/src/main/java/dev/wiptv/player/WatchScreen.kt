@@ -12,6 +12,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import dev.wiptv.design.ListRow
+import dev.wiptv.design.glass
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.Glass
+import dev.wiptv.design.WiptvType
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.PlaybackProgress
+import dev.wiptv.design.PlaybackPanel
+import dev.wiptv.design.KeyHints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -83,6 +91,8 @@ fun WatchScreen(
     loadGroup: suspend (String) -> List<Channel>,
     groupOf: (Channel) -> ChannelGroup,
     nowShowing: (Channel) -> Programme?,
+    /** What's on next, for the info bar. */
+    upNext: (Channel) -> Programme? = { null },
     ensureGuide: suspend (Channel) -> Unit,
     isFavourite: (Channel) -> Boolean,
     onToggleFavourite: (Channel) -> Unit,
@@ -257,7 +267,7 @@ fun WatchScreen(
                     text = message,
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                        .glass(WiptvShapes.pill, Glass.OverVideo)
                         .padding(horizontal = 18.dp, vertical = 10.dp),
                     style = TextStyle(
                         fontSize = 15.sp,
@@ -276,6 +286,7 @@ fun WatchScreen(
                 InfoBar(
                     channel = channel,
                     programme = nowShowing(channel),
+                    next = upNext(channel),
                     groupName = group.name,
                     index = index,
                     total = channels.size,
@@ -461,28 +472,26 @@ private fun GroupListOverlay(
     }
 }
 
-/** Channel number, logo, name, what's on, and the group along the bottom of the picture. */
+/**
+ * Along the bottom of the picture, in the shared playback panel: the channel's number and logo,
+ * its name (★ when a favourite, with its quality badge), what's on now with its times and how far
+ * through it is, what's next, the clock, and a quiet line of what the remote does.
+ */
 @Composable
 private fun InfoBar(
     channel: Channel,
     programme: Programme?,
+    next: Programme?,
     groupName: String,
     index: Int,
     total: Int,
     previous: Channel?,
     favourite: Boolean,
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))))
-            .padding(start = 40.dp, end = 40.dp, top = 40.dp, bottom = 24.dp),
-    ) {
+    val now = rememberNow()
+    PlaybackPanel {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(
-                text = channel.number.toString(),
-                style = TextStyle(fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Palette.text),
-            )
+            Text(text = channel.number.toString(), style = WiptvType.screen.copy(fontWeight = FontWeight.Bold))
             if (channel.logo != null) {
                 AsyncImage(
                     model = channel.logo,
@@ -491,7 +500,7 @@ private fun InfoBar(
                     modifier = Modifier.size(width = 72.dp, height = 44.dp),
                 )
             }
-            Column(modifier = Modifier.width(640.dp)) {
+            Column(modifier = Modifier.weight(1f)) {
                 val label = remember(channel.name) { ChannelLabels.of(channel.name) }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -499,7 +508,7 @@ private fun InfoBar(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
-                        style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Palette.text),
+                        style = WiptvType.section.copy(fontWeight = FontWeight.SemiBold),
                     )
                     label.quality?.let { QualityBadge(it) }
                 }
@@ -508,17 +517,36 @@ private fun InfoBar(
                         text = "${timeRange(programme)}  ${programme.title}",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        style = TextStyle(fontSize = 14.sp, color = Palette.text),
+                        style = WiptvType.body,
                     )
                 }
-                val back = if (previous != null) " · ▶ back to ${ChannelLabels.of(previous.name).name}" else ""
-                Text(
-                    text = "$groupName · ${index + 1} of $total · ▲▼ change · ◀ channels and groups · ≡ favourite$back",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = TextStyle(fontSize = 12.sp, color = Palette.quiet),
-                )
+                if (next != null) {
+                    Text(
+                        text = "Next  ${timeOf(next.start)}  ${next.title}",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        style = WiptvType.metadata,
+                    )
+                }
             }
+            Text(text = timeOf(now), style = WiptvType.control.copy(color = WiptvColors.secondary))
         }
+        if (programme != null) {
+            val length = (programme.end - programme.start).coerceAtLeast(1)
+            PlaybackProgress(
+                fraction = (now - programme.start).toFloat() / length,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        }
+        KeyHints(
+            hints = listOfNotNull(
+                "$groupName · ${index + 1} of $total",
+                "▲▼ change",
+                "◀ channels and groups",
+                previous?.let { "▶ back to ${ChannelLabels.of(it.name).name}" },
+                "≡ favourite",
+            ),
+            modifier = Modifier.padding(top = 10.dp),
+        )
     }
 }
