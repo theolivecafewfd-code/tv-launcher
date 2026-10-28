@@ -300,7 +300,10 @@ fun HomeScreen(
         heroJob = titleScope.launch {
             delay(400)
             val found = try {
-                Catalog.search(sameName(item.title)).firstOrNull { it.type == item.type }
+                // The provider's names often carry the year in brackets, "Project Hail Mary (2026)"
+                // (a bare number, as in "Blade Runner 2049", is part of the name).
+                val year = Regex("""[(\[]\s*((?:19|20)\d{2})\s*[)\]]""").findAll(item.title).lastOrNull()?.groupValues?.get(1)
+                Catalog.lookup(sameName(item.title), year, item.type)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

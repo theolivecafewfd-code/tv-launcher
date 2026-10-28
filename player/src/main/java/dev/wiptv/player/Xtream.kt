@@ -251,8 +251,10 @@ object Xtream {
      * What's on a channel now and next (the provider's "short EPG"): a handful of programmes from
      * now on. Cheap enough to ask for each channel as it comes on screen.
      */
-    suspend fun shortGuide(login: Login, channelId: Long): List<Programme> = withContext(Dispatchers.IO) {
-        val text = get("${api(login)}&action=get_short_epg&stream_id=$channelId&limit=8")
+    suspend fun shortGuide(login: Login, channelId: Long, quick: Boolean = false): List<Programme> = withContext(Dispatchers.IO) {
+        // [quick]: for the launcher, which only waits a few seconds, so the request gives up as soon.
+        val url = "${api(login)}&action=get_short_epg&stream_id=$channelId&limit=8"
+        val text = if (quick) fetch(url, readTimeoutMs = 5_000, connectTimeoutMs = 4_000) { it.bufferedReader().readText() } else get(url)
         val listings = runCatching { JSONObject(text).optJSONArray("epg_listings") }.getOrNull()
             ?: return@withContext emptyList()
         (0 until listings.length()).mapNotNull { i ->
@@ -460,8 +462,10 @@ object Xtream {
     private fun parseArray(text: String): JSONArray = try {
         JSONArray(text)
     } catch (e: JSONException) {
-        // Some panels answer an empty group with {} or nothing at all.
-        if (text.isBlank() || text.trim().startsWith("{")) JSONArray() else throw XtreamException("The provider sent something unexpected.")
+        // Some panels answer an empty group with {} or nothing at all. Anything else in place of
+        // a list (an error message, a sign-in reply) is a failure, not "nothing here".
+        if (text.isBlank() || text.filterNot(Char::isWhitespace) == "{}") JSONArray()
+        else throw XtreamException("The provider sent something unexpected.")
     }
 
     private fun pathPart(text: String): String = encode(text).replace("+", "%20")
@@ -492,8 +496,18 @@ object Xtream {
         fetch("${api(login)}&action=$action", readTimeoutMs = 120_000) { input ->
             val reader = JsonReader(InputStreamReader(input, Charsets.UTF_8))
             reader.isLenient = true
-            // Some panels answer an empty catalogue with {} or nothing.
-            if (reader.peek() != JsonToken.BEGIN_ARRAY) return@fetch
+            // Some panels answer an empty catalogue with {} or nothing; anything else in place of
+            // the list (an error message) is a failure, so the last good list is kept.
+            when (reader.peek()) {
+                JsonToken.BEGIN_ARRAY -> {}
+                JsonToken.END_DOCUMENT -> return@fetch
+                JsonToken.BEGIN_OBJECT -> {
+                    reader.beginObject()
+                    if (reader.hasNext()) throw XtreamException("The provider sent something unexpected.")
+                    return@fetch
+                }
+                else -> throw XtreamException("The provider sent something unexpected.")
+            }
             reader.beginArray()
             while (reader.hasNext()) {
                 if (reader.peek() != JsonToken.BEGIN_OBJECT) {
@@ -532,13 +546,13 @@ object Xtream {
     private fun get(url: String): String = fetch(url) { it.bufferedReader().readText() }
 
     /** A GET request, following redirects by hand (including http → https, which Android won't). */
-    private fun <T> fetch(url: String, readTimeoutMs: Int = 30_000, read: (java.io.InputStream) -> T): T {
+    private fun <T> fetch(url: String, readTimeoutMs: Int = 30_000, connectTimeoutMs: Int = 15_000, read: (java.io.InputStream) -> T): T {
         var current = url
         repeat(5) {
             val connection = try {
                 (URL(current).openConnection() as HttpURLConnection).apply {
                     instanceFollowRedirects = false
-                    connectTimeout = 15_000
+                    connectTimeout = connectTimeoutMs
                     readTimeout = readTimeoutMs
                     setRequestProperty("User-Agent", "WIPTVPlayer/${BuildConfig.VERSION_NAME}")
                 }

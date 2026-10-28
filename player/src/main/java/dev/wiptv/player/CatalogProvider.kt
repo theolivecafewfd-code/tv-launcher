@@ -112,7 +112,7 @@ class CatalogProvider : ContentProvider() {
         val login = LoginStore.load(context) ?: return cursor
         val now = System.currentTimeMillis()
         val programmes = try {
-            runBlocking { withTimeout(8_000) { Xtream.shortGuide(login, channelId) } }
+            runBlocking { withTimeout(8_000) { Xtream.shortGuide(login, channelId, quick = true) } }
         } catch (e: Exception) {
             // Includes the timeout: the launcher then just shows the channel's name.
             emptyList()
