@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Text
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /**
@@ -109,6 +110,8 @@ fun SearchScreen(
         iptvStatus = Iptv.status(context)
         results = try {
             Catalog.search(text)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             failed = true
             emptyList()

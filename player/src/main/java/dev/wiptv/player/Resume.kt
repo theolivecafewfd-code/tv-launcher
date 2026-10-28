@@ -32,6 +32,15 @@ data class ResumePoint(
  * Continue watching.
  */
 class VodStore(context: Context) {
+    companion object {
+        /**
+         * Changes read the whole list and write it back, from the player and from the launcher
+         * (through CatalogProvider) at once, so they take turns: two at the same moment would
+         * otherwise lose one of them.
+         */
+        private val lock = Any()
+    }
+
     private val prefs = context.getSharedPreferences("vod", Context.MODE_PRIVATE)
 
     fun resumePoints(): List<ResumePoint> = runCatching {
@@ -57,18 +66,22 @@ class VodStore(context: Context) {
 
     /** Saves where you are, or clears it once you're near the end (or barely started). */
     fun savePosition(point: ResumePoint) {
-        val nearEnd = point.duration > 0 && point.duration - point.position < 3 * 60_000
-        val barelyStarted = point.position < 60_000
-        val others = resumePoints().filterNot { it.key == point.key || (point.seriesId != null && it.seriesId == point.seriesId) }
-        val kept = if (nearEnd || barelyStarted) others else listOf(point) + others
-        if (nearEnd) markWatched(point.key)
-        write(kept.take(30))
+        synchronized(lock) {
+            val nearEnd = point.duration > 0 && point.duration - point.position < 3 * 60_000
+            val barelyStarted = point.position < 60_000
+            val others = resumePoints().filterNot { it.key == point.key || (point.seriesId != null && it.seriesId == point.seriesId) }
+            val kept = if (nearEnd || barelyStarted) others else listOf(point) + others
+            if (nearEnd) markWatched(point.key)
+            write(kept.take(30))
+        }
     }
 
     fun watched(): Set<String> = prefs.getStringSet("watched", emptySet())?.toSet() ?: emptySet()
 
     private fun markWatched(key: String) {
-        prefs.edit().putStringSet("watched", watched() + key).apply()
+        synchronized(lock) {
+            prefs.edit().putStringSet("watched", watched() + key).apply()
+        }
     }
 
     fun favourites(): List<VodItem> = runCatching {
@@ -92,32 +105,40 @@ class VodStore(context: Context) {
 
     /** Adds the film or series to My List, or takes it off; returns true when it was added. */
     fun toggleFavourite(item: VodItem): Boolean {
-        val current = favourites()
-        val added = current.none { it.key == item.key }
-        writeFavourites(if (added) listOf(item) + current else current.filterNot { it.key == item.key })
-        return added
+        synchronized(lock) {
+            val current = favourites()
+            val added = current.none { it.key == item.key }
+            writeFavourites(if (added) listOf(item) + current else current.filterNot { it.key == item.key })
+            return added
+        }
     }
 
     /** Puts it at the front of My List, if it isn't there already (from the launcher). */
     fun addFavourite(item: VodItem) {
-        val current = favourites()
-        if (current.none { it.key == item.key }) writeFavourites(listOf(item) + current)
+        synchronized(lock) {
+            val current = favourites()
+            if (current.none { it.key == item.key }) writeFavourites(listOf(item) + current)
+        }
     }
 
     /** Replaces its My List entry, where it is, with this fuller one (details found later). */
     fun fillInFavourite(item: VodItem) {
-        val current = favourites()
-        if (current.none { it.key == item.key }) return
-        writeFavourites(current.map { if (it.key == item.key) item else it })
+        synchronized(lock) {
+            val current = favourites()
+            if (current.none { it.key == item.key }) return
+            writeFavourites(current.map { if (it.key == item.key) item else it })
+        }
     }
 
     /** Takes it off My List; returns true when it was there. */
     fun removeFavourite(key: String): Boolean {
-        val current = favourites()
-        val next = current.filterNot { it.key == key }
-        if (next.size == current.size) return false
-        writeFavourites(next)
-        return true
+        synchronized(lock) {
+            val current = favourites()
+            val next = current.filterNot { it.key == key }
+            if (next.size == current.size) return false
+            writeFavourites(next)
+            return true
+        }
     }
 
     private fun writeFavourites(next: List<VodItem>) {

@@ -101,7 +101,6 @@ object Updater {
     suspend fun check(context: Context, repo: String): UpdateState = withContext(Dispatchers.IO) {
         val updates = mutableListOf<AppUpdate>()
         var failure: Exception? = null
-        var checked = 0
         for (app in WiptvApp.entries) {
             val installed = installedBuild(context, app.packageName) ?: continue
             try {
@@ -114,9 +113,10 @@ object Updater {
                     Log.i(TAG, "No build file for ${app.label}, asking the API", e)
                     fromApi(context, repo, app)
                 }
-                checked++
                 if (newest == null || newest.build <= installed) continue
                 updates += newest
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Couldn't check ${app.label}", e)
                 if (failure == null) failure = e
@@ -124,7 +124,8 @@ object Updater {
         }
         when {
             updates.isNotEmpty() -> UpdateState.Available(inInstallOrder(context, updates))
-            checked == 0 && failure != null -> UpdateState.CheckFailed(describe(failure!!))
+            // Either app not checked (even if the other was) is a failed check, not "up to date".
+            failure != null -> UpdateState.CheckFailed(describe(failure!!))
             else -> UpdateState.UpToDate
         }
     }

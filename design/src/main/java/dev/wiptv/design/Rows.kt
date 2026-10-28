@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -89,9 +88,11 @@ fun ListRow(
         glow = ClickableSurfaceDefaults.glow(glow = Glow.None, focusedGlow = Glow.None, pressedGlow = Glow.None),
         interactionSource = interaction,
     ) {
+        // Only as tall as its content, or as the caller makes it (the guide's 48 dp rows):
+        // filling the height would stretch a row in a menu over the options below it.
         Row(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
                 .drawBehind {
                     drawRoundRect(fill, cornerRadius = CornerRadius(8.dp.toPx()))
                     if (marker > 0f) {

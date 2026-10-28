@@ -2,6 +2,7 @@ package dev.tvlauncher
 
 import android.os.SystemClock
 import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -321,9 +322,12 @@ object Catalog {
                 flatrate.getJSONObject(it).optInt("provider_id").toString()
             }.toSet()
             Source.entries.filter { source -> source.providerIds.split('|').any { it in ids } }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
+            // Not remembered, so it's asked again next time (a failure isn't "on no service").
             Log.w(TAG, "Where-to-watch failed for ${title.name}", e)
-            emptyList()
+            return@withContext emptyList()
         }
         providerCache[title.key] = sources
         sources
@@ -412,9 +416,12 @@ object Catalog {
                     ?.optString("value")
                     ?.takeIf { it.isNotBlank() && it.all(Char::isDigit) }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
+            // Not remembered, so it's tried again next time.
             Log.w(TAG, "Netflix id lookup failed for ${title.name}", e)
-            null
+            return@withContext null
         }
         netflixIds[title.key] = id ?: ""
         id
