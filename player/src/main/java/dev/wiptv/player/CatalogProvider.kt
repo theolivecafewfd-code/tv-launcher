@@ -55,7 +55,7 @@ class CatalogProvider : ContentProvider() {
             return cursor
         }
         if (uri.lastPathSegment == "continue") {
-            val cursor = MatrixCursor(arrayOf("key", "kind", "title", "subtitle", "poster", "image", "progress", "left"))
+            val cursor = MatrixCursor(arrayOf("key", "kind", "title", "subtitle", "poster", "image", "progress", "left", "resume_from"))
             VodStore(context).resumePoints().take(20).forEach { p ->
                 cursor.addRow(
                     arrayOf<Any?>(
@@ -67,6 +67,7 @@ class CatalogProvider : ContentProvider() {
                         p.image,
                         p.progress.toDouble(),
                         timeLeft(p),
+                        if (p.position > 0) clockOf(p.position) else null,
                     ),
                 )
             }

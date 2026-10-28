@@ -138,122 +138,7 @@ fun launcherNav(
 )
 
 
-/**
- * The featured title, over the big artwork behind the top of the screen (drawn by the home
- * screen): which of the Top 10 it is and where it's on, the name, a details line and a short
- * synopsis. Left and right move through [titles]; OK opens the current one, holding OK plays it.
- *
- * Focus is the list highlight the player uses: a short bright bar at the left edge, with the
- * counter lit. The text block has a fixed height and fades between titles, so nothing below moves.
- */
-@Composable
-fun Featured(
-    titles: List<Title>,
-    index: Int,
-    onIndexChange: (Int) -> Unit,
-    onOpen: (Title) -> Unit,
-    onPlay: (Title) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val title = titles.getOrNull(index) ?: return
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val marker by animateFloatAsState(if (focused) 1f else 0f, animationSpec = tween(120), label = "featuredMarker")
-    Surface(
-        onClick = { onOpen(title) },
-        onLongClick = { onPlay(title) },
-        modifier = modifier
-            .padding(start = Edge - 12.dp)
-            .width(500.dp)
-            .height(190.dp)
-            .onPreviewKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                when {
-                    event.key == Key.DirectionLeft && index > 0 -> { onIndexChange(index - 1); true }
-                    event.key == Key.DirectionRight && index < titles.size - 1 -> { onIndexChange(index + 1); true }
-                    else -> false
-                }
-            },
-        tonalElevation = 0.dp,
-        shape = ClickableSurfaceDefaults.shape(shape = WiptvShapes.small),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = WiptvColors.text,
-            focusedContainerColor = Color.Transparent,
-            focusedContentColor = WiptvColors.text,
-            pressedContainerColor = Color.Transparent,
-            pressedContentColor = WiptvColors.text,
-        ),
-        scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1f, pressedScale = 1f),
-        border = ClickableSurfaceDefaults.border(border = Border.None, focusedBorder = Border.None, pressedBorder = Border.None),
-        glow = ClickableSurfaceDefaults.glow(glow = Glow.None, focusedGlow = Glow.None, pressedGlow = Glow.None),
-        interactionSource = interaction,
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .drawBehind {
-                    if (marker > 0f) {
-                        val h = 24.dp.toPx()
-                        drawRoundRect(
-                            color = WiptvColors.rowFocusMarker.copy(alpha = marker),
-                            topLeft = Offset(3.dp.toPx(), 52.dp.toPx() - h / 2),
-                            size = Size(3.dp.toPx(), h),
-                            cornerRadius = CornerRadius(1.5.dp.toPx()),
-                        )
-                    }
-                },
-        ) {
-            Crossfade(targetState = title, animationSpec = tween(160), label = "featuredText") { shown ->
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        // "‹ 3 of 10 ›": lit when focused, so it's clear left and right move through them.
-                        Text(
-                            text = "‹  ${index + 1} of ${titles.size}  ›",
-                            modifier = Modifier
-                                .then(
-                                    if (focused) Modifier.background(WiptvColors.focus, WiptvShapes.pill)
-                                    else Modifier.glass(WiptvShapes.pill),
-                                )
-                                .padding(horizontal = 9.dp, vertical = 2.dp),
-                            style = TextStyle(
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (focused) WiptvColors.onLight else WiptvColors.text,
-                            ),
-                        )
-                        if (IptvBadges.has(shown)) IptvTag()
-                        shown.sources.forEach { SourceTag(it) }
-                    }
-                    Text(
-                        text = DisplayTitles.withoutYear(shown.name, shown.year),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 2.dp),
-                        style = WiptvType.hero,
-                    )
-                    // Up to two lines of details, wrapping between items, then at most three of synopsis.
-                    // The block's fixed height leaves room for both, clear of Your apps below.
-                    MetaLine(items = metaItems(shown), style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium))
-                    if (shown.overview.isNotBlank()) {
-                        Text(
-                            text = shown.overview,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 4.dp),
-                            style = WiptvType.metadata.copy(color = WiptvColors.text.copy(alpha = 0.86f)),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private fun metaItems(title: Title): List<String> = buildList {
+internal fun metaItems(title: Title): List<String> = buildList {
     add(if (title.type == MediaType.TV) "Series" else "Film")
     if (title.year.isNotBlank()) add(title.year)
     title.genreIds.mapNotNull { Catalog.genreName(it) }.take(2).takeIf { it.isNotEmpty() }?.let { add(it.joinToString(", ")) }
@@ -295,8 +180,9 @@ fun PosterRow(
     row: ContentRow,
     onOpen: (Title) -> Unit,
     onPlay: (Title) -> Unit,
+    onFocusTitle: (Title) -> Unit,
     requester: FocusRequester,
-    up: FocusRequester,
+    up: FocusRequester?,
     down: FocusRequester?,
 ) {
     val wideCard = rememberWideCard()
@@ -314,7 +200,7 @@ fun PosterRow(
     TrackAttached(requester)
     // Straight to the row above or below, once that row is on screen.
     val upAndDown = Modifier.focusProperties {
-        up.ifAttached()?.let { this.up = it }
+        up?.ifAttached()?.let { this.up = it }
         down.ifAttached()?.let { this.down = it }
     }
     // Just the row's name: the notes beside it ("Most popular on…", "Because you watch…") were
@@ -337,7 +223,10 @@ fun PosterRow(
                 onLongClick = { onPlay(title) },
                 modifier = upAndDown,
                 wide = wideCard.wide == title.key,
-                onFocus = { wideCard.onFocus(title.key, it) },
+                onFocus = {
+                    if (it) onFocusTitle(title)
+                    wideCard.onFocus(title.key, it)
+                },
             )
         }
     }
@@ -412,13 +301,14 @@ internal val ChannelTileHeight = 108.dp
 fun ChannelRow(
     channels: List<IptvChannel>,
     onWatch: (IptvChannel) -> Unit,
+    onFocusChannel: (IptvChannel) -> Unit,
     requester: FocusRequester,
-    up: FocusRequester,
+    up: FocusRequester?,
     down: FocusRequester?,
 ) {
     TrackAttached(requester)
     val upAndDown = Modifier.focusProperties {
-        up.ifAttached()?.let { this.up = it }
+        up?.ifAttached()?.let { this.up = it }
         down.ifAttached()?.let { this.down = it }
     }
     // The whole row is one section: moving between channels keeps it bright.
@@ -433,7 +323,12 @@ fun ChannelRow(
                 horizontalArrangement = Arrangement.spacedBy(16.dp - ArtFocusGap * 2),
             ) {
                 items(channels, key = { it.id }) { channel ->
-                    ChannelTile(channel = channel, onClick = { onWatch(channel) }, modifier = upAndDown)
+                    ChannelTile(
+                        channel = channel,
+                        onClick = { onWatch(channel) },
+                        onFocus = { onFocusChannel(channel) },
+                        modifier = upAndDown,
+                    )
                 }
             }
         }
@@ -442,13 +337,16 @@ fun ChannelRow(
 }
 
 @Composable
-private fun ChannelTile(channel: IptvChannel, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ChannelTile(channel: IptvChannel, onClick: () -> Unit, onFocus: () -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
     Column(modifier = Modifier.width(ChannelTileWidth + ArtFocusGap * 2)) {
         ArtFrame(
             width = ChannelTileWidth,
             height = ChannelTileHeight,
-            onFocusChange = { focused = it },
+            onFocusChange = {
+                focused = it
+                if (it) onFocus()
+            },
             onClick = onClick,
             modifier = modifier,
         ) {
@@ -497,13 +395,14 @@ private fun ChannelTile(channel: IptvChannel, onClick: () -> Unit, modifier: Mod
 fun ContinueRow(
     items: List<IptvResume>,
     onResume: (IptvResume) -> Unit,
+    onFocusItem: (IptvResume) -> Unit,
     requester: FocusRequester,
-    up: FocusRequester,
+    up: FocusRequester?,
     down: FocusRequester?,
 ) {
     TrackAttached(requester)
     val upAndDown = Modifier.focusProperties {
-        up.ifAttached()?.let { this.up = it }
+        up?.ifAttached()?.let { this.up = it }
         down.ifAttached()?.let { this.down = it }
     }
     val wideCard = rememberWideCard()
@@ -525,7 +424,10 @@ fun ContinueRow(
                 progress = item.progress,
                 wide = wideCard.wide == item.key,
                 focused = wideCard.focused == item.key,
-                onFocusChange = { wideCard.onFocus(item.key, it) },
+                onFocusChange = {
+                    if (it) onFocusItem(item)
+                    wideCard.onFocus(item.key, it)
+                },
                 onClick = { onResume(item) },
                 modifier = upAndDown,
                 tag = { IptvTag() },
