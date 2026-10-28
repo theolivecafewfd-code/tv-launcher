@@ -64,7 +64,11 @@ class VodStore(context: Context) {
 
     private val prefs = context.getSharedPreferences("vod", Context.MODE_PRIVATE)
 
-    fun resumePoints(): List<ResumePoint> = runCatching {
+    // Read under the lock too: the one-off clean-up below rewrites what it read, and a save
+    // landing in between would be lost.
+    fun resumePoints(): List<ResumePoint> = synchronized(lock) { readResumePoints() }
+
+    private fun readResumePoints(): List<ResumePoint> = runCatching {
         val array = JSONArray(prefs.getString("resume", "[]"))
         var hadAddresses = false
         (0 until array.length()).map { i ->
@@ -87,7 +91,7 @@ class VodStore(context: Context) {
             )
         }.sortedByDescending { it.updated }.also { points ->
             // Rewrite them once without the addresses.
-            if (hadAddresses) synchronized(lock) { write(points) }
+            if (hadAddresses) write(points)
         }
     }.getOrDefault(emptyList())
 

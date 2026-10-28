@@ -294,6 +294,26 @@ object Catalog {
         withSources.sortedBy { if (it.sources.isEmpty()) 1 else 0 }
     }
 
+    /**
+     * The TMDB entry for a title known only by name (from WIPTV Player's Continue watching): one
+     * search of that type, no where-to-watch lookups. With a [year], only a match within a year
+     * counts; without one, only a name that matches exactly. Null when nothing fits.
+     */
+    suspend fun lookup(name: String, year: String?, type: MediaType): Title? = withContext(Dispatchers.IO) {
+        val text = URLEncoder.encode(name.trim(), "UTF-8")
+        val json = JSONObject(get("$API/search/${type.path}?query=$text&include_adult=false&language=en-GB"))
+        val results = json.getJSONArray("results")
+        val found = (0 until results.length()).mapNotNull { i -> searchResult(results.getJSONObject(i), type) }
+        val wanted = year?.toIntOrNull()
+        if (wanted != null) {
+            found.firstOrNull { t -> t.year.toIntOrNull()?.let { kotlin.math.abs(it - wanted) <= 1 } == true }
+        } else {
+            // Compared loosely: case, punctuation and a leading "the" don't count.
+            fun plain(s: String) = s.lowercase().replace(Regex("[^a-z0-9]+"), " ").trim().removePrefix("the ")
+            found.firstOrNull { plain(it.name) == plain(name) }
+        }
+    }
+
     private fun searchResult(item: JSONObject, type: MediaType): Title? {
         if (item.isNull("poster_path")) return null
         val genres = item.optJSONArray("genre_ids")
