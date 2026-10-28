@@ -5,6 +5,8 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 
 /**
  * Lets the launcher ask the player about the provider's films and series, without ever seeing
@@ -26,6 +28,8 @@ import android.net.Uri
  *   takes one off.
  * - `content://dev.wiptv.player.catalog/channels`: your favourite live channels, in your order:
  *   id, name (without its quality tag), logo. Never a stream address.
+ * - `content://dev.wiptv.player.catalog/onnow?id=…`: what's on a live channel now and next, from
+ *   the provider's guide: title, description, start, end (milliseconds). Up to two rows.
  *
  * Rows: kind, id, name, year, poster.
  */
@@ -37,6 +41,7 @@ class CatalogProvider : ContentProvider() {
         val context = context ?: return null
         // Unlocking the saved sign-in takes a moment, so only for a status check or a stale list
         // (each poster's IPTV badge asks here).
+        if (uri.lastPathSegment == "onnow") return onNow(context, uri.getQueryParameter("id")?.toLongOrNull() ?: return null)
         val status = uri.lastPathSegment == "status"
         val login = if (status || CatalogIndex.isStale(context)) LoginStore.load(context) else null
         login?.let { CatalogIndex.refreshIfStale(context, it) }
@@ -98,6 +103,23 @@ class CatalogProvider : ContentProvider() {
         }
         val cursor = MatrixCursor(arrayOf("kind", "id", "name", "year", "poster"))
         rows.forEach { cursor.addRow(arrayOf<Any?>(it.kind.name, it.id, it.name, it.year, it.poster)) }
+        return cursor
+    }
+
+    /** Now and next on one channel. The guide is asked for there and then, so it's bounded. */
+    private fun onNow(context: android.content.Context, channelId: Long): Cursor {
+        val cursor = MatrixCursor(arrayOf("title", "description", "start", "end"))
+        val login = LoginStore.load(context) ?: return cursor
+        val now = System.currentTimeMillis()
+        val programmes = try {
+            runBlocking { withTimeout(8_000) { Xtream.shortGuide(login, channelId) } }
+        } catch (e: Exception) {
+            // Includes the timeout: the launcher then just shows the channel's name.
+            emptyList()
+        }
+        withoutOverlaps(programmes).filter { it.end > now }.take(2).forEach {
+            cursor.addRow(arrayOf<Any?>(it.title, it.description, it.start, it.end))
+        }
         return cursor
     }
 
