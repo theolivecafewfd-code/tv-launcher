@@ -88,6 +88,12 @@ class GuideStore(private val login: Login) {
     fun nowShowing(channel: Channel, now: Long = System.currentTimeMillis()): Programme? =
         programmes(channel.id)?.firstOrNull { it.isOn(now) }
 
+    /** What's on after the current programme (or the next one to start, between programmes). */
+    fun upNext(channel: Channel, now: Long = System.currentTimeMillis()): Programme? {
+        val after = nowShowing(channel, now)?.end ?: now
+        return programmes(channel.id)?.firstOrNull { it.start >= after }
+    }
+
     /** Loads the channel's guide unless a fresh copy is already here. */
     suspend fun ensure(channel: Channel) {
         val now = System.currentTimeMillis()
