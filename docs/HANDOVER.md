@@ -16,7 +16,9 @@ The two apps now look and behave as one: the same header, the same glass, the sa
 - **Charcoal glass and the Apps tray (#67):** version 0.2 tokens in both apps; Apps in the top navigation opens a tray over the bottom of the screen.
 - **One header for both apps (#68, #69):** greeting, a status pill (weather icon and temperature, clock, build) and one navigation capsule: TV Shows · Movies · Live TV · Apps · search · dice. In the player, Apps and search hand back to the launcher with them open; Back returns to where you came from (#70).
 - **Shared pieces (#73–#75):** posters, rows, row emphasis and the expanding card (`Posters.kt`); one Continue watching card; one list row (`Rows.kt`) for the guide, episodes, schedule, full-screen lists and menus; the playback overlays (`Playback.kt`).
-- **Catch-up (#66, #76):** Right on a channel shows its schedule from yesterday to tomorrow; ⟲ programmes replay from the start. Channels that keep recordings carry a small catch-up badge in the lists.
+- **Catch-up (#66, #76):** ⟲ programmes replay from the start. Channels that keep recordings carry a small catch-up badge in the lists.
+- **Full guide (#86, waiting for Wayne's check):** Right on a Live TV channel opens a full-screen grid of that category's channels, 24 hours back to 24 ahead, under the preview (the categories panel steps aside). The panel by the preview describes the highlighted programme; OK on now watches it in the preview, on a ⟲ programme plays catch-up. Back returns to that channel in Live TV. It replaced the single-channel schedule panel.
+- **Since build 196:** what's on now and next for Your channels on the launcher (#81); two rounds of code-review fixes (#82–#85).
 - **Player details (#71, #72, #77):** the hero fills in for My List and Continue watching titles; More like this on details pages, as on the launcher; widened film posters show their backdrop once the details arrive; sign-in and account in the glass style.
 - **Earlier:** launcher details, search, Surprise me, weather, apps and quick settings (#1–#17); the player's Live TV, Movies and Series (#19–#46); the update pill (#45); the launcher link (#52–#54); one My List for both apps (#64).
 
@@ -42,12 +44,12 @@ The `design` module is the single source of the look for both apps. Change thing
 
 ## What's next (ideas, in Wayne's rough order)
 
-1. **What's on for Your channels:** the launcher's hero could show a starred channel's now and next from the player's guide (needs a small addition to the `channels` answer). Asked about on 28 October; not started.
-2. **Full TV guide grid:** a scrolling 48-hour grid in Live TV (the per-channel schedule already exists).
-3. **Launcher as Home on the Fire Stick:** Home on Fire needs `WRITE_SECURE_SETTINGS` granted over ADB from the Chromebook.
-4. **Shared edit screens** (Choose your apps and Edit groups): low priority.
-5. **Live Categories drawer** (design stage 2): on hold.
-6. **Later:** a certified Google TV / Android TV stick, where the launcher can be the real Home screen.
+1. **Launcher as Home on the Fire Stick:** on hold until Wayne has the Chromebook set up. Home on Fire needs `WRITE_SECURE_SETTINGS` granted over ADB from it.
+2. **Shared edit screens** (Choose your apps and Edit groups): low priority.
+3. **Code-review items that can wait:** cache the app list and artwork, keep player tabs' data between switches, lighter search, now/next refreshing while focused, per-account data (only if the provider changes), tests and lint (need a test library, so ask first).
+4. **Later:** a certified Google TV / Android TV stick, where the launcher can be the real Home screen.
+
+The Live Categories drawer (design stage 2) is dropped: Wayne is happy with Live TV as it is.
 
 ## Things to know
 

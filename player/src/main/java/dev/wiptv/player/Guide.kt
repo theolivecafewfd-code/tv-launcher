@@ -168,8 +168,8 @@ fun GuideRow(
     playing: Boolean = false,
     favourite: Boolean = false,
     onMenu: (() -> Unit)? = null,
-    /** Right on the row: the channel's schedule (yesterday to tomorrow, with catch-up). */
-    onSchedule: (() -> Unit)? = null,
+    /** Right on the row: the full guide, opened at this channel. */
+    onGuide: (() -> Unit)? = null,
 ) {
     val label = remember(channel.name) { ChannelLabels.of(channel.name) }
     // The shared list row: no box, a hairline underneath, the soft fill and bar on focus.
@@ -181,7 +181,7 @@ fun GuideRow(
             .onPreviewKeyEvent { event ->
                 val action = when (event.nativeKeyEvent.keyCode) {
                     android.view.KeyEvent.KEYCODE_MENU -> onMenu
-                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> onSchedule
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> onGuide
                     else -> null
                 } ?: return@onPreviewKeyEvent false
                 if (event.type == KeyEventType.KeyUp) action()
@@ -195,48 +195,7 @@ fun GuideRow(
         // How far the focus fill has faded in: the halo behind programme text follows it.
         val marker by animateFloatAsState(if (focused) 1f else 0f, animationSpec = tween(120), label = "rowMarker")
         // Channel: number (▶ when it's in the preview), logo, name (★ when it's a favourite), quality.
-        Row(
-            modifier = Modifier.width(ChannelCellWidth).padding(start = 12.dp, end = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = if (playing) "▶" else channel.number.toString(),
-                modifier = Modifier.width(24.dp),
-                style = TextStyle(fontSize = 12.sp, color = if (playing) WiptvColors.positive else WiptvColors.quiet),
-            )
-            Box(
-                modifier = Modifier
-                    .size(width = 34.dp, height = 22.dp)
-                    .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(5.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                if (channel.logo != null) {
-                    AsyncImage(
-                        model = channel.logo,
-                        contentDescription = null,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
-            if (favourite) {
-                Text(text = "★", style = TextStyle(fontSize = 13.sp, color = WiptvColors.warning))
-            }
-            Text(
-                text = label.name,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
-                style = TextStyle(
-                    fontSize = 14.sp,
-                    fontWeight = if (playing) FontWeight.SemiBold else FontWeight.Medium,
-                    color = WiptvColors.text,
-                ),
-            )
-            label.quality?.let { QualityBadge(it) }
-            if (channel.catchUp) CatchUpBadge(short = true)
-        }
+        ChannelCell(channel = channel, label = label, playing = playing, favourite = favourite)
 
         // Programmes, across the same width as the time ruler above.
         BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxHeight()) {
@@ -324,13 +283,63 @@ fun GuideRow(
     }
 }
 
+/**
+ * A channel at the left of a guide row (the Live TV guide and the full guide): number, or ▶ when
+ * it's in the preview; logo; ★ for a favourite; name; quality and catch-up badges.
+ */
+@Composable
+internal fun ChannelCell(channel: Channel, label: ChannelLabel, playing: Boolean, favourite: Boolean) {
+    Row(
+        modifier = Modifier.width(ChannelCellWidth).padding(start = 12.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = if (playing) "▶" else channel.number.toString(),
+            modifier = Modifier.width(24.dp),
+            style = TextStyle(fontSize = 12.sp, color = if (playing) WiptvColors.positive else WiptvColors.quiet),
+        )
+        Box(
+            modifier = Modifier
+                .size(width = 34.dp, height = 22.dp)
+                .background(Color.White.copy(alpha = 0.06f), RoundedCornerShape(5.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (channel.logo != null) {
+                AsyncImage(
+                    model = channel.logo,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        if (favourite) {
+            Text(text = "★", style = TextStyle(fontSize = 13.sp, color = WiptvColors.warning))
+        }
+        Text(
+            text = label.name,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false),
+            style = TextStyle(
+                fontSize = 14.sp,
+                fontWeight = if (playing) FontWeight.SemiBold else FontWeight.Medium,
+                color = WiptvColors.text,
+            ),
+        )
+        label.quality?.let { QualityBadge(it) }
+        if (channel.catchUp) CatchUpBadge(short = true)
+    }
+}
+
 /** A small quality tag (FHD, HD, SD) after a channel's name. */
 @Composable
 internal fun QualityBadge(text: String) {
     SmallBadge(text)
 }
 
-/** ⟲ beside a channel's name when it keeps catch-up (Right on it shows the schedule to replay from). */
+/** ⟲ beside a channel's name when it keeps catch-up (the full guide replays its past programmes). */
 @Composable
 internal fun CatchUpBadge(short: Boolean = false) {
     SmallBadge(if (short) "⟲" else "⟲ Catch-up")
@@ -375,7 +384,7 @@ fun NowPanel(channel: Channel?, programmes: List<Programme>?, now: Long, modifie
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (channel == null) {
             Text(
-                text = "OK on a channel previews it here. OK again, or Play/Pause, watches it full screen. Right shows its schedule (⟲ channels have catch-up). Menu (≡) adds a favourite.",
+                text = "OK on a channel previews it here. OK again, or Play/Pause, watches it full screen. Right opens the full guide (⟲ channels have catch-up). Menu (≡) adds a favourite.",
                 style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
             )
             return@Column

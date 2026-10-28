@@ -20,7 +20,8 @@ Oct 27, 2026 · Wayne
 | Player: full-screen watching | Done | Up/Down zap, Left for channels then groups, Right for the last channel, info bar |
 | Player: Movies and Series | Done | Rows, details, seasons and episodes, Continue watching, My List, resume, next episode; cinematic redesign and refinements (#37–#41, #46) |
 | Native screenshots | Done | Emulator run against a pretend provider, only on request (#36) |
-| Player: Live Categories drawer | On hold | Design stage 2; Wayne is looking at another option |
+| Player: Live Categories drawer | Dropped | Wayne is happy with Live TV as it is |
+| Player: full guide | Done | Right on a channel: a 48-hour grid of the category under the preview (#86) |
 | Player: playback overlays and remaining screens | Mostly done | Overlays (#75), sign-in and account (#77); the edit screens are left |
 | Player: catch-up | Done | A channel's schedule from yesterday to tomorrow, ⟲ replays from the start (#66); catch-up badge on channels (#76). A full guide grid may follow |
 | Launcher link | Done | "Watch on IPTV" first on details, IPTV in search and hold-OK, IPTV badges (#52–#54); Continue watching (#58); one My List for both apps (#64); Your channels (#65); one header, Back to where you came from (#69, #70). Next idea: what's on for Your channels |
@@ -145,11 +146,9 @@ Every merge publishes a new build of both apps. Each app checks GitHub when it o
 
 Remaining work, in order. Progress for every area is in the Status table at the top.
 
-1. **What's on for Your channels** on the launcher (now and next from the player's guide), if Wayne wants it.
-2. **Full TV guide grid** in Live TV (48 hours).
-3. **Make the launcher the Fire Stick's Home screen** with Home on Fire, granted over ADB from the Chromebook.
-4. **Shared edit screens** (low priority) and the **Live Categories drawer** (on hold).
-5. **Optional extras:** IMDb and Rotten Tomatoes scores; Prime via Fire TV search.
+1. **Make the launcher the Fire Stick's Home screen** with Home on Fire, granted over ADB from the Chromebook (on hold until Wayne has it set up).
+2. **Shared edit screens** (low priority).
+3. **Optional extras:** IMDb and Rotten Tomatoes scores; Prime via Fire TV search.
 
 ## Safety and recovery
 
