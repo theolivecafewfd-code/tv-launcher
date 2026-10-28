@@ -14,6 +14,12 @@ import androidx.activity.compose.BackHandler
 import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.ArtFrame
 import dev.wiptv.design.CinematicBackdrop
+import dev.wiptv.design.DisplayTitles
+import dev.wiptv.design.Hero
+import dev.wiptv.design.HeroInfo
+import dev.wiptv.design.PivotScrolling
+import androidx.compose.runtime.mutableStateMapOf
+import kotlinx.coroutines.Job
 import dev.wiptv.design.GlassPill
 import dev.wiptv.design.RowScrolling
 import dev.wiptv.design.WiptvShapes
@@ -160,10 +166,8 @@ fun HomeScreen(
     var mediaType by remember { mutableStateOf(MediaType.TV) }
     var rows by remember { mutableStateOf<List<ContentRow>>(emptyList()) }
     var rowsFailed by remember { mutableStateOf(false) }
-    var featuredIndex by remember { mutableIntStateOf(0) }
-    // One focus target per row, so up and down move exactly one row. The featured title is the
-    // top of the rows; Apps at the top opens the tray.
-    val featuredFocus = remember { FocusRequester() }
+    // One focus target per row, so up and down move exactly one row. Up from the first row goes
+    // to the navigation in the header; Apps there opens the tray.
     val appsButton = remember { FocusRequester() }
     val searchButton = remember { FocusRequester() }
     var trayOpen by remember { mutableStateOf(false) }
@@ -181,7 +185,6 @@ fun HomeScreen(
         }
         // A refresh on returning home keeps the current rows if the new load failed.
         if (loaded.isNotEmpty() || rows.isEmpty() || rows.firstOrNull()?.items?.firstOrNull()?.type != mediaType) {
-            if (rows.firstOrNull()?.items?.firstOrNull()?.type != mediaType) featuredIndex = 0
             rows = loaded
         }
     }
@@ -276,16 +279,54 @@ fun HomeScreen(
         }
     }
 
-    /** The first row under the featured title: Continue watching, Your channels, or the first poster row. */
+    // The top of the screen, as in the player: the focused card's artwork, title and synopsis.
+    // Until a card has focus it shows the first of the Top 10.
+    var hero by remember(mediaType) { mutableStateOf<Hero?>(null) }
+    val shownHero = hero ?: featured.firstOrNull()?.let(::heroOf)
+    // Continue watching has no synopsis of its own: it comes from TMDB, looked up by name once
+    // you rest on the card, and remembered.
+    val continueDetails = remember { mutableStateMapOf<String, Title?>() }
+    var heroJob by remember { mutableStateOf<Job?>(null) }
+    fun focusTitle(title: Title) {
+        heroJob?.cancel()
+        hero = heroOf(title)
+    }
+    fun focusResume(item: IptvResume) {
+        heroJob?.cancel()
+        hero = heroOf(item, continueDetails[item.key])
+        if (item.key in continueDetails) return
+        heroJob = titleScope.launch {
+            delay(400)
+            val found = try {
+                Catalog.search(sameName(item.title)).firstOrNull { it.type == item.type }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                return@launch // not remembered, so it's tried again next time
+            }
+            continueDetails[item.key] = found
+            hero = heroOf(item, found)
+        }
+    }
+    fun focusChannel(channel: IptvChannel) {
+        heroJob?.cancel()
+        hero = Hero(title = channel.name, meta = "Live TV · OK to watch", plot = null, backdrop = null, poster = null)
+    }
+
+    /** The first row: Continue watching, Your channels, or the first poster row. */
     fun firstRowBelowTop(): FocusRequester? = continueRow.takeIf { continueItems.isNotEmpty() }
         ?: channelRow.takeIf { channels.isNotEmpty() }
         ?: allRows.firstOrNull()?.let { rowRequester(it.key) }
 
-    // When the home screen opens, focus starts on the featured title (or on Apps if there's none).
+    // When the home screen opens, focus starts on the first card (or on Apps if there's none).
     var placedFocus by remember { mutableStateOf(false) }
-    LaunchedEffect(featured.isNotEmpty()) {
+    val anyRow = continueItems.isNotEmpty() || channels.isNotEmpty() || allRows.any { it.items.isNotEmpty() }
+    LaunchedEffect(anyRow) {
         if (placedFocus) return@LaunchedEffect
-        val target = if (featured.isNotEmpty()) featuredFocus else {
+        val target = if (anyRow) {
+            delay(100)
+            firstRowBelowTop() ?: return@LaunchedEffect
+        } else {
             delay(3_000)
             appsButton
         }
@@ -358,143 +399,110 @@ fun HomeScreen(
                 .wiptvBackground(),
         ) {
             // While choosing apps, the editor replaces the home screen so the remote can't
-            // wander onto the tiles underneath. Everything scrolls as one list: header and the
-            // featured title first, then the rows below. Your apps are in the Apps tray.
-            // The featured title's artwork, large and 16:9 like the player's, top right. It scrolls
-            // up with the top of the list (the apps and rows pass over its faded lower edge).
+            // wander onto the tiles underneath. Your apps are in the Apps tray.
             if (!editing) {
-                val shownTitle = featured.getOrNull(featuredIndex.coerceIn(0, (featured.size - 1).coerceAtLeast(0)))
-                // The text area on the left (the featured title runs to about 44% across the
-                // picture) stays dark enough for bright text, then fades so the artwork shows.
+                // The focused card's artwork, large and 16:9, top right, fading into the dark
+                // behind the header and the text. The header and text stay put; the rows move.
                 CinematicBackdrop(
-                    backdrop = shownTitle?.backdropUrl,
-                    poster = shownTitle?.posterUrl,
-                    leftFade = 0.78f,
-                    textScrim = 0.46f,
-                    textScrimAlpha = 0.88f,
-                    fadeToTransparent = true,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(width = 780.dp, height = 439.dp)
-                        .graphicsLayer {
-                            translationY = if (listState.firstVisibleItemIndex == 0) {
-                                -listState.firstVisibleItemScrollOffset.toFloat()
-                            } else {
-                                -2000f // scrolled away
-                            }
-                        },
+                    backdrop = shownHero?.backdrop,
+                    poster = shownHero?.poster,
+                    modifier = Modifier.align(Alignment.TopEnd).size(width = 780.dp, height = 439.dp),
                 )
-            }
-            if (!editing) PivotScrolling { LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 32.dp),
-            ) {
-                // The top of the screen, like the player's Movies and Series: the featured title's
-                // artwork large on the right, fading into the dark behind the header and its text.
-                item(key = "top") {
-                    Box(Modifier.fillMaxWidth()) {
-                        // Going up to anything here scrolls right to the top, header included
-                        // (see PivotScrolling), in one movement.
-                        Column(Modifier.padding(top = 20.dp)) {
-                            // The header the player shares: greeting, status pill and navigation.
-                            WiptvHeader(
-                                nav = launcherNav(
-                                    selected = mediaType,
-                                    onSelect = { mediaType = it },
-                                    onLiveTv = {
-                                        if (!Iptv.openLiveTv(context)) {
+                Column(Modifier.fillMaxSize().padding(top = 20.dp)) {
+                    // The header the player shares: greeting, status pill and navigation.
+                    WiptvHeader(
+                        nav = launcherNav(
+                            selected = mediaType,
+                            onSelect = { mediaType = it },
+                            onLiveTv = {
+                                if (!Iptv.openLiveTv(context)) {
+                                    Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            onApps = { trayOpen = true },
+                            onSearch = { searchOpen = true },
+                            onSurprise = { surprise() },
+                            appsRequester = appsButton,
+                            searchRequester = searchButton,
+                        ),
+                        updateLabel = update.label(BuildConfig.VERSION_CODE),
+                        updateLoud = update.loud,
+                        onUpdateClick = onUpdateClick,
+                        modifier = Modifier.padding(horizontal = Edge),
+                    )
+                    // What the focused card is: title, details and a short synopsis.
+                    HeroInfo(hero = shownHero, start = Edge) {
+                        Text(
+                            text = when {
+                                !Catalog.hasKey -> "Add your TMDB key to GitHub secrets as TMDB_API_KEY to see shows and films here."
+                                rowsFailed -> "Couldn't reach TMDB. Check the internet connection."
+                                else -> "Loading ${mediaType.label.lowercase()}…"
+                            },
+                            style = WiptvType.metadata.copy(color = WiptvColors.quiet),
+                        )
+                    }
+                    // The focused row always moves to the top of the list, one row per press, as
+                    // in the player.
+                    PivotScrolling(pivot = 34.dp, alwaysAlign = true) { LazyColumn(
+                        state = listState,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentPadding = PaddingValues(bottom = 32.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        if (continueItems.isNotEmpty()) {
+                            item(key = "continue") {
+                                ContinueRow(
+                                    items = continueItems,
+                                    onResume = {
+                                        if (!Iptv.resume(context, it)) {
                                             Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
                                         }
                                     },
-                                    onApps = { trayOpen = true },
-                                    onSearch = { searchOpen = true },
-                                    onSurprise = { surprise() },
-                                    appsRequester = appsButton,
-                                    searchRequester = searchButton,
-                                ),
-                                updateLabel = update.label(BuildConfig.VERSION_CODE),
-                                updateLoud = update.loud,
-                                onUpdateClick = onUpdateClick,
-                                modifier = Modifier.padding(horizontal = Edge),
-                            )
-                            Spacer(Modifier.height(14.dp))
-                            when {
-                                !Catalog.hasKey -> RowMessage("Add your TMDB key to GitHub secrets as TMDB_API_KEY to see shows and films here.")
-                                featured.isNotEmpty() -> {
-                                    TrackAttached(featuredFocus)
-                                    Featured(
-                                        titles = featured,
-                                        index = featuredIndex.coerceIn(0, featured.size - 1),
-                                        onIndexChange = { featuredIndex = it },
-                                        onOpen = openTitle,
-                                        onPlay = playTitle,
-                                        modifier = Modifier
-                                            .focusRequester(featuredFocus)
-                                            .focusProperties { firstRowBelowTop().ifAttached()?.let { down = it } },
-                                    )
-                                }
-                                rowsFailed -> RowMessage("Couldn't reach TMDB. Check the internet connection.")
-                                else -> RowMessage("Loading ${mediaType.label.lowercase()}…")
+                                    onFocusItem = ::focusResume,
+                                    requester = continueRow,
+                                    up = null,
+                                    down = channelRow.takeIf { channels.isNotEmpty() } ?: allRows.firstOrNull()?.let { rowRequester(it.key) },
+                                )
                             }
                         }
-                    }
-                }
-                if (continueItems.isNotEmpty()) {
-                    item(key = "continue") {
-                        Box(Modifier.padding(top = 14.dp)) {
-                            ContinueRow(
-                                items = continueItems,
-                                onResume = {
-                                    if (!Iptv.resume(context, it)) {
-                                        Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                requester = continueRow,
-                                up = featuredFocus,
-                                down = channelRow.takeIf { channels.isNotEmpty() } ?: allRows.firstOrNull()?.let { rowRequester(it.key) },
+                        if (channels.isNotEmpty()) {
+                            item(key = "channels") {
+                                ChannelRow(
+                                    channels = channels,
+                                    onWatch = {
+                                        if (!Iptv.watchChannel(context, it)) {
+                                            Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    onFocusChannel = ::focusChannel,
+                                    requester = channelRow,
+                                    up = continueRow.takeIf { continueItems.isNotEmpty() },
+                                    down = allRows.firstOrNull()?.let { rowRequester(it.key) },
+                                )
+                            }
+                        }
+                        itemsIndexed(allRows, key = { _, row -> "row:${mediaType.path}:${row.key}" }) { i, row ->
+                            PosterRow(
+                                row = row,
+                                onOpen = openTitle,
+                                onPlay = playTitle,
+                                onFocusTitle = ::focusTitle,
+                                requester = rowRequester(row.key),
+                                up = if (i > 0) rowRequester(allRows[i - 1].key) else channelRow.takeIf { channels.isNotEmpty() }
+                                    ?: continueRow.takeIf { continueItems.isNotEmpty() },
+                                down = allRows.getOrNull(i + 1)?.let { rowRequester(it.key) },
                             )
                         }
-                    }
-                }
-                if (channels.isNotEmpty()) {
-                    item(key = "channels") {
-                        Box(Modifier.padding(top = 14.dp)) {
-                            ChannelRow(
-                                channels = channels,
-                                onWatch = {
-                                    if (!Iptv.watchChannel(context, it)) {
-                                        Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                requester = channelRow,
-                                up = continueRow.takeIf { continueItems.isNotEmpty() } ?: featuredFocus,
-                                down = allRows.firstOrNull()?.let { rowRequester(it.key) },
+                        item(key = "credit") {
+                            Text(
+                                text = "Show and film data from TMDB. This app uses the TMDB API but is not endorsed or certified by TMDB.",
+                                modifier = Modifier.padding(horizontal = Edge, vertical = 16.dp),
+                                style = TextStyle(fontSize = 10.sp, color = WiptvColors.quiet.copy(alpha = 0.6f)),
                             )
                         }
-                    }
+                    } }
                 }
-                itemsIndexed(allRows, key = { _, row -> "row:${mediaType.path}:${row.key}" }) { i, row ->
-                    Box(Modifier.padding(top = 14.dp)) {
-                        PosterRow(
-                            row = row,
-                            onOpen = openTitle,
-                            onPlay = playTitle,
-                            requester = rowRequester(row.key),
-                            up = if (i > 0) rowRequester(allRows[i - 1].key) else channelRow.takeIf { channels.isNotEmpty() }
-                                ?: continueRow.takeIf { continueItems.isNotEmpty() } ?: featuredFocus,
-                            down = allRows.getOrNull(i + 1)?.let { rowRequester(it.key) },
-                        )
-                    }
-                }
-                item(key = "credit") {
-                    Text(
-                        text = "Show and film data from TMDB. This app uses the TMDB API but is not endorsed or certified by TMDB.",
-                        modifier = Modifier.padding(horizontal = Edge, vertical = 16.dp),
-                        style = TextStyle(fontSize = 10.sp, color = WiptvColors.quiet.copy(alpha = 0.6f)),
-                    )
-                }
-            } }
+            }
 
             // Back on the home screen itself asks before leaving WIPTV, so a stray press doesn't
             // drop you on the Fire TV home. Anything open on top (the tray, search, a details page,
@@ -755,3 +763,28 @@ private fun ExitConfirm(onStay: () -> Unit, onLeave: () -> Unit) {
         }
     }
 }
+
+/** A TMDB title at the top of the screen: its name, details and synopsis over its artwork. */
+private fun heroOf(title: Title) = Hero(
+    title = DisplayTitles.withoutYear(title.name, title.year),
+    meta = metaItems(title).joinToString(" · "),
+    plot = title.overview.ifBlank { null },
+    backdrop = title.backdropUrl,
+    poster = title.posterUrl,
+)
+
+/**
+ * Something you've started in the player: where you're up to and how long is left, with the
+ * synopsis (and artwork, if the player has none) from TMDB once it's found.
+ */
+private fun heroOf(item: IptvResume, tmdb: Title?) = Hero(
+    title = item.title,
+    meta = listOfNotNull(
+        item.subtitle?.takeIf { it.isNotBlank() },
+        item.resumeFrom?.let { "Resume from $it" },
+        item.left,
+    ).joinToString(" · "),
+    plot = tmdb?.overview?.ifBlank { null },
+    backdrop = item.imageUrl ?: tmdb?.backdropUrl,
+    poster = item.posterUrl ?: tmdb?.posterUrl,
+)

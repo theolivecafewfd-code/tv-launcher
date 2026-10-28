@@ -67,6 +67,8 @@ import dev.wiptv.design.WiptvType
 import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.ArtFrame
 import dev.wiptv.design.CinematicBackdrop
+import dev.wiptv.design.Hero
+import dev.wiptv.design.HeroInfo
 import dev.wiptv.design.DisplayTitles
 import dev.wiptv.design.focusOutline
 import kotlinx.coroutines.CancellationException
@@ -75,14 +77,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /** What the big area at the top describes: the poster you're on. */
-private data class Hero(
-    val title: String,
-    val meta: String,
-    val plot: String?,
-    val backdrop: String?,
-    val poster: String?,
-)
-
 /** A series' details in the shape the hero uses (the same fields a film's details have). */
 private fun SeriesDetails.asHeroDetails() = MovieDetails(
     plot = plot,
@@ -611,43 +605,11 @@ fun CatalogScreen(
     }
 }
 
-/** The title, details and synopsis of the focused poster, over the artwork. Fixed height, so the rows never move. */
+/** The focused poster's title, details and synopsis (the shared [HeroInfo]), or a loading or error message. */
 @Composable
 private fun HeroText(hero: Hero?, message: String?, isError: Boolean, onRetry: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .padding(start = ScreenEdge, top = 14.dp)
-            .width(470.dp)
-            .height(144.dp),
-    ) {
-        if (hero != null) {
-            var titleLines by remember { mutableIntStateOf(1) }
-            Text(
-                text = hero.title,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                onTextLayout = { titleLines = it.lineCount },
-                style = WiptvType.hero,
-            )
-            if (hero.meta.isNotBlank()) {
-                Text(
-                    text = hero.meta,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 4.dp),
-                    style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium),
-                )
-            }
-            if (!hero.plot.isNullOrBlank()) {
-                Text(
-                    text = hero.plot,
-                    maxLines = if (titleLines > 1) 2 else 3,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 8.dp),
-                    style = WiptvType.metadata.copy(color = WiptvColors.text.copy(alpha = 0.86f)),
-                )
-            }
-        } else if (message != null) {
+    HeroInfo(hero = hero, start = ScreenEdge) {
+        if (message != null) {
             Text(text = message, style = WiptvType.metadata.copy(color = if (isError) WiptvColors.warning else WiptvColors.quiet))
             if (isError) {
                 Spacer(Modifier.height(10.dp))

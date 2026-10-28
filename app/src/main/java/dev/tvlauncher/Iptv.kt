@@ -26,6 +26,8 @@ data class IptvResume(
     val progress: Float,
     /** "38 min left", when the length is known. */
     val left: String?,
+    /** Where you stopped, like "1:24:03" (older player builds don't say). */
+    val resumeFrom: String? = null,
 )
 
 /** A live channel you've starred in WIPTV Player. */
@@ -238,6 +240,7 @@ object Iptv {
         try {
             context.contentResolver.query(base.buildUpon().appendPath("continue").build(), null, null, null, null)?.use { c ->
                 val out = mutableListOf<IptvResume>()
+                val resumeColumn = c.getColumnIndex("resume_from")
                 while (c.moveToNext()) {
                     out += IptvResume(
                         key = c.getString(0),
@@ -248,6 +251,7 @@ object Iptv {
                         imageUrl = c.getString(5),
                         progress = c.getDouble(6).toFloat(),
                         left = c.getString(7),
+                        resumeFrom = if (resumeColumn >= 0) c.getString(resumeColumn) else null,
                     )
                 }
                 out
