@@ -162,10 +162,8 @@ fun HomeScreen(
     LaunchedEffect(refreshKey) { channels = Iptv.favouriteChannels(context) }
     val channelRow = remember { FocusRequester() }
 
-    // TV Shows or Movies, and the rows for it from TMDB, limited to your services.
+    // TV Shows or Movies: Recommended for you follows it (My List shows both, at Wayne's request).
     var mediaType by remember { mutableStateOf(MediaType.TV) }
-    var rows by remember { mutableStateOf<List<ContentRow>>(emptyList()) }
-    var rowsFailed by remember { mutableStateOf(false) }
     // One focus target per row, so up and down move exactly one row. Up from the first row goes
     // to the navigation in the header; Apps there opens the tray.
     val appsButton = remember { FocusRequester() }
@@ -173,23 +171,6 @@ fun HomeScreen(
     var trayOpen by remember { mutableStateOf(false) }
     val rowFocus = remember { mutableMapOf<String, FocusRequester>() }
     fun rowRequester(key: String) = rowFocus.getOrPut(key) { FocusRequester() }
-    val featured = rows.firstOrNull { it.key == "top" }?.items.orEmpty()
-    LaunchedEffect(mediaType, refreshKey) {
-        if (!Catalog.hasKey) return@LaunchedEffect
-        rowsFailed = false
-        val loaded = try {
-            Catalog.rows(mediaType)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            rowsFailed = true
-            emptyList()
-        }
-        // A refresh on returning home keeps the current rows if the new load failed.
-        if (loaded.isNotEmpty() || rows.isEmpty() || rows.firstOrNull()?.items?.firstOrNull()?.type != mediaType) {
-            rows = loaded
-        }
-    }
     // Recommended for you loads on its own, after the other rows. Until it arrives its row shows
     // grey placeholder posters that can take focus, so Down from the row above isn't stuck.
     var recommendedRow by remember { mutableStateOf<ContentRow?>(null) }
@@ -263,28 +244,25 @@ fun HomeScreen(
     var playerList by remember { mutableStateOf<List<IptvTitle>>(emptyList()) }
     var listChanges by remember { mutableIntStateOf(0) }
     LaunchedEffect(refreshKey, listChanges) { playerList = Iptv.myList(context) }
-    val allRows = remember(rows, myList, playerList, mediaType, recommendedRow, recommendedLoading) {
-        // A title in both lists (added before they were joined) shows once, as the launcher's.
+    val allRows = remember(myList, playerList, mediaType, recommendedRow, recommendedLoading) {
+        // My List has shows and films together, the same on TV Shows and Movies. A title in both
+        // lists (added before they were joined) shows once, as the launcher's.
         val launcherNames = myList.map { it.type to sameName(it.name) }.toSet()
-        val mine = playerList.filter { it.type == mediaType && (it.type to sameName(it.name)) !in launcherNames }.map { it.asTitle() } +
-            myList.filter { it.type == mediaType }
-        val withList = if (mine.isEmpty()) rows else {
-            val top = rows.filter { it.key == "top" }
-            top + ContentRow("mylist", "My List", "", ranked = false, items = mine) + rows.filter { it.key != "top" }
-        }
+        val mine = playerList.filter { (it.type to sameName(it.name)) !in launcherNames }.map { it.asTitle() } + myList
+        val withList = if (mine.isEmpty()) emptyList() else listOf(ContentRow("mylist", "My List", "", ranked = false, items = mine))
         val recommended = recommendedRow?.takeIf { it.items.firstOrNull()?.type == mediaType }
         when {
             recommended != null -> withList + recommended
             // An empty row while it loads: PosterRow shows placeholders for it.
-            recommendedLoading && withList.isNotEmpty() -> withList + ContentRow("recommended", "Recommended for you", "", ranked = false, items = emptyList())
+            recommendedLoading -> withList + ContentRow("recommended", Catalog.recommendedTitle(mediaType), "", ranked = false, items = emptyList())
             else -> withList
         }
     }
 
     // The top of the screen, as in the player: the focused card's artwork, title and synopsis.
-    // Until a card has focus it shows the first of the Top 10.
+    // Until a card has focus it shows the first title in the rows.
     var hero by remember(mediaType) { mutableStateOf<Hero?>(null) }
-    val shownHero = hero ?: featured.firstOrNull()?.let(::heroOf)
+    val shownHero = hero ?: allRows.firstNotNullOfOrNull { it.items.firstOrNull() }?.let(::heroOf)
     // Continue watching has no synopsis of its own: it comes from TMDB, looked up by name once
     // you rest on the card, and remembered.
     val continueDetails = remember { mutableStateMapOf<String, Title?>() }
@@ -456,8 +434,8 @@ fun HomeScreen(
                         Text(
                             text = when {
                                 !Catalog.hasKey -> "Add your TMDB key to GitHub secrets as TMDB_API_KEY to see shows and films here."
-                                rowsFailed -> "Couldn't reach TMDB. Check the internet connection."
-                                else -> "Loading ${mediaType.label.lowercase()}…"
+                                recommendedLoading -> "Loading ${mediaType.label.lowercase()}…"
+                                else -> ""
                             },
                             style = WiptvType.metadata.copy(color = WiptvColors.quiet),
                         )
@@ -513,6 +491,20 @@ fun HomeScreen(
                                     ?: continueRow.takeIf { continueItems.isNotEmpty() },
                                 down = allRows.getOrNull(i + 1)?.let { rowRequester(it.key) },
                             )
+                        }
+                        // More: the player's own TV Shows or Movies, with everything your provider has.
+                        item(key = "more") {
+                            Box(Modifier.padding(start = Edge, top = 2.dp)) {
+                                GlassPill(
+                                    text = if (mediaType == MediaType.TV) "More TV shows in WIPTV Player  ›" else "More movies in WIPTV Player  ›",
+                                    onClick = {
+                                        if (!Iptv.openCatalogue(context, mediaType)) {
+                                            Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    loud = false,
+                                )
+                            }
                         }
                         item(key = "credit") {
                             Text(
