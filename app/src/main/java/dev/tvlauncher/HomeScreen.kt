@@ -7,6 +7,10 @@ import dev.wiptv.update.loud
 import androidx.compose.foundation.BorderStroke
 import dev.wiptv.design.wiptvBackground
 import dev.wiptv.design.WiptvHeader
+import dev.wiptv.design.WiptvButton
+import dev.wiptv.design.Glass
+import androidx.compose.ui.window.Dialog
+import androidx.activity.compose.BackHandler
 import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.ArtFrame
 import dev.wiptv.design.CinematicBackdrop
@@ -492,6 +496,23 @@ fun HomeScreen(
                 }
             } }
 
+            // Back on the home screen itself asks before leaving WIPTV, so a stray press doesn't
+            // drop you on the Fire TV home. Anything open on top (the tray, search, a details page,
+            // the app menu or editor) handles Back itself first.
+            var confirmExit by remember { mutableStateOf(false) }
+            BackHandler(enabled = !trayOpen && !searchOpen && detailFor == null && !editing && menuFor == null && !confirmExit) {
+                confirmExit = true
+            }
+            if (confirmExit) {
+                ExitConfirm(
+                    onStay = { confirmExit = false },
+                    onLeave = {
+                        confirmExit = false
+                        (context as? android.app.Activity)?.finish()
+                    },
+                )
+            }
+
             // Apps: the tray over the bottom of the home screen. Back puts focus back on Apps, and
             // the home screen stays scrolled where it was.
             AppsTray(
@@ -703,3 +724,34 @@ internal fun AppTile(
 private fun sameName(name: String): String =
     name.replace(Regex("""^\s*(\|[^|]*\||\[[^\]]*])\s*"""), "").replace(Regex("""^\s*[A-Z]{2,3}\s*[-:|]\s+"""), "")
         .lowercase().replace(Regex("""[(\[]\s*(19|20)\d{2}\s*[)\]]"""), " ").replace(Regex("[^a-z0-9]+"), " ").trim().removePrefix("the ")
+
+/**
+ * "Leave WIPTV?" on a small dark glass panel, for Back on the home screen. Stay has focus, so a
+ * second stray press of OK or Back keeps you here; Leave goes back to the Fire TV home.
+ */
+@Composable
+private fun ExitConfirm(onStay: () -> Unit, onLeave: () -> Unit) {
+    val stay = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        repeat(20) {
+            if (runCatching { stay.requestFocus() }.isSuccess) return@LaunchedEffect
+            delay(50)
+        }
+    }
+    Dialog(onDismissRequest = onStay) {
+        Column(
+            modifier = Modifier
+                .width(380.dp)
+                .glass(WiptvShapes.panel, Glass.Sheet)
+                .padding(horizontal = 26.dp, vertical = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(text = "Leave WIPTV?", style = WiptvType.section)
+            Text(text = "You'll go back to the Fire TV home screen.", style = WiptvType.metadata)
+            Row(modifier = Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                WiptvButton(text = "Stay", onClick = onStay, primary = true, modifier = Modifier.focusRequester(stay))
+                WiptvButton(text = "Leave", onClick = onLeave)
+            }
+        }
+    }
+}
