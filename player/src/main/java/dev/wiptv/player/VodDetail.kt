@@ -51,6 +51,8 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.wiptv.design.ListRow
+import dev.wiptv.design.SectionRow
+import dev.wiptv.design.PosterCard
 import dev.wiptv.design.ActionButton
 import dev.wiptv.design.CinematicBackdrop
 import dev.wiptv.design.InfoSheet
@@ -90,6 +92,8 @@ import coil.request.ImageRequest
 import dev.wiptv.design.focusOutline
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 
 /**
  * A film's or a series' details page, over the catalogue. Films: Play (or Resume and Start over),
@@ -104,8 +108,29 @@ fun VodDetailScreen(
     onPlay: (ResumePoint, (() -> ResumePoint?)?) -> Unit,
     onListChanged: () -> Unit,
     onClose: () -> Unit,
+    /** A title from "More like this": its page replaces this one. */
+    onOpenOther: (VodItem) -> Unit = {},
 ) {
     val context = LocalContext.current
+    // More like this: other titles from the same provider category, from the player's own list
+    // on the TV (no download), as on the launcher's details pages.
+    var similar by remember(item.key) { mutableStateOf<List<VodItem>>(emptyList()) }
+    LaunchedEffect(item.key) {
+        similar = withContext(Dispatchers.IO) {
+            CatalogIndex.similar(context, item.kind, item.id, item.categoryId, item.name).map {
+                VodItem(
+                    kind = it.kind,
+                    id = it.id,
+                    name = it.name,
+                    poster = it.poster,
+                    categoryId = it.categoryId,
+                    rating = null,
+                    extension = it.extension,
+                    year = it.year,
+                )
+            }
+        }
+    }
     var movie by remember { mutableStateOf<MovieDetails?>(null) }
     var series by remember { mutableStateOf<SeriesDetails?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -420,6 +445,17 @@ fun VodDetailScreen(
                                     watched = "episode:${episode.id}" in watched,
                                     onClick = { playEpisode(s, episode, point?.position ?: 0) },
                                 )
+                            }
+                        }
+                    }
+
+                    // More like this, under the buttons for a film and under the episodes for a series.
+                    if (similar.isNotEmpty()) {
+                        item(key = "similar") {
+                            SectionRow(title = "More like this", edge = 48.dp, modifier = Modifier.padding(top = 18.dp)) {
+                                items(similar, key = { it.key }) { other ->
+                                    PosterCard(name = other.name, posterUrl = other.poster, onClick = { onOpenOther(other) })
+                                }
                             }
                         }
                     }

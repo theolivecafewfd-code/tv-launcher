@@ -529,24 +529,28 @@ fun CatalogScreen(
     }
 
     detail?.let { item ->
-        VodDetailScreen(
-            item = item,
-            login = login,
-            store = store,
-            onPlay = { point, next ->
-                playing = point
-                playingNext = next
-            },
-            onListChanged = { refresh++ },
-            onClose = {
-                detail = null
-                if (openedFromLauncher) onOpenFinished()
-                if (openedBySurprise) {
-                    openedBySurprise = false
-                    onSurpriseClosed()
-                }
-            },
-        )
+        // A fresh page for each title (More like this swaps one for another).
+        key(item.key) {
+            VodDetailScreen(
+                item = item,
+                login = login,
+                store = store,
+                onPlay = { point, next ->
+                    playing = point
+                    playingNext = next
+                },
+                onListChanged = { refresh++ },
+                onOpenOther = { detail = it },
+                onClose = {
+                    detail = null
+                    if (openedFromLauncher) onOpenFinished()
+                    if (openedBySurprise) {
+                        openedBySurprise = false
+                        onSurpriseClosed()
+                    }
+                },
+            )
+        }
     }
 
     playing?.let { point ->

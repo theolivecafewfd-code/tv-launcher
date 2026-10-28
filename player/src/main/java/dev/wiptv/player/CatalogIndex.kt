@@ -160,6 +160,23 @@ object CatalogIndex {
         db(context).rawQuery("SELECT ${COLUMNS.joinToString()} FROM titles WHERE poster IS NOT NULL ORDER BY RANDOM() LIMIT 1", null)
             .use { c -> if (c.moveToFirst()) read(c) else null }
 
+    /**
+     * "More like this" for a details page: other titles with posters from the same provider
+     * category, in a random order, without repeats of the same name (HD, 4K copies).
+     */
+    fun similar(context: Context, kind: VodKind, id: Long, categoryId: String?, name: String, limit: Int = 12): List<IndexedTitle> {
+        val category = categoryId?.ifBlank { null } ?: find(context, kind, id)?.categoryId?.ifBlank { null } ?: return emptyList()
+        val own = normalise(name)
+        return db(context).rawQuery(
+            "SELECT ${COLUMNS.joinToString()} FROM titles WHERE kind = ? AND category = ? AND id != ? AND poster IS NOT NULL " +
+                "ORDER BY RANDOM() LIMIT ?",
+            arrayOf(kind.name, category, id.toString(), (limit * 3).toString()),
+        ).use { c -> generateSequence { if (c.moveToNext()) read(c) else null }.toList() }
+            .filter { normalise(it.name) != own }
+            .distinctBy { normalise(it.name) }
+            .take(limit)
+    }
+
     /** One title by its provider id, for opening it from the launcher. */
     fun find(context: Context, kind: VodKind, id: Long): IndexedTitle? =
         db(context).query("titles", COLUMNS, "kind = ? AND id = ?", arrayOf(kind.name, id.toString()), null, null, null, "1")
