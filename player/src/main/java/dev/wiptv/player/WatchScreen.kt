@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import dev.wiptv.design.ListRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -363,61 +364,44 @@ private fun ChannelListOverlay(
         ) {
             itemsIndexed(channels, key = { _, c -> c.id }) { i, item ->
                 LaunchedEffect(item.id) { ensureGuide(item) }
-                val shape = RoundedCornerShape(8.dp)
                 val playing = item.id == playingId
-                Surface(
+                // The shared list row: the guide's soft fill and bar, no outline.
+                ListRow(
                     onClick = { onPick(i) },
                     modifier = Modifier
-                        .fillMaxWidth()
                         .focusRequester(requesterFor(item.id))
                         .onFocusChanged { if (it.isFocused) onHighlight(item) },
-                    shape = ClickableSurfaceDefaults.shape(shape = shape),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = Color.Transparent,
-                        contentColor = Palette.text,
-                        focusedContainerColor = Palette.tileFocused,
-                        focusedContentColor = Palette.text,
-                    ),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
-                    border = ClickableSurfaceDefaults.border(
-                        focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-                    ),
+                    contentPadding = PaddingValues(start = 14.dp, end = 10.dp, top = 7.dp, bottom = 7.dp),
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Text(
-                            text = if (playing) "▶" else item.number.toString(),
-                            modifier = Modifier.width(30.dp),
-                            style = TextStyle(fontSize = 12.sp, color = if (playing) Palette.glow else Palette.quiet),
-                        )
-                        Column {
-                            // The name with a trailing "| FHD |" shown as a small badge, as in the guide.
-                            val label = remember(item.name) { ChannelLabels.of(item.name) }
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(
-                                    text = if (isFavourite(item)) "★ ${label.name}" else label.name,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f, fill = false),
-                                    style = TextStyle(
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (playing) Palette.glow else Palette.text,
-                                    ),
-                                )
-                                label.quality?.let { QualityBadge(it) }
-                            }
-                            nowShowing(item)?.let { p ->
-                                Text(
-                                    text = p.title,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = TextStyle(fontSize = 11.sp, color = Palette.quiet),
-                                )
-                            }
+                    Text(
+                        text = if (playing) "▶" else item.number.toString(),
+                        modifier = Modifier.width(30.dp),
+                        style = TextStyle(fontSize = 12.sp, color = if (playing) Palette.glow else Palette.quiet),
+                    )
+                    Column {
+                        // The name with a trailing "| FHD |" shown as a small badge, as in the guide.
+                        val label = remember(item.name) { ChannelLabels.of(item.name) }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = if (isFavourite(item)) "★ ${label.name}" else label.name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                                style = TextStyle(
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (playing) Palette.glow else Palette.text,
+                                ),
+                            )
+                            label.quality?.let { QualityBadge(it) }
+                        }
+                        nowShowing(item)?.let { p ->
+                            Text(
+                                text = p.title,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = TextStyle(fontSize = 11.sp, color = Palette.quiet),
+                            )
                         }
                     }
                 }
@@ -457,28 +441,18 @@ private fun GroupListOverlay(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             itemsIndexed(groups, key = { _, g -> g.first }) { _, item ->
-                val shape = RoundedCornerShape(8.dp)
                 val current = item.first == currentId
-                Surface(
+                // The current group keeps a faint wash; focus is the shared list row's.
+                ListRow(
                     onClick = { onPick(item) },
-                    modifier = Modifier.fillMaxWidth().focusRequester(requesterFor(item.first)),
-                    shape = ClickableSurfaceDefaults.shape(shape = shape),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = if (current) Palette.tile else Color.Transparent,
-                        contentColor = Palette.text,
-                        focusedContainerColor = Palette.tileFocused,
-                        focusedContentColor = Palette.text,
-                    ),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
-                    border = ClickableSurfaceDefaults.border(
-                        focusedBorder = Border(border = BorderStroke(2.dp, Palette.glow), shape = shape),
-                    ),
+                    modifier = Modifier.focusRequester(requesterFor(item.first)),
+                    selected = current,
+                    contentPadding = PaddingValues(start = 14.dp, end = 12.dp, top = 9.dp, bottom = 9.dp),
                 ) {
                     Text(
                         text = item.second,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                         style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium),
                     )
                 }

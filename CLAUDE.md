@@ -58,7 +58,7 @@ Guidance for Claude working in this repo. Read [docs/HANDOVER.md](docs/HANDOVER.
 
 ## Design
 
-The player design spec is [docs/PLAYER_DESIGN.md](docs/PLAYER_DESIGN.md) (the glass direction, approved). Its section 16 records implementation status and agreed deviations, and [docs/player-design/ACCEPTANCE.md](docs/player-design/ACCEPTANCE.md) is the check record. Use the tokens in `design/` rather than new hard-coded colours or sizes. Posters, rows of them, row emphasis and the expanding cards are shared too (`design/.../Posters.kt`), as is the header (`Header.kt`): change them there so both apps stay the same.
+The player design spec is [docs/PLAYER_DESIGN.md](docs/PLAYER_DESIGN.md) (the glass direction, approved). Its section 16 records implementation status and agreed deviations, and [docs/player-design/ACCEPTANCE.md](docs/player-design/ACCEPTANCE.md) is the check record. Use the tokens in `design/` rather than new hard-coded colours or sizes. Posters, rows of them, row emphasis, the expanding cards and Continue watching are shared too (`design/.../Posters.kt`), and so is the list row (`Rows.kt`), as is the header (`Header.kt`): change them there so both apps stay the same.
 
 **Check both sides every time.** A fix or feature for TV Shows must be checked against Movies (and the reverse), and one in the launcher against the player where the same thing exists there. The player's Movies and TV Shows are one screen that switches on film or series: look at every `VodKind` branch a change touches. Focus must always be unmistakable and different from "selected", "playing" and "favourite".
 

@@ -52,6 +52,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
+import dev.wiptv.design.ContinueCard
+import dev.wiptv.design.ContinueGap
 import dev.wiptv.design.PosterCard
 import dev.wiptv.design.PosterPlaceholder
 import dev.wiptv.design.SectionDim
@@ -397,13 +399,24 @@ fun CatalogScreen(
                     if (resume.isNotEmpty()) {
                         val first = firstModifier()
                         item(key = "resume") {
-                            // The title and where you're up to show once, in the hero above; the
-                            // cards carry the picture, progress and "OK to resume".
-                            SectionRow(title = "Continue watching", edge = ScreenEdge) {
+                            // The same expanding cards as the launcher's Continue watching; where
+                            // you're up to also shows in the hero above.
+                            val wideCard = rememberWideCard()
+                            SectionRow(title = "Continue watching", edge = ScreenEdge, contentStart = ScreenEdge, spacing = ContinueGap) {
                                 items(resume, key = { it.key }) { point ->
-                                    ResumeCard(
-                                        point = point,
-                                        onFocus = { focusResume(point) },
+                                    ContinueCard(
+                                        title = point.title,
+                                        episode = point.subtitle?.substringBefore(" · "),
+                                        left = timeLeft(point),
+                                        posterUrl = point.poster,
+                                        imageUrl = point.image,
+                                        progress = point.progress,
+                                        wide = wideCard.wide == point.key,
+                                        focused = wideCard.focused == point.key,
+                                        onFocusChange = { has ->
+                                            if (has) focusResume(point)
+                                            wideCard.onFocus(point.key, has)
+                                        },
                                         onClick = { playing = point; playingNext = null },
                                         modifier = if (point == resume.first()) first else Modifier,
                                     )
@@ -640,82 +653,3 @@ private fun HeroText(hero: Hero?, message: String?, isError: Boolean, onRetry: (
     }
 }
 
-/** Wide picture for something you've started: the episode still or backdrop, else the poster. */
-@Composable
-private fun ResumeArt(point: ResumePoint, showProgress: Boolean = true) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        when {
-            point.image != null -> AsyncImage(
-                model = point.image,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-            point.poster != null -> {
-                // A soft wash of the poster behind the poster itself.
-                AsyncImage(
-                    model = coil.request.ImageRequest.Builder(LocalContext.current).data(point.poster).size(12, 18).build(),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    alpha = 0.55f,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                AsyncImage(
-                    model = point.poster,
-                    contentDescription = null,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxHeight().align(Alignment.CenterStart).padding(start = 12.dp, top = 10.dp, bottom = 10.dp),
-                )
-            }
-        }
-        if (showProgress && point.progress > 0f) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .height(36.dp)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))),
-            )
-            ProgressLine(
-                progress = point.progress,
-                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
-            )
-        }
-    }
-}
-
-/** "Title · S2 E5", or the title and time left for a film. */
-private fun resumeLine(point: ResumePoint, withTitle: Boolean): String =
-    listOfNotNull(
-        point.title.takeIf { withTitle },
-        point.subtitle?.substringBefore(" · ")?.takeIf { it.isNotBlank() } ?: timeLeft(point),
-    ).joinToString(" · ")
-
-/** A Continue watching card: wide artwork with its progress, the title and how much is left. */
-@Composable
-private fun ResumeCard(point: ResumePoint, onFocus: () -> Unit, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    var focused by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.width(ResumeWidth + FocusGap * 2)) {
-        ArtFrame(
-            width = ResumeWidth,
-            height = ResumeHeight,
-            onFocusChange = { focused = it; if (it) onFocus() },
-            onClick = onClick,
-            modifier = modifier,
-        ) {
-            ResumeArt(point)
-            SectionDim()
-        }
-        // One line: the title at rest; on the focused card, the hint and time left (the title is in the hero).
-        Text(
-            text = if (focused) listOfNotNull("OK to resume", timeLeft(point)).joinToString(" · ") else resumeLine(point, withTitle = true),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = FocusGap, end = FocusGap, top = 6.dp),
-            style = WiptvType.caption.copy(fontWeight = FontWeight.Medium, color = sectionCaption()),
-        )
-    }
-}
-
-private val ResumeWidth = 236.dp
-private val ResumeHeight = 133.dp

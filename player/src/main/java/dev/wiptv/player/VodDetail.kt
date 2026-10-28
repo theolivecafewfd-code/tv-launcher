@@ -50,6 +50,7 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
+import dev.wiptv.design.ListRow
 import dev.wiptv.design.ActionButton
 import dev.wiptv.design.CinematicBackdrop
 import dev.wiptv.design.InfoSheet
@@ -513,135 +514,85 @@ private fun EpisodeRow(
     watched: Boolean,
     onClick: () -> Unit,
 ) {
-    val shape = WiptvShapes.small
     val progress = point?.progress?.takeIf { it > 0f }
-    val interaction = remember { MutableInteractionSource() }
-    val focused by interaction.collectIsFocusedAsState()
-    val fill by animateColorAsState(
-        targetValue = if (focused) WiptvColors.rowFocus else WiptvColors.rowFocus.copy(alpha = 0f),
-        animationSpec = tween(120),
-        label = "episodeFill",
-    )
-    val marker by animateFloatAsState(if (focused) 1f else 0f, animationSpec = tween(120), label = "episodeMarker")
-    Surface(
+    // The shared list row: no box at rest, a hairline underneath, and the guide's focus.
+    ListRow(
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .drawBehind {
-                drawLine(
-                    color = Color.White.copy(alpha = 0.08f),
-                    start = Offset(10.dp.toPx(), size.height - 0.5f),
-                    end = Offset(size.width - 10.dp.toPx(), size.height - 0.5f),
-                    strokeWidth = 1.dp.toPx(),
-                )
-            },
-        tonalElevation = 0.dp,
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        // The fill is drawn below (so it can fade); the Surface itself paints nothing.
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = WiptvColors.text,
-            focusedContainerColor = Color.Transparent,
-            focusedContentColor = WiptvColors.text,
-            pressedContainerColor = Color.Transparent,
-            pressedContentColor = WiptvColors.text,
-        ),
-        scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1f, pressedScale = 1f),
-        border = ClickableSurfaceDefaults.border(border = Border.None, focusedBorder = Border.None, pressedBorder = Border.None),
-        glow = ClickableSurfaceDefaults.glow(glow = Glow.None, focusedGlow = Glow.None, pressedGlow = Glow.None),
-        interactionSource = interaction,
+        hairline = true,
+        contentPadding = PaddingValues(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Row(
+        // The still, 16:9.
+        Box(
             modifier = Modifier
-                .drawBehind {
-                    drawRoundRect(fill, cornerRadius = CornerRadius(8.dp.toPx()))
-                    if (marker > 0f) {
-                        // 3 × 24 dp, centred, in the gap left of the still.
-                        val h = 24.dp.toPx()
-                        drawRoundRect(
-                            color = WiptvColors.rowFocusMarker.copy(alpha = marker),
-                            topLeft = Offset(3.dp.toPx(), (size.height - h) / 2),
-                            size = Size(3.dp.toPx(), h),
-                            cornerRadius = CornerRadius(1.5.dp.toPx()),
-                        )
-                    }
-                }
-                .padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
+                .size(width = 136.dp, height = 77.dp)
+                .clip(WiptvShapes.small)
+                .background(Brush.verticalGradient(listOf(WiptvColors.elevated, WiptvColors.surface))),
         ) {
-            // The still, 16:9.
-            Box(
-                modifier = Modifier
-                    .size(width = 136.dp, height = 77.dp)
-                    .clip(WiptvShapes.small)
-                    .background(Brush.verticalGradient(listOf(WiptvColors.elevated, WiptvColors.surface))),
-            ) {
-                if (episode.image != null) {
+            if (episode.image != null) {
+                AsyncImage(
+                    model = episode.image,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                // No still: the series artwork, softened.
+                if (fallbackArt != null) {
                     AsyncImage(
-                        model = episode.image,
+                        model = ImageRequest.Builder(LocalContext.current).data(fallbackArt).size(48, 27).build(),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
+                        alpha = 0.6f,
                         modifier = Modifier.fillMaxSize(),
                     )
-                } else {
-                    // No still: the series artwork, softened.
-                    if (fallbackArt != null) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current).data(fallbackArt).size(48, 27).build(),
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            alpha = 0.6f,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                }
-                if (watched && progress == null) {
-                    Text(
-                        text = "✓",
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp)
-                            .background(Color.Black.copy(alpha = 0.55f), WiptvShapes.pill)
-                            .padding(horizontal = 7.dp, vertical = 1.dp),
-                        style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WiptvColors.positive),
-                    )
-                }
-                if (progress != null) {
-                    ProgressLine(
-                        progress = progress,
-                        height = 3.dp,
-                        modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
-                    )
                 }
             }
-
-            Column(modifier = Modifier.weight(1f)) {
+            if (watched && progress == null) {
                 Text(
-                    text = title,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = WiptvType.control.copy(color = WiptvColors.text),
+                    text = "✓",
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .background(Color.Black.copy(alpha = 0.55f), WiptvShapes.pill)
+                        .padding(horizontal = 7.dp, vertical = 1.dp),
+                    style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WiptvColors.positive),
                 )
-                if (episode.plot.isNotBlank()) {
-                    Text(
-                        text = episode.plot,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 3.dp),
-                        style = TextStyle(fontSize = 13.sp, lineHeight = 18.sp, color = WiptvColors.quiet),
-                    )
-                }
             }
+            if (progress != null) {
+                ProgressLine(
+                    progress = progress,
+                    height = 3.dp,
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp),
+                )
+            }
+        }
 
-            Column(modifier = Modifier.width(96.dp), horizontalAlignment = Alignment.End) {
-                episode.durationMinutes?.let { Text(text = "$it min", style = WiptvType.hint.copy(fontSize = 13.sp)) }
-                when {
-                    progress != null && point != null -> timeLeft(point)?.let {
-                        Text(text = it, style = WiptvType.hint.copy(color = WiptvColors.progress))
-                    }
-                    watched -> Text(text = "Watched", style = WiptvType.hint.copy(color = WiptvColors.positive))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = WiptvType.control.copy(color = WiptvColors.text),
+            )
+            if (episode.plot.isNotBlank()) {
+                Text(
+                    text = episode.plot,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 3.dp),
+                    style = TextStyle(fontSize = 13.sp, lineHeight = 18.sp, color = WiptvColors.quiet),
+                )
+            }
+        }
+
+        Column(modifier = Modifier.width(96.dp), horizontalAlignment = Alignment.End) {
+            episode.durationMinutes?.let { Text(text = "$it min", style = WiptvType.hint.copy(fontSize = 13.sp)) }
+            when {
+                progress != null && point != null -> timeLeft(point)?.let {
+                    Text(text = it, style = WiptvType.hint.copy(color = WiptvColors.progress))
                 }
+                watched -> Text(text = "Watched", style = WiptvType.hint.copy(color = WiptvColors.positive))
             }
         }
     }

@@ -42,6 +42,7 @@ import androidx.tv.material3.Glow
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import dev.wiptv.design.Glass
+import dev.wiptv.design.ListRow
 import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvType
 import dev.wiptv.design.glass
@@ -193,85 +194,56 @@ private fun dayLabel(time: Long, now: Long): String {
     }
 }
 
-/** One programme: time, title, and on focus its description. Focus is the guide's soft fill and bar. */
+/** One programme: time, title, and on focus its description. Focus is the shared list row's. */
 @Composable
 private fun ProgrammeRow(programme: Programme, now: Long, catchUp: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    var focused by remember { mutableStateOf(false) }
     val live = programme.isOn(now)
     val past = programme.end <= now
-    val shape = RoundedCornerShape(8.dp)
-    Surface(
+    ListRow(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
-        shape = ClickableSurfaceDefaults.shape(shape = shape),
-        colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            contentColor = WiptvColors.text,
-            focusedContainerColor = WiptvColors.rowFocus,
-            focusedContentColor = WiptvColors.text,
-            pressedContainerColor = WiptvColors.rowFocus,
-            pressedContentColor = WiptvColors.text,
-        ),
-        scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1f, pressedScale = 1f),
-        border = ClickableSurfaceDefaults.border(border = Border.None, focusedBorder = Border.None, pressedBorder = Border.None),
-        glow = ClickableSurfaceDefaults.glow(glow = Glow.None, focusedGlow = Glow.None, pressedGlow = Glow.None),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .drawBehind {
-                    if (focused) {
-                        val h = 24.dp.toPx()
-                        drawRoundRect(
-                            color = WiptvColors.rowFocusMarker,
-                            topLeft = Offset(3.dp.toPx(), 10.dp.toPx()),
-                            size = Size(3.dp.toPx(), h),
-                            cornerRadius = CornerRadius(1.5.dp.toPx()),
-                        )
-                    }
+        modifier = modifier,
+        contentPadding = PaddingValues(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.Top,
+    ) { focused ->
+        Text(
+            text = clock.format(Date(programme.start)),
+            style = WiptvType.metadata.copy(color = if (past && !catchUp) WiptvColors.quiet else WiptvColors.secondary),
+            modifier = Modifier.width(46.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = programme.title,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = WiptvType.body.copy(
+                        fontWeight = if (focused || live) FontWeight.Medium else FontWeight.Normal,
+                        color = if (past && !catchUp && !focused) WiptvColors.quiet else WiptvColors.text,
+                    ),
+                )
+                when {
+                    live -> Text("Now", style = WiptvType.hint.copy(color = WiptvColors.progress, fontWeight = FontWeight.Medium))
+                    catchUp -> Text("⟲", style = WiptvType.metadata.copy(color = WiptvColors.secondary))
                 }
-                .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Text(
-                text = clock.format(Date(programme.start)),
-                style = WiptvType.metadata.copy(color = if (past && !catchUp) WiptvColors.quiet else WiptvColors.secondary),
-                modifier = Modifier.width(46.dp),
-            )
-            Column(Modifier.weight(1f)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            }
+            if (focused) {
+                val hint = when {
+                    live -> "OK to watch live"
+                    catchUp -> "OK to watch from the start"
+                    else -> null
+                }
+                if (programme.description.isNotBlank()) {
                     Text(
-                        text = programme.title,
-                        maxLines = 1,
+                        text = programme.description,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                        style = WiptvType.body.copy(
-                            fontWeight = if (focused || live) FontWeight.Medium else FontWeight.Normal,
-                            color = if (past && !catchUp && !focused) WiptvColors.quiet else WiptvColors.text,
-                        ),
+                        style = WiptvType.hint.copy(color = WiptvColors.secondary),
+                        modifier = Modifier.padding(top = 2.dp),
                     )
-                    when {
-                        live -> Text("Now", style = WiptvType.hint.copy(color = WiptvColors.progress, fontWeight = FontWeight.Medium))
-                        catchUp -> Text("⟲", style = WiptvType.metadata.copy(color = WiptvColors.secondary))
-                    }
                 }
-                if (focused) {
-                    val hint = when {
-                        live -> "OK to watch live"
-                        catchUp -> "OK to watch from the start"
-                        else -> null
-                    }
-                    if (programme.description.isNotBlank()) {
-                        Text(
-                            text = programme.description,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            style = WiptvType.hint.copy(color = WiptvColors.secondary),
-                            modifier = Modifier.padding(top = 2.dp),
-                        )
-                    }
-                    if (hint != null) Text(hint, style = WiptvType.hint, modifier = Modifier.padding(top = 2.dp))
-                }
+                if (hint != null) Text(hint, style = WiptvType.hint, modifier = Modifier.padding(top = 2.dp))
             }
         }
     }

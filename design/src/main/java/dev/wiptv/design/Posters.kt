@@ -43,6 +43,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Border
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.Glow
+import androidx.tv.material3.Surface
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
@@ -297,6 +306,182 @@ private fun PosterArtwork(name: String, posterUrl: String?, backdropUrl: String?
                     contentDescription = name,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Continue watching card sizes: portrait (2:3) at rest; the card you settle on widens to 16:9 at
+ * the same height, pushing its neighbours along. Captions sit in a fixed space underneath, so the
+ * row's height never changes. The cards have no focus gap, so the row starts at the edge.
+ */
+private val ContinueHeight = 216.dp
+private val ContinueNarrow = 144.dp
+private val ContinueWide = 384.dp
+private val ContinueCaption = 58.dp
+
+/** The space between Continue watching cards (see [SectionRow]'s spacing). */
+val ContinueGap = 14.dp
+
+/**
+ * A Continue watching card, the same in both apps: a portrait poster at rest; the one you rest on
+ * ([wide], from [rememberWideCard]) widens to its landscape still or backdrop (or the poster on a
+ * soft wash of itself), with the progress bar along the bottom. Underneath: the [title], and on
+ * the focused card the [episode], time [left] and "OK to resume". Focus is one thin, soft outline,
+ * with no lift or glow. [tag] goes top left (the launcher's "IPTV").
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ContinueCard(
+    title: String,
+    episode: String?,
+    left: String?,
+    posterUrl: String?,
+    imageUrl: String?,
+    progress: Float,
+    wide: Boolean,
+    focused: Boolean,
+    onFocusChange: (Boolean) -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tag: @Composable () -> Unit = {},
+) {
+    val width by animateDpAsState(if (wide) ContinueWide else ContinueNarrow, animationSpec = tween(CARD_GROW_MS), label = "cardWidth")
+    // Once it has widened, keep the whole card on screen (the row slides along if needed).
+    val wholeCard = remember { BringIntoViewRequester() }
+    LaunchedEffect(wide) {
+        if (wide) {
+            delay(CARD_GROW_MS + 20L)
+            wholeCard.bringIntoView()
+        }
+    }
+    val shape = RoundedCornerShape(10.dp)
+    Column(modifier = Modifier.width(width).bringIntoViewRequester(wholeCard)) {
+        Surface(
+            onClick = onClick,
+            modifier = modifier
+                .fillMaxWidth()
+                .height(ContinueHeight)
+                .onFocusChanged { onFocusChange(it.isFocused) },
+            tonalElevation = 0.dp,
+            shape = ClickableSurfaceDefaults.shape(shape = shape),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = WiptvColors.surface,
+                focusedContainerColor = WiptvColors.surface,
+                pressedContainerColor = WiptvColors.surface,
+            ),
+            // One thin, soft outline for focus; no lift, glow or second border.
+            scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1f, pressedScale = 1f),
+            border = ClickableSurfaceDefaults.border(
+                border = Border.None,
+                focusedBorder = Border(border = BorderStroke(2.dp, WiptvColors.focus.copy(alpha = 0.85f)), shape = shape),
+                pressedBorder = Border(border = BorderStroke(2.dp, WiptvColors.focus.copy(alpha = 0.85f)), shape = shape),
+            ),
+            glow = ClickableSurfaceDefaults.glow(glow = Glow.None, focusedGlow = Glow.None, pressedGlow = Glow.None),
+        ) {
+            Box(Modifier.fillMaxSize().clip(shape)) {
+                ContinueArtwork(title = title, posterUrl = posterUrl, imageUrl = imageUrl, wide = wide)
+                SectionDim()
+                // Where it's from, top left, clear of the progress bar.
+                Box(Modifier.align(Alignment.TopStart).padding(6.dp)) { tag() }
+                if (progress > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .height(28.dp)
+                            .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f)))),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 7.dp)
+                            .height(3.dp)
+                            .background(Color.White.copy(alpha = 0.24f), RoundedCornerShape(50)),
+                    ) {
+                        Box(
+                            Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                                .background(WiptvColors.progress, RoundedCornerShape(50)),
+                        )
+                    }
+                }
+            }
+        }
+        // A fixed space for the captions: the title (up to two lines), and on the focused card
+        // the episode, time left and "OK to resume", quieter.
+        Column(modifier = Modifier.fillMaxWidth().height(ContinueCaption).padding(top = 6.dp)) {
+            Text(
+                text = title,
+                maxLines = if (focused) 1 else 2,
+                overflow = TextOverflow.Ellipsis,
+                style = WiptvType.caption.copy(fontWeight = FontWeight.Medium, color = sectionCaption()),
+            )
+            if (focused) {
+                Text(
+                    text = listOfNotNull(episode?.takeIf { it.isNotBlank() }, left, "OK to resume").joinToString(" · "),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = WiptvType.hint.copy(lineHeight = 15.sp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The picture: the portrait poster while narrow; once wide, a crossfade to the landscape still or
+ * backdrop. With no landscape picture, the sharp poster sits on a dark wash made from itself
+ * (never stretched). Images come from Coil's cache after the first load.
+ */
+@Composable
+private fun ContinueArtwork(title: String, posterUrl: String?, imageUrl: String?, wide: Boolean) {
+    Crossfade(targetState = wide, animationSpec = tween(CARD_GROW_MS), label = "continueArt") { isWide ->
+        Box(Modifier.fillMaxSize().background(WiptvColors.surface)) {
+            when {
+                isWide && imageUrl != null -> AsyncImage(
+                    model = imageUrl,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                isWide && posterUrl != null -> {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current).data(posterUrl).size(12, 18).build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        alpha = 0.45f,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    AsyncImage(
+                        model = posterUrl,
+                        contentDescription = title,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxHeight().align(Alignment.Center),
+                    )
+                }
+                posterUrl != null -> AsyncImage(
+                    model = posterUrl,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                imageUrl != null -> AsyncImage(
+                    model = imageUrl,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+                else -> Text(
+                    text = title,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.align(Alignment.Center).padding(8.dp),
+                    style = WiptvType.hint,
                 )
             }
         }
