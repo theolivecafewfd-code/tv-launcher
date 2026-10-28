@@ -66,6 +66,9 @@ import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvType
 import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.ArtFrame
+import dev.wiptv.design.PosterHeight
+import dev.wiptv.design.PosterWidth
+import androidx.compose.ui.text.style.TextAlign
 import dev.wiptv.design.CinematicBackdrop
 import dev.wiptv.design.Hero
 import dev.wiptv.design.HeroInfo
@@ -160,6 +163,9 @@ fun CatalogScreen(
     var error by remember(kind) { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     val itemsByCategory = remember(kind) { mutableStateMapOf<String, List<VodItem>>() }
+    // Rows whose titles couldn't be loaded, and how many times you've asked again: a failed row
+    // stays on screen with "try again" rather than looking like an empty category.
+    val failedCategories = remember(kind) { mutableStateMapOf<String, Int>() }
     var hero by remember(kind) { mutableStateOf<Hero?>(null) }
     // Films' rows rarely carry a backdrop or synopsis, so once focus rests on one its details are
     // fetched (once) to fill the top area. Never per key press: moving on cancels the wait.
@@ -449,17 +455,21 @@ fun CatalogScreen(
                     visibleCategories.forEachIndexed { index, category ->
                         item(key = "cat:" + category.id) {
                             // Each row loads its own titles when it first comes on screen.
-                            LaunchedEffect(category.id) {
-                                if (itemsByCategory[category.id] == null) {
-                                    itemsByCategory[category.id] = try {
-                                        Xtream.vodItems(login, kind, category.id)
+                            val attempt = failedCategories[category.id]
+                            LaunchedEffect(category.id, attempt) {
+                                if (itemsByCategory[category.id] == null && (attempt == null || attempt > 0)) {
+                                    try {
+                                        itemsByCategory[category.id] = Xtream.vodItems(login, kind, category.id)
+                                        failedCategories.remove(category.id)
                                     } catch (e: CancellationException) {
                                         throw e
                                     } catch (e: Exception) {
-                                        emptyList()
+                                        // Not "empty": the row stays, with a card to try again.
+                                        failedCategories[category.id] = 0
                                     }
                                 }
                             }
+                            val failed = attempt == 0
                             val rowItems = itemsByCategory[category.id]
                             // While a row loads it shows placeholder posters that can take focus, so
                             // Down moves exactly one row instead of jumping to the next loaded one.
@@ -475,7 +485,19 @@ fun CatalogScreen(
                             }
                             val wideCard = rememberWideCard()
                             SectionRow(title = category.name, edge = ScreenEdge) {
-                                if (rowItems == null) {
+                                if (rowItems == null && failed) {
+                                    item(key = "retry") {
+                                        RetryCard(
+                                            onClick = {
+                                                // Focus goes to the first title once they arrive.
+                                                waiting = true
+                                                failedCategories[category.id] = 1
+                                            },
+                                            modifier = Modifier.focusRequester(firstInRow)
+                                                .then(if (index == 0) firstCategoryModifier else Modifier),
+                                        )
+                                    }
+                                } else if (rowItems == null) {
                                     items(6) { i ->
                                         PosterPlaceholder(
                                             onFocusChange = { focused -> if (focused) waiting = true },
@@ -621,3 +643,21 @@ private fun HeroText(hero: Hero?, message: String?, isError: Boolean, onRetry: (
     }
 }
 
+
+/**
+ * In place of a row's posters when its titles couldn't be loaded: a poster-sized card that says
+ * so. OK asks the provider again (the row shows placeholders while it does).
+ */
+@Composable
+private fun RetryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    ArtFrame(width = PosterWidth, height = PosterHeight, onFocusChange = {}, onClick = onClick, modifier = modifier) {
+        Column(
+            modifier = Modifier.fillMaxSize().background(WiptvColors.surface).padding(12.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(text = "Couldn't load", style = WiptvType.metadata.copy(color = WiptvColors.text), textAlign = TextAlign.Center)
+            Text(text = "OK to try again", style = WiptvType.hint, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
+}
