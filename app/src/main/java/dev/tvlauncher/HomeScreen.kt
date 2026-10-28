@@ -254,7 +254,7 @@ fun HomeScreen(
         when {
             recommended != null -> withList + recommended
             // An empty row while it loads: PosterRow shows placeholders for it.
-            recommendedLoading -> withList + ContentRow("recommended", "Recommended for you", "", ranked = false, items = emptyList())
+            recommendedLoading -> withList + ContentRow("recommended", Catalog.recommendedTitle(mediaType), "", ranked = false, items = emptyList())
             else -> withList
         }
     }
@@ -491,6 +491,20 @@ fun HomeScreen(
                                     ?: continueRow.takeIf { continueItems.isNotEmpty() },
                                 down = allRows.getOrNull(i + 1)?.let { rowRequester(it.key) },
                             )
+                        }
+                        // More: the player's own TV Shows or Movies, with everything your provider has.
+                        item(key = "more") {
+                            Box(Modifier.padding(start = Edge, top = 2.dp)) {
+                                GlassPill(
+                                    text = if (mediaType == MediaType.TV) "More TV shows in WIPTV Player  ›" else "More movies in WIPTV Player  ›",
+                                    onClick = {
+                                        if (!Iptv.openCatalogue(context, mediaType)) {
+                                            Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    loud = false,
+                                )
+                            }
                         }
                         item(key = "credit") {
                             Text(

@@ -135,7 +135,7 @@ object Catalog {
 
         return if (favouriteGenres.isEmpty()) {
             val items = merged(type, "sort_by=vote_average.desc&vote_count.gte=1000", byRating = true).take(15)
-            ContentRow("recommended", "Recommended for you", "Top rated on your services for now. It learns from what you open.", false, items)
+            ContentRow("recommended", recommendedTitle(type), "Top rated on your services for now. It learns from what you open.", false, items)
         } else {
             val items = merged(
                 type,
@@ -143,9 +143,12 @@ object Catalog {
                 byRating = true,
             ).filter { it.id !in seen }.take(15)
             val because = favouriteGenres.mapNotNull { genreName(it) }.joinToString(" and ")
-            ContentRow("recommended", "Recommended for you", "Because you watch $because", false, items)
+            ContentRow("recommended", recommendedTitle(type), "Because you watch $because", false, items)
         }
     }
+
+    /** The Recommended row's name on TV Shows or Movies. */
+    fun recommendedTitle(type: MediaType): String = if (type == MediaType.TV) "Recommended TV shows" else "Recommended movies"
 
     /**
      * Runs the same search once per service, so each title knows which services have it,

@@ -223,11 +223,17 @@ object Iptv {
     }
 
     /** Opens the player on Live TV (its own start screen, through its "section" extra). */
-    fun openLiveTv(context: Context): Boolean = try {
+    fun openLiveTv(context: Context): Boolean = openSection(context, "LIVE")
+
+    /** The player's TV Shows (its Series) or Movies, for the More pill under Recommended. */
+    fun openCatalogue(context: Context, type: MediaType): Boolean =
+        openSection(context, if (type == MediaType.TV) "SERIES" else "MOVIES")
+
+    private fun openSection(context: Context, section: String): Boolean = try {
         context.startActivity(
             Intent(Intent.ACTION_MAIN)
                 .setClassName(PLAYER, "$PLAYER.MainActivity")
-                .putExtra("section", "LIVE")
+                .putExtra("section", section)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
             seamless(context),
         )
