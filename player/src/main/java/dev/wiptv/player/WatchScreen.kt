@@ -405,6 +405,7 @@ private fun ChannelListOverlay(
                                 ),
                             )
                             label.quality?.let { QualityBadge(it) }
+                            if (item.catchUp) CatchUpBadge(short = true)
                         }
                         nowShowing(item)?.let { p ->
                             Text(
@@ -511,6 +512,7 @@ private fun InfoBar(
                         style = WiptvType.section.copy(fontWeight = FontWeight.SemiBold),
                     )
                     label.quality?.let { QualityBadge(it) }
+                    if (channel.catchUp) CatchUpBadge()
                 }
                 if (programme != null) {
                     Text(

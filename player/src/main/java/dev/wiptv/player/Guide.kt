@@ -235,6 +235,7 @@ fun GuideRow(
                 ),
             )
             label.quality?.let { QualityBadge(it) }
+            if (channel.catchUp) CatchUpBadge(short = true)
         }
 
         // Programmes, across the same width as the time ruler above.
@@ -326,6 +327,18 @@ fun GuideRow(
 /** A small quality tag (FHD, HD, SD) after a channel's name. */
 @Composable
 internal fun QualityBadge(text: String) {
+    SmallBadge(text)
+}
+
+/** ⟲ beside a channel's name when it keeps catch-up (Right on it shows the schedule to replay from). */
+@Composable
+internal fun CatchUpBadge(short: Boolean = false) {
+    SmallBadge(if (short) "⟲" else "⟲ Catch-up")
+}
+
+/** A small quiet badge after a channel's name (quality, catch-up). */
+@Composable
+private fun SmallBadge(text: String) {
     Text(
         text = text,
         maxLines = 1,
@@ -362,7 +375,7 @@ fun NowPanel(channel: Channel?, programmes: List<Programme>?, now: Long, modifie
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         if (channel == null) {
             Text(
-                text = "OK on a channel previews it here. OK again, or Play/Pause, watches it full screen. Right shows its schedule and catch-up. Menu (≡) adds a favourite.",
+                text = "OK on a channel previews it here. OK again, or Play/Pause, watches it full screen. Right shows its schedule (⟲ channels have catch-up). Menu (≡) adds a favourite.",
                 style = TextStyle(fontSize = 13.sp, color = Palette.quiet),
             )
             return@Column
@@ -385,6 +398,7 @@ fun NowPanel(channel: Channel?, programmes: List<Programme>?, now: Long, modifie
                 style = TextStyle(fontSize = 12.sp, letterSpacing = 0.6.sp, color = WiptvColors.secondary),
             )
             label.quality?.let { QualityBadge(it) }
+            if (channel.catchUp) CatchUpBadge()
         }
 
         val current = programmes?.firstOrNull { it.isOn(now) }
