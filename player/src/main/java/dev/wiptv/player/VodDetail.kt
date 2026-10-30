@@ -105,7 +105,7 @@ fun VodDetailScreen(
     item: VodItem,
     login: Login,
     store: VodStore,
-    onPlay: (ResumePoint, (() -> ResumePoint?)?) -> Unit,
+    onPlay: (ResumePoint, NextUp?) -> Unit,
     onListChanged: () -> Unit,
     onClose: () -> Unit,
     /** A title from "More like this": its page replaces this one. */
@@ -486,13 +486,29 @@ private fun chain(
     current: Episode,
     pointFor: (Episode, Long) -> ResumePoint,
     onAdvance: () -> Unit,
-): (() -> ResumePoint?) {
-    var at = current
-    return {
+): NextUp = NextUp(all, current, pointFor, onAdvance)
+
+/**
+ * The episodes after the one playing, in order across seasons: [peek] says what's next (for the
+ * Play Next card) without moving on; [advance] moves on to it and returns it.
+ */
+class NextUp internal constructor(
+    private val all: List<Episode>,
+    current: Episode,
+    private val pointFor: (Episode, Long) -> ResumePoint,
+    private val onAdvance: () -> Unit,
+) {
+    private var at = current
+
+    private fun nextEpisode(): Episode? = all.getOrNull(all.indexOfFirst { it.id == at.id } + 1)
+
+    fun peek(): ResumePoint? = nextEpisode()?.let { pointFor(it, 0) }
+
+    fun advance(): ResumePoint? {
         onAdvance()
-        val next = all.getOrNull(all.indexOfFirst { it.id == at.id } + 1)
-        if (next != null) at = next
-        next?.let { pointFor(it, 0) }
+        val next = nextEpisode() ?: return null
+        at = next
+        return pointFor(next, 0)
     }
 }
 
