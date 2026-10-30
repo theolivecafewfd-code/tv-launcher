@@ -1,6 +1,12 @@
 package dev.wiptv.player
 
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import dev.wiptv.design.Glass
 import dev.wiptv.design.KeyHints
 import dev.wiptv.design.PlaybackPanel
@@ -81,6 +87,11 @@ fun VodPlayerScreen(
     onClose: () -> Unit,
     /** False for catch-up: nothing goes into Continue watching. */
     rememberPosition: Boolean = true,
+    /**
+     * The next episode, for the Play Next card in the last minute; OK on it (or the end of its
+     * countdown) goes on to it through [onFinished], as the end of the episode does.
+     */
+    upNext: ResumePoint? = null,
 ) {
     val context = LocalContext.current
     val finished by rememberUpdatedState(onFinished)
@@ -91,6 +102,10 @@ fun VodPlayerScreen(
     var position by remember { mutableLongStateOf(start.position) }
     var duration by remember { mutableLongStateOf(start.duration) }
     var overlayTick by remember { mutableIntStateOf(0) }
+    // Play Next: shown for the last minute of an episode that has a next one, unless Back hid it.
+    var nextHidden by remember { mutableStateOf(false) }
+    val showNext = upNext != null && !nextHidden && error == null && duration > 0 &&
+        duration - position in 1..NEXT_CARD_MS
     var showOverlay by remember { mutableStateOf(true) }
     val focus = remember { FocusRequester() }
 
@@ -185,6 +200,19 @@ fun VodPlayerScreen(
         }
     }
 
+    // Counts down while playing (not while paused), then goes on to the next episode.
+    var countdown by remember { mutableIntStateOf(NEXT_COUNTDOWN_S) }
+    LaunchedEffect(showNext) {
+        if (!showNext) return@LaunchedEffect
+        countdown = NEXT_COUNTDOWN_S
+        while (countdown > 0) {
+            delay(1000)
+            if (player.isPlaying) countdown--
+        }
+        save()
+        finished()
+    }
+
     fun seekBy(ms: Long) {
         val length = player.duration.takeIf { it > 0 } ?: Long.MAX_VALUE
         player.seekTo((player.currentPosition + ms).coerceIn(0, length))
@@ -192,7 +220,11 @@ fun VodPlayerScreen(
         overlayTick++
     }
 
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    // Back hides the Play Next card first (the episode plays on to its end); then it closes.
+    Dialog(
+        onDismissRequest = { if (showNext) nextHidden = true else onClose() },
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -202,8 +234,21 @@ fun VodPlayerScreen(
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (event.nativeKeyEvent.keyCode) {
+                        // OK with the Play Next card up: the next episode, now.
                         AndroidKeyEvent.KEYCODE_DPAD_CENTER, AndroidKeyEvent.KEYCODE_ENTER,
-                        AndroidKeyEvent.KEYCODE_NUMPAD_ENTER, AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                        AndroidKeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                            if (event.nativeKeyEvent.repeatCount == 0) {
+                                if (showNext) {
+                                    save()
+                                    finished()
+                                } else {
+                                    if (player.isPlaying) player.pause() else player.play()
+                                    overlayTick++
+                                }
+                            }
+                            true
+                        }
+                        AndroidKeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                             if (event.nativeKeyEvent.repeatCount == 0) {
                                 if (player.isPlaying) player.pause() else player.play()
                                 overlayTick++
@@ -266,6 +311,69 @@ fun VodPlayerScreen(
                     paused = !playing && !buffering,
                 )
             }
+
+            val next = upNext
+            AnimatedVisibility(
+                visible = showNext && next != null,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                // Above the progress panel when that's showing.
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 24.dp, bottom = if (showOverlay || !playing) 150.dp else 24.dp),
+            ) {
+                if (next != null) PlayNextCard(next = next, countdown = countdown)
+            }
+        }
+    }
+}
+
+/** How long before the end the Play Next card shows, and its countdown. */
+private const val NEXT_CARD_MS = 60_000L
+private const val NEXT_COUNTDOWN_S = 15
+
+/**
+ * Play Next, in the last minute of an episode: the next one's picture, "Play Next" lit as the
+ * thing OK does, which episode it is, and the countdown. Back hides it.
+ */
+@Composable
+private fun PlayNextCard(next: ResumePoint, countdown: Int) {
+    Row(
+        modifier = Modifier
+            .width(400.dp)
+            .glass(RoundedCornerShape(18.dp), Glass.OverVideo)
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 128.dp, height = 72.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(WiptvColors.elevated),
+        ) {
+            val picture = next.image ?: next.poster
+            if (picture != null) {
+                AsyncImage(
+                    model = picture,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "▶  Play Next",
+                modifier = Modifier
+                    .background(WiptvColors.primaryFill, WiptvShapes.pill)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                style = WiptvType.control.copy(color = WiptvColors.onPrimary, fontWeight = FontWeight.SemiBold),
+            )
+            next.subtitle?.let {
+                Text(text = it, maxLines = 1, overflow = TextOverflow.Ellipsis, style = WiptvType.metadata.copy(color = WiptvColors.text))
+            }
+            Text(text = "In ${countdown}s · Back to hide", style = WiptvType.hint)
         }
     }
 }

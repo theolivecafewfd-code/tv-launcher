@@ -175,7 +175,7 @@ fun CatalogScreen(
     val movieDetails = remember(kind) { mutableStateMapOf<Long, MovieDetails>() }
     var detail by remember { mutableStateOf<VodItem?>(null) }
     var playing by remember { mutableStateOf<ResumePoint?>(null) }
-    var playingNext by remember { mutableStateOf<(() -> ResumePoint?)?>(null) }
+    var playingNext by remember { mutableStateOf<NextUp?>(null) }
     // Bumped after watching or changing My List, so those rows refresh.
     var refresh by remember { mutableIntStateOf(0) }
 
@@ -576,9 +576,11 @@ fun CatalogScreen(
                 // A saved point has no address of its own: it's built from the current login.
                 start = point.withUrl(login),
                 store = store,
+                // The Play Next card in the last minute of an episode.
+                upNext = remember(point.key) { playingNext?.peek() },
                 onFinished = {
                     // Straight on to the next episode, if there is one.
-                    val next = playingNext?.invoke()
+                    val next = playingNext?.advance()
                     playing = next
                     refresh++
                     // A film opened from the launcher: back there when it ends.
