@@ -171,8 +171,10 @@ fun HomeScreen(
     }
     val channelRow = remember { FocusRequester() }
 
-    // TV Shows or Movies: Recommended for you follows it (My List shows both, at Wayne's request).
+    // TV Shows or Movies: Continue watching, My List and Recommended follow it.
     var mediaType by remember { mutableStateOf(MediaType.TV) }
+    // Continue watching for this tab only: episodes on TV Shows, films on Movies.
+    val shownContinue = continueItems.filter { it.type == mediaType }
     // One focus target per row, so up and down move exactly one row. Up from the first row goes
     // to the navigation in the header; Apps there opens the tray.
     val appsButton = remember { FocusRequester() }
@@ -267,10 +269,11 @@ fun HomeScreen(
         playerListLoaded = true
     }
     val allRows = remember(myList, playerList, mediaType, recommended, recommendedLoading) {
-        // My List has shows and films together, the same on TV Shows and Movies. A title in both
-        // lists (added before they were joined) shows once, as the launcher's.
+        // My List for this tab: shows on TV Shows, films on Movies. A title in both lists (added
+        // before they were joined) shows once, as the launcher's.
         val launcherNames = myList.map { it.type to sameName(it.name) }.toSet()
-        val mine = playerList.filter { (it.type to sameName(it.name)) !in launcherNames }.map { it.asTitle() } + myList
+        val mine = playerList.filter { it.type == mediaType && (it.type to sameName(it.name)) !in launcherNames }.map { it.asTitle() } +
+            myList.filter { it.type == mediaType }
         val withList = if (mine.isEmpty()) emptyList() else listOf(ContentRow("mylist", "My List", "", ranked = false, items = mine))
         val forTab = recommended[mediaType]
         when {
@@ -344,7 +347,7 @@ fun HomeScreen(
     }
     // Your channels: what's on now and next, from the player's guide, once you rest on a channel.
     // Kept for a few minutes, or until the programme ends.
-    val onNow = remember { mutableMapOf<Long, Pair<Long, List<IptvProgramme>>>() }
+    val onNow = remember { mutableStateMapOf<Long, Pair<Long, List<IptvProgramme>>>() }
     fun focusChannel(channel: IptvChannel) {
         heroJob?.cancel()
         val now = System.currentTimeMillis()
@@ -362,7 +365,7 @@ fun HomeScreen(
     }
 
     /** The first row: Continue watching, Your channels, or the first poster row. */
-    fun firstRowBelowTop(): FocusRequester? = continueRow.takeIf { continueItems.isNotEmpty() }
+    fun firstRowBelowTop(): FocusRequester? = continueRow.takeIf { shownContinue.isNotEmpty() }
         ?: channelRow.takeIf { channels.isNotEmpty() }
         ?: allRows.firstOrNull()?.let { rowRequester(it.key) }
 
@@ -372,7 +375,7 @@ fun HomeScreen(
     var placedFocus by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val firstLoadsDone = continueLoaded && channelsLoaded && playerListLoaded
-    val anyRow = continueItems.isNotEmpty() || channels.isNotEmpty() || allRows.isNotEmpty()
+    val anyRow = shownContinue.isNotEmpty() || channels.isNotEmpty() || allRows.isNotEmpty()
     LaunchedEffect(firstLoadsDone, anyRow) {
         if (placedFocus || !firstLoadsDone) return@LaunchedEffect
         val target = if (anyRow) {
@@ -503,10 +506,10 @@ fun HomeScreen(
                         contentPadding = PaddingValues(bottom = 32.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        if (continueItems.isNotEmpty()) {
+                        if (shownContinue.isNotEmpty()) {
                             item(key = "continue") {
                                 ContinueRow(
-                                    items = continueItems,
+                                    items = shownContinue,
                                     onResume = {
                                         if (!Iptv.resume(context, it)) {
                                             Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
@@ -523,6 +526,7 @@ fun HomeScreen(
                             item(key = "channels") {
                                 ChannelRow(
                                     channels = channels,
+                                    programmes = { onNow[it.id]?.second },
                                     onWatch = {
                                         if (!Iptv.watchChannel(context, it)) {
                                             Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
@@ -530,7 +534,7 @@ fun HomeScreen(
                                     },
                                     onFocusChannel = ::focusChannel,
                                     requester = channelRow,
-                                    up = continueRow.takeIf { continueItems.isNotEmpty() },
+                                    up = continueRow.takeIf { shownContinue.isNotEmpty() },
                                     down = allRows.firstOrNull()?.let { rowRequester(it.key) },
                                 )
                             }
@@ -543,7 +547,7 @@ fun HomeScreen(
                                 onFocusTitle = ::focusTitle,
                                 requester = rowRequester(row.key),
                                 up = if (i > 0) rowRequester(allRows[i - 1].key) else channelRow.takeIf { channels.isNotEmpty() }
-                                    ?: continueRow.takeIf { continueItems.isNotEmpty() },
+                                    ?: continueRow.takeIf { shownContinue.isNotEmpty() },
                                 down = allRows.getOrNull(i + 1)?.let { rowRequester(it.key) },
                             )
                         }

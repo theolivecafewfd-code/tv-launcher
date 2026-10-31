@@ -9,6 +9,10 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.tv.material3.LocalContentColor
 import dev.wiptv.design.ArtFocusGap
+import dev.wiptv.design.PlaybackProgress
+import dev.wiptv.design.PosterHeight
+import dev.wiptv.design.PosterWidth
+import dev.wiptv.design.PosterWide
 import dev.wiptv.design.CARD_GROW_MS
 import dev.wiptv.design.ContinueCard
 import dev.wiptv.design.ContinueGap
@@ -288,18 +292,17 @@ internal fun IptvPosterCard(title: IptvTitle, onClick: () -> Unit, modifier: Mod
     ) { IptvTag() }
 }
 
-/** Channel tiles: 16:9, smaller than the posters, the logo on a faint panel. */
-internal val ChannelTileWidth = 192.dp
-internal val ChannelTileHeight = 108.dp
-
 /**
- * Your channels: the live channels you've starred in WIPTV Player, in its order. OK plays one full
- * screen in the player; Back there goes to the channel's group in Live TV.
+ * Your channels: the live channels you've starred in WIPTV Player, in its order, as poster-shaped
+ * cards in the shared row. The one you rest on widens, like the other rows, to show what's on:
+ * the logo, now (title, times, progress) and next, from [programmes] (null until loaded). OK plays
+ * it full screen in the player; Back there goes to the channel's group in Live TV.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ChannelRow(
     channels: List<IptvChannel>,
+    programmes: (IptvChannel) -> List<IptvProgramme>?,
     onWatch: (IptvChannel) -> Unit,
     onFocusChannel: (IptvChannel) -> Unit,
     requester: FocusRequester,
@@ -309,78 +312,129 @@ fun ChannelRow(
     TrackAttached(requester)
     val upAndDown = Modifier.focusProperties {
         up?.ifAttached()?.let { this.up = it }
-        down.ifAttached()?.let { this.down = it }
+        down?.ifAttached()?.let { this.down = it }
     }
-    // The whole row is one section: moving between channels keeps it bright.
-    var active by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxWidth().onFocusChanged { active = it.hasFocus }) {
-      CompositionLocalProvider(LocalSectionActive provides active) {
-        Box(Modifier.padding(start = Edge, end = Edge, bottom = 2.dp)) { SectionHeading("Your channels", active) }
-        RowScrolling(start = Edge, end = 72.dp) {
-            LazyRow(
-                modifier = Modifier.focusRequester(requester).focusRestorer(),
-                contentPadding = PaddingValues(start = Edge - ArtFocusGap, end = Edge, top = 6.dp, bottom = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp - ArtFocusGap * 2),
-            ) {
-                items(channels, key = { it.id }) { channel ->
-                    ChannelTile(
-                        channel = channel,
-                        onClick = { onWatch(channel) },
-                        onFocus = { onFocusChannel(channel) },
-                        modifier = upAndDown,
-                    )
-                }
-            }
+    val wideCard = rememberWideCard()
+    SectionRow(
+        title = "Your channels",
+        edge = Edge,
+        rowModifier = Modifier.focusRequester(requester).focusRestorer(),
+    ) {
+        items(channels, key = { it.id }) { channel ->
+            ChannelPoster(
+                channel = channel,
+                programmes = programmes(channel),
+                wide = wideCard.wide == "ch:${channel.id}",
+                onFocus = { has ->
+                    if (has) onFocusChannel(channel)
+                    wideCard.onFocus("ch:${channel.id}", has)
+                },
+                onClick = { onWatch(channel) },
+                modifier = upAndDown,
+            )
         }
-      }
     }
 }
 
+/**
+ * A starred channel as a poster: the logo on a soft panel with the name underneath; widened, the
+ * logo moves left and what's on now and next fills the rest.
+ */
 @Composable
-private fun ChannelTile(channel: IptvChannel, onClick: () -> Unit, onFocus: () -> Unit, modifier: Modifier = Modifier) {
+private fun ChannelPoster(
+    channel: IptvChannel,
+    programmes: List<IptvProgramme>?,
+    wide: Boolean,
+    onFocus: (Boolean) -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var focused by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.width(ChannelTileWidth + ArtFocusGap * 2)) {
+    val width by animateDpAsState(if (wide) PosterWide else PosterWidth, animationSpec = tween(CARD_GROW_MS), label = "channelWidth")
+    Column(modifier = Modifier.width(width + ArtFocusGap * 2)) {
         ArtFrame(
-            width = ChannelTileWidth,
-            height = ChannelTileHeight,
+            width = width,
+            height = PosterHeight,
             onFocusChange = {
                 focused = it
-                if (it) onFocus()
+                onFocus(it)
             },
             onClick = onClick,
             modifier = modifier,
         ) {
             Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.07f)))
-            if (channel.logoUrl != null) {
-                AsyncImage(
-                    model = channel.logoUrl,
-                    contentDescription = channel.name,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 22.dp, vertical = 16.dp),
-                )
-            } else {
-                Text(
-                    text = channel.name,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.align(Alignment.Center).padding(10.dp),
-                    style = WiptvType.metadata.copy(color = WiptvColors.secondary),
-                )
+            Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                // The logo: the whole card while narrow, a column on the left once wide.
+                Box(modifier = Modifier.width(PosterWidth).fillMaxHeight().padding(16.dp), contentAlignment = Alignment.Center) {
+                    if (channel.logoUrl != null) {
+                        AsyncImage(
+                            model = channel.logoUrl,
+                            contentDescription = channel.name,
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
+                        Text(
+                            text = channel.name,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            style = WiptvType.metadata.copy(color = WiptvColors.secondary),
+                        )
+                    }
+                }
+                if (wide) ChannelNowNext(programmes, Modifier.weight(1f).padding(end = 14.dp))
             }
             SectionDim()
         }
         Text(
             text = channel.name,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp),
-            style = TextStyle(
-                fontSize = 14.sp,
-                lineHeight = 18.sp,
+            modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp).height(36.dp),
+            style = WiptvType.caption.copy(
                 fontWeight = if (focused) FontWeight.Medium else FontWeight.Normal,
                 color = sectionCaption(),
             ),
         )
+    }
+}
+
+/** Inside a widened channel card: now (title, times, progress) and next. */
+@Composable
+private fun ChannelNowNext(programmes: List<IptvProgramme>?, modifier: Modifier) {
+    val now = System.currentTimeMillis()
+    val current = programmes?.firstOrNull { it.start <= now && now < it.end }
+    val next = programmes?.firstOrNull { it.start >= (current?.end ?: now) }
+    val clock = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.UK) }
+    fun hhmm(t: Long) = clock.format(java.util.Date(t))
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        when {
+            programmes == null -> Text("Loading what's on…", style = WiptvType.hint)
+            current == null -> Text("No programme information", style = WiptvType.hint)
+            else -> {
+                Text("Now", style = WiptvType.hint)
+                Text(
+                    text = current.title,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = WiptvType.body.copy(fontWeight = FontWeight.Medium, color = WiptvColors.text),
+                )
+                Text("${hhmm(current.start)}–${hhmm(current.end)}", style = WiptvType.hint.copy(color = WiptvColors.secondary))
+                PlaybackProgress(
+                    fraction = ((now - current.start).toFloat() / (current.end - current.start)).coerceIn(0f, 1f),
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+        if (next != null) {
+            Text(
+                text = "Next · ${hhmm(next.start)} · ${next.title}",
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 6.dp),
+                style = WiptvType.hint.copy(color = WiptvColors.secondary),
+            )
+        }
     }
 }
 
