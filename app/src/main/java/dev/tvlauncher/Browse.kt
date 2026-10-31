@@ -23,6 +23,7 @@ import dev.wiptv.design.SectionDim
 import dev.wiptv.design.SectionHeading
 import dev.wiptv.design.SectionRow
 import dev.wiptv.design.rememberWideCard
+import dev.wiptv.design.rememberRowStart
 import dev.wiptv.design.sectionCaption
 import dev.wiptv.design.ArtFrame
 import dev.wiptv.design.DisplayTitles
@@ -210,11 +211,11 @@ fun PosterRow(
     // Just the row's name: the notes beside it ("Most popular on…", "Because you watch…") were
     // dropped at Wayne's request to keep the rows clean. The row remembers which poster you were
     // on, and up and down always go to the row directly above or below.
-    val memory = rememberRowMemory()
+    val memory = rememberRowStart()
     SectionRow(
         title = row.title,
         edge = Edge,
-        rowModifier = Modifier.focusRequester(requester).then(memory.rowModifier()),
+        rowModifier = Modifier.focusRequester(requester).then(memory.rowModifier(row.items.firstOrNull()?.key)),
     ) {
         if (row.items.isEmpty()) {
             items(6) {
@@ -316,11 +317,11 @@ fun ChannelRow(
         down?.ifAttached()?.let { this.down = it }
     }
     val wideCard = rememberWideCard()
-    val memory = rememberRowMemory()
+    val memory = rememberRowStart()
     SectionRow(
         title = "Your channels",
         edge = Edge,
-        rowModifier = Modifier.focusRequester(requester).then(memory.rowModifier()),
+        rowModifier = Modifier.focusRequester(requester).then(memory.rowModifier(channels.firstOrNull()?.id)),
     ) {
         items(channels, key = { it.id }) { channel ->
             ChannelPoster(
@@ -462,12 +463,12 @@ fun ContinueRow(
         down.ifAttached()?.let { this.down = it }
     }
     val wideCard = rememberWideCard()
-    // Coming back to the row lands on the card you were last on.
-    val memory = rememberRowMemory()
+    // Moving up or down into the row lands on its first card.
+    val memory = rememberRowStart()
     SectionRow(
         title = "Continue watching",
         edge = Edge,
-        rowModifier = Modifier.focusRequester(requester).then(memory.rowModifier()),
+        rowModifier = Modifier.focusRequester(requester).then(memory.rowModifier(items.firstOrNull()?.key)),
         contentStart = Edge,
         spacing = ContinueGap,
     ) {

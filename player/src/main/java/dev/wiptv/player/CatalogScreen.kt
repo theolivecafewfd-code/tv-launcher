@@ -66,6 +66,7 @@ import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvType
 import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.ArtFrame
+import dev.wiptv.design.rememberRowStart
 import dev.wiptv.design.PosterHeight
 import dev.wiptv.design.PosterWidth
 import androidx.compose.ui.text.style.TextAlign
@@ -427,7 +428,14 @@ fun CatalogScreen(
                             // The same expanding cards as the launcher's Continue watching; where
                             // you're up to also shows in the hero above.
                             val wideCard = rememberWideCard()
-                            SectionRow(title = "Continue watching", edge = ScreenEdge, contentStart = ScreenEdge, spacing = ContinueGap) {
+                            val rowStart = rememberRowStart()
+                            SectionRow(
+                                title = "Continue watching",
+                                edge = ScreenEdge,
+                                contentStart = ScreenEdge,
+                                spacing = ContinueGap,
+                                rowModifier = rowStart.rowModifier(resume.firstOrNull()?.key),
+                            ) {
                                 items(resume, key = { it.key }) { point ->
                                     ContinueCard(
                                         title = point.title,
@@ -443,7 +451,7 @@ fun CatalogScreen(
                                             wideCard.onFocus(point.key, has)
                                         },
                                         onClick = { resumePlaying(point) },
-                                        modifier = if (point == resume.first()) first else Modifier,
+                                        modifier = (if (point == resume.first()) first else Modifier).then(rowStart.card(point.key)),
                                     )
                                 }
                             }
@@ -454,7 +462,8 @@ fun CatalogScreen(
                         val first = firstModifier()
                         item(key = "mylist") {
                             val wideCard = rememberWideCard()
-                            SectionRow(title = "My List", edge = ScreenEdge) {
+                            val rowStart = rememberRowStart()
+                            SectionRow(title = "My List", edge = ScreenEdge, rowModifier = rowStart.rowModifier(myList.firstOrNull()?.key)) {
                                 items(myList, key = { it.key }) { item ->
                                     PosterCard(
                                         name = item.name,
@@ -466,7 +475,7 @@ fun CatalogScreen(
                                         },
                                         wide = wideCard.wide == item.key,
                                         onClick = { detail = item },
-                                        modifier = if (item == myList.first()) first else Modifier,
+                                        modifier = (if (item == myList.first()) first else Modifier).then(rowStart.card(item.key)),
                                     )
                                 }
                             }
@@ -508,7 +517,13 @@ fun CatalogScreen(
                                 }
                             }
                             val wideCard = rememberWideCard()
-                            SectionRow(title = category.name, edge = ScreenEdge) {
+                            // Up or Down into the row lands on its first card.
+                            val rowStart = rememberRowStart()
+                            SectionRow(
+                                title = category.name,
+                                edge = ScreenEdge,
+                                rowModifier = rowStart.rowModifier(rowItems?.firstOrNull()?.key),
+                            ) {
                                 if (rowItems == null && failed) {
                                     item(key = "retry") {
                                         RetryCard(
@@ -544,9 +559,11 @@ fun CatalogScreen(
                                             },
                                             wide = wideCard.wide == item.key,
                                             onClick = { detail = item },
-                                            modifier = if (first) {
-                                                Modifier.focusRequester(firstInRow).then(if (index == 0) firstCategoryModifier else Modifier)
-                                            } else Modifier,
+                                            modifier = (
+                                                if (first) {
+                                                    Modifier.focusRequester(firstInRow).then(if (index == 0) firstCategoryModifier else Modifier)
+                                                } else Modifier
+                                            ).then(rowStart.card(item.key)),
                                         )
                                     }
                                 }

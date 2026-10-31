@@ -33,35 +33,3 @@ internal fun TrackAttached(requester: FocusRequester) {
 
 /** This requester if its row is on screen, otherwise null (use the normal focus move). */
 internal fun FocusRequester?.ifAttached(): FocusRequester? = this?.takeIf { it in attachedRequesters }
-
-/**
- * Remembers which card you were on in a row, so coming back to the row lands on it again.
- * (Compose's own focusRestorer crashed the launcher — "Release should only be called once" —
- * when a row's cards changed, so this uses a plain enter rule instead, as Live TV does.)
- */
-internal class RowMemory {
-    private var last: Any? = null
-    private val requesters = mutableMapOf<Any, FocusRequester>()
-    private val onScreen = mutableSetOf<Any>()
-
-    /** For the row: focus entering it goes to the last card, if that card is still there. */
-    @OptIn(ExperimentalComposeUiApi::class)
-    fun rowModifier(): Modifier = Modifier
-        .focusProperties { enter = { last?.takeIf { it in onScreen }?.let { requesters[it] } ?: FocusRequester.Default } }
-        .focusGroup()
-
-    /** For each card, keyed like the row's items. */
-    @Composable
-    fun card(key: Any): Modifier {
-        DisposableEffect(key) {
-            onScreen += key
-            onDispose { onScreen -= key }
-        }
-        return Modifier
-            .focusRequester(requesters.getOrPut(key) { FocusRequester() })
-            .onFocusChanged { if (it.isFocused) last = key }
-    }
-}
-
-@Composable
-internal fun rememberRowMemory(): RowMemory = remember { RowMemory() }
