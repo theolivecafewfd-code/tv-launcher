@@ -180,25 +180,34 @@ fun HomeScreen(
     var trayOpen by remember { mutableStateOf(false) }
     val rowFocus = remember { mutableMapOf<String, FocusRequester>() }
     fun rowRequester(key: String) = rowFocus.getOrPut(key) { FocusRequester() }
-    // Recommended for you loads on its own, after the other rows. Until it arrives its row shows
-    // grey placeholder posters that can take focus, so Down from the row above isn't stuck.
-    var recommendedRow by remember { mutableStateOf<ContentRow?>(null) }
+    // Recommended, for TV Shows and for Movies. The last copy of each is saved on the device and
+    // shows at once; a fresh one is fetched quietly each time you come home (this tab first,
+    // then the other, so switching is instant) and replaces it. Only with nothing saved yet
+    // does the row show grey placeholder posters (which can take focus, so Down isn't stuck).
+    val savedRows = remember { SavedRows(context) }
+    var recommended by remember { mutableStateOf(MediaType.entries.associateWith { savedRows.load(it) }) }
     var recommendedLoading by remember { mutableStateOf(false) }
     LaunchedEffect(mediaType, refreshKey) {
         if (!Catalog.hasKey) return@LaunchedEffect
-        val haveThisType = recommendedRow?.items?.firstOrNull()?.type == mediaType
-        if (!haveThisType) recommendedRow = null
-        recommendedLoading = !haveThisType
-        val loaded = try {
-            Catalog.recommendedRow(mediaType, History(context).entries())
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            null
+        recommendedLoading = recommended[mediaType] == null
+        for (type in listOf(mediaType) + MediaType.entries.filter { it != mediaType }) {
+            val loaded = try {
+                Catalog.recommendedRow(type, History(context).entries())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
+            }
+            // A failed refresh keeps the row you already have; the same titles leave it as it is
+            // (so the focus doesn't move under you).
+            if (loaded != null && loaded.items.isNotEmpty() &&
+                loaded.items.map { it.key } != recommended[type]?.items?.map { it.key }
+            ) {
+                recommended = recommended + (type to loaded)
+                savedRows.save(type, loaded)
+            }
+            if (type == mediaType) recommendedLoading = false
         }
-        // A failed refresh keeps the row you already have.
-        if (loaded != null && loaded.items.isNotEmpty()) recommendedRow = loaded
-        recommendedLoading = false
     }
     val titleScope = rememberCoroutineScope()
     // OK on a title opens its details; holding OK plays it straight away.
@@ -257,15 +266,15 @@ fun HomeScreen(
         playerList = Iptv.myList(context)
         playerListLoaded = true
     }
-    val allRows = remember(myList, playerList, mediaType, recommendedRow, recommendedLoading) {
+    val allRows = remember(myList, playerList, mediaType, recommended, recommendedLoading) {
         // My List has shows and films together, the same on TV Shows and Movies. A title in both
         // lists (added before they were joined) shows once, as the launcher's.
         val launcherNames = myList.map { it.type to sameName(it.name) }.toSet()
         val mine = playerList.filter { (it.type to sameName(it.name)) !in launcherNames }.map { it.asTitle() } + myList
         val withList = if (mine.isEmpty()) emptyList() else listOf(ContentRow("mylist", "My List", "", ranked = false, items = mine))
-        val recommended = recommendedRow?.takeIf { it.items.firstOrNull()?.type == mediaType }
+        val forTab = recommended[mediaType]
         when {
-            recommended != null -> withList + recommended
+            forTab != null -> withList + forTab
             // An empty row while it loads: PosterRow shows placeholders for it.
             recommendedLoading -> withList + ContentRow("recommended", Catalog.recommendedTitle(mediaType), "", ranked = false, items = emptyList())
             else -> withList
