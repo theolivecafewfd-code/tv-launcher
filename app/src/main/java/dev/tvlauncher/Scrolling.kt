@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.focusGroup
 import androidx.compose.runtime.remember
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -44,6 +45,7 @@ internal class RowMemory {
     private val onScreen = mutableSetOf<Any>()
 
     /** For the row: focus entering it goes to the last card, if that card is still there. */
+    @OptIn(ExperimentalComposeUiApi::class)
     fun rowModifier(): Modifier = Modifier
         .focusProperties { enter = { last?.takeIf { it in onScreen }?.let { requesters[it] } ?: FocusRequester.Default } }
         .focusGroup()
