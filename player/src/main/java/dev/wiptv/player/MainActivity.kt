@@ -56,6 +56,24 @@ class MainActivity : ComponentActivity() {
     // Back to the launcher without a slide: the two apps share one header, so it should feel
     // like changing tab.
     @Suppress("DEPRECATION")
+    /**
+     * A known Compose bug: when the focused card's row goes away mid-scroll (Down pressed quickly
+     * past a row that loaded empty), the focus can point at nothing, and the next key press throws
+     * "ActiveParent must have a focusedChild". That press is dropped and the focus is reset (the
+     * next press finds a card again) instead of the app crashing.
+     */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean = try {
+        super.dispatchKeyEvent(event)
+    } catch (e: IllegalStateException) {
+        if (e.message?.contains("focusedChild") != true) throw e
+        android.util.Log.w("WIPTV", "Recovered from a lost focus", e)
+        currentFocus?.let { view ->
+            view.clearFocus()
+            view.requestFocus()
+        }
+        true
+    }
+
     override fun finish() {
         super.finish()
         overridePendingTransition(0, 0)
