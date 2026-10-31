@@ -180,19 +180,8 @@ fun VodDetailScreen(
         image = details.backdrop ?: item.backdrop,
     )
 
-    fun episodePoint(episode: Episode, from: Long) = ResumePoint(
-        key = "episode:${episode.id}",
-        title = item.name,
-        subtitle = "S${episode.season} E${episode.number} · ${EpisodeTitles.name(episode, item.name)}",
-        poster = item.poster,
-        url = Xtream.episodeUrl(login, episode.id, episode.extension),
-        extension = episode.extension,
-        position = from,
-        duration = store.resumePoint("episode:${episode.id}")?.duration ?: 0,
-        updated = System.currentTimeMillis(),
-        seriesId = item.id,
-        image = episode.image ?: series?.backdrop ?: item.backdrop,
-    )
+    fun episodePoint(episode: Episode, from: Long) =
+        episodePointOf(login, store, item.id, item.name, item.poster, series?.backdrop ?: item.backdrop, episode, from)
 
     /** Plays an episode; when it ends, the next one (or the next season's first) follows. */
     fun playEpisode(details: SeriesDetails, episode: Episode, from: Long) {
@@ -478,6 +467,50 @@ fun VodDetailScreen(
             },
         )
     }
+}
+
+/** Where an episode of series [seriesId] plays from, as a point Continue watching can keep. */
+internal fun episodePointOf(
+    login: Login,
+    store: VodStore,
+    seriesId: Long,
+    seriesName: String,
+    poster: String?,
+    backdrop: String?,
+    episode: Episode,
+    from: Long,
+) = ResumePoint(
+    key = "episode:${episode.id}",
+    title = seriesName,
+    subtitle = "S${episode.season} E${episode.number} · ${EpisodeTitles.name(episode, seriesName)}",
+    poster = poster,
+    url = Xtream.episodeUrl(login, episode.id, episode.extension),
+    extension = episode.extension,
+    position = from,
+    duration = store.resumePoint("episode:${episode.id}")?.duration ?: 0,
+    updated = System.currentTimeMillis(),
+    seriesId = seriesId,
+    image = episode.image ?: backdrop,
+)
+
+/**
+ * What plays after [current] (episode [currentId]) in a series, for an episode resumed from
+ * Continue watching: null if the series' details don't have it.
+ */
+internal fun nextUpAfter(
+    login: Login,
+    store: VodStore,
+    current: ResumePoint,
+    details: SeriesDetails,
+    onAdvance: () -> Unit,
+): NextUp? {
+    val seriesId = current.seriesId ?: return null
+    val currentId = current.key.removePrefix("episode:").toLongOrNull() ?: return null
+    val all = details.seasons.flatMap { details.episodes[it].orEmpty() }
+    val episode = all.firstOrNull { it.id == currentId } ?: return null
+    return chain(all, episode, { e, from ->
+        episodePointOf(login, store, seriesId, current.title, current.poster, details.backdrop, e, from)
+    }, onAdvance)
 }
 
 /** What plays after [current]: the next episode in order, across seasons. */

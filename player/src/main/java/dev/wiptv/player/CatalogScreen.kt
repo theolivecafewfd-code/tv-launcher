@@ -75,6 +75,8 @@ import dev.wiptv.design.HeroInfo
 import dev.wiptv.design.DisplayTitles
 import dev.wiptv.design.focusOutline
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -267,12 +269,30 @@ fun CatalogScreen(
     var openedFromLauncher by remember { mutableStateOf(false) }
     // Opened by the header's dice: once that page is closed, back to where the dice was pressed.
     var openedBySurprise by remember { mutableStateOf(false) }
+    // Resuming from Continue watching (here or the launcher's): an episode then looks up its
+    // series so the next episode follows, and Play Next shows, as from the series' page.
+    val resumeScope = rememberCoroutineScope()
+    fun resumePlaying(point: ResumePoint) {
+        playingNext = null
+        playing = point
+        val seriesId = point.seriesId ?: return
+        resumeScope.launch {
+            val details = try {
+                Xtream.seriesDetails(login, VodItem(VodKind.SERIES, seriesId, point.title, point.poster, "", null, null))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                return@launch // no next episode this time; the episode still plays
+            }
+            // Still the same episode playing (not closed or changed meanwhile).
+            if (playing?.key == point.key) playingNext = nextUpAfter(login, store, point, details) { refresh++ }
+        }
+    }
     LaunchedEffect(openResume) {
         val key = openResume ?: return@LaunchedEffect
         val point = store.resumePoint(key) ?: return@LaunchedEffect
         openedFromLauncher = true
-        playingNext = null
-        playing = point
+        resumePlaying(point)
     }
     LaunchedEffect(openId) {
         val id = openId ?: return@LaunchedEffect
@@ -418,7 +438,7 @@ fun CatalogScreen(
                                             if (has) focusResume(point)
                                             wideCard.onFocus(point.key, has)
                                         },
-                                        onClick = { playing = point; playingNext = null },
+                                        onClick = { resumePlaying(point) },
                                         modifier = if (point == resume.first()) first else Modifier,
                                     )
                                 }
@@ -577,7 +597,7 @@ fun CatalogScreen(
                 start = point.withUrl(login),
                 store = store,
                 // The Play Next card in the last minute of an episode.
-                upNext = remember(point.key) { playingNext?.peek() },
+                upNext = remember(point.key, playingNext) { playingNext?.peek() },
                 onFinished = {
                     // Straight on to the next episode, if there is one.
                     val next = playingNext?.advance()
