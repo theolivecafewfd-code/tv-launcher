@@ -161,10 +161,12 @@ fun CatalogScreen(
 ) {
     val context = LocalContext.current
     val noun = if (kind == VodKind.MOVIE) "films" else "series"
-    var categories by remember(kind) { mutableStateOf<List<Group>?>(null) }
+    // Kept between tabs while the player runs (SessionCache), so coming back is instant.
+    val cache = remember(kind, login) { SessionCache.of(login, kind.name) }
+    var categories by remember(kind) { mutableStateOf(cache.categories) }
     var error by remember(kind) { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
-    val itemsByCategory = remember(kind) { mutableStateMapOf<String, List<VodItem>>() }
+    val itemsByCategory = cache.items
     // Rows whose titles couldn't be loaded, and how many times you've asked again: a failed row
     // stays on screen with "try again" rather than looking like an empty category.
     val failedCategories = remember(kind) { mutableStateMapOf<String, Int>() }
@@ -174,7 +176,7 @@ fun CatalogScreen(
     var restingOn by remember(kind) { mutableStateOf<VodItem?>(null) }
     // Set while focus is on a Continue watching card, so its details fill in the resume hero.
     var restingPoint by remember(kind) { mutableStateOf<ResumePoint?>(null) }
-    val movieDetails = remember(kind) { mutableStateMapOf<Long, MovieDetails>() }
+    val movieDetails = cache.details
     var detail by remember { mutableStateOf<VodItem?>(null) }
     var playing by remember { mutableStateOf<ResumePoint?>(null) }
     var playingNext by remember { mutableStateOf<NextUp?>(null) }
@@ -355,9 +357,11 @@ fun CatalogScreen(
     }
 
     LaunchedEffect(kind, attempt) {
+        // Already loaded this session (and not "try again"): nothing to fetch.
+        if (attempt == 0 && categories != null) return@LaunchedEffect
         error = null
         try {
-            categories = Xtream.vodCategories(login, kind)
+            categories = Xtream.vodCategories(login, kind).also { cache.categories = it }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

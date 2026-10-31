@@ -25,8 +25,15 @@ object AppRepository {
     /** Apps that always sit at the front of the dock, in this order, matched by name. */
     private val pinned = listOf("netflix", "youtube", "disney", "prime video", "now", "tivimate")
 
+    /** The apps found last time, kept while the launcher runs (decoding banners is slow). */
+    @Volatile
+    var last: List<TvApp>? = null
+        private set
+
     /** Loads every launchable app on the TV. Call off the main thread: decoding banners is slow. */
-    fun load(context: Context): List<TvApp> {
+    fun load(context: Context): List<TvApp> = scan(context).also { last = it }
+
+    private fun scan(context: Context): List<TvApp> {
         val pm = context.packageManager
         val found = LinkedHashMap<String, TvApp>()
 

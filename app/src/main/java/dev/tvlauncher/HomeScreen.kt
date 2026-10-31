@@ -51,6 +51,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -120,7 +121,7 @@ fun HomeScreen(
     onReturn: () -> Unit = {},
 ) {
     val context = LocalContext.current
-    var apps by remember { mutableStateOf<List<TvApp>>(emptyList()) }
+    var apps by remember { mutableStateOf(AppRepository.last ?: emptyList()) }
 
     // Which apps you've hidden and the order you've chosen, saved on the device.
     val dockPrefs = remember { DockPrefs(context) }
@@ -146,7 +147,27 @@ fun HomeScreen(
         dockPrefs.setHidden(newHidden)
     }
 
-    LaunchedEffect(refreshKey) {
+    // Your apps: read once (decoding every banner is slow on the stick), then again only when an
+    // app is installed, removed or updated, not every time you come home.
+    var appsChanged by remember { mutableIntStateOf(0) }
+    DisposableEffect(context) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(c: android.content.Context, intent: android.content.Intent) {
+                appsChanged++
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(android.content.Intent.ACTION_PACKAGE_ADDED)
+            addAction(android.content.Intent.ACTION_PACKAGE_REMOVED)
+            addAction(android.content.Intent.ACTION_PACKAGE_CHANGED)
+            addAction(android.content.Intent.ACTION_PACKAGE_REPLACED)
+            addDataScheme("package")
+        }
+        context.registerReceiver(receiver, filter)
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
+    LaunchedEffect(appsChanged) {
+        if (appsChanged == 0 && AppRepository.last != null) return@LaunchedEffect
         apps = withContext(Dispatchers.IO) { AppRepository.load(context) }
     }
     // Back home: ask again about titles the IPTV list didn't have (it may have filled in since).
