@@ -68,7 +68,7 @@ val PosterHeight = 189.dp
 val PosterGap = 16.dp
 
 /** A poster once it has widened: 16:9 at the poster's height. */
-private val PosterWide = 336.dp
+val PosterWide = 336.dp
 
 /** The smaller poster without a caption (search results, "More like this"). */
 private val CompactWidth = 84.dp
