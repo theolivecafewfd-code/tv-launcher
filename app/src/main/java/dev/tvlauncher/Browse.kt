@@ -210,10 +210,11 @@ fun PosterRow(
     // Just the row's name: the notes beside it ("Most popular on…", "Because you watch…") were
     // dropped at Wayne's request to keep the rows clean. The row remembers which poster you were
     // on, and up and down always go to the row directly above or below.
+    val memory = rememberRowMemory()
     SectionRow(
         title = row.title,
         edge = Edge,
-        rowModifier = Modifier.focusRequester(requester).focusRestorer(),
+        rowModifier = Modifier.focusRequester(requester).then(memory.rowModifier()),
     ) {
         if (row.items.isEmpty()) {
             items(6) {
@@ -225,7 +226,7 @@ fun PosterRow(
                 title = title,
                 onClick = { onOpen(title) },
                 onLongClick = { onPlay(title) },
-                modifier = upAndDown,
+                modifier = upAndDown.then(memory.card(title.key)),
                 wide = wideCard.wide == title.key,
                 onFocus = {
                     if (it) onFocusTitle(title)
@@ -315,10 +316,11 @@ fun ChannelRow(
         down?.ifAttached()?.let { this.down = it }
     }
     val wideCard = rememberWideCard()
+    val memory = rememberRowMemory()
     SectionRow(
         title = "Your channels",
         edge = Edge,
-        rowModifier = Modifier.focusRequester(requester).focusRestorer(),
+        rowModifier = Modifier.focusRequester(requester).then(memory.rowModifier()),
     ) {
         items(channels, key = { it.id }) { channel ->
             ChannelPoster(
@@ -330,7 +332,7 @@ fun ChannelRow(
                     wideCard.onFocus("ch:${channel.id}", has)
                 },
                 onClick = { onWatch(channel) },
-                modifier = upAndDown,
+                modifier = upAndDown.then(memory.card(channel.id)),
             )
         }
     }
@@ -460,11 +462,12 @@ fun ContinueRow(
         down.ifAttached()?.let { this.down = it }
     }
     val wideCard = rememberWideCard()
+    // Coming back to the row lands on the card you were last on.
+    val memory = rememberRowMemory()
     SectionRow(
         title = "Continue watching",
         edge = Edge,
-        // focusRestorer: coming back to the row lands on the card you were last on.
-        rowModifier = Modifier.focusRequester(requester).focusRestorer(),
+        rowModifier = Modifier.focusRequester(requester).then(memory.rowModifier()),
         contentStart = Edge,
         spacing = ContinueGap,
     ) {
@@ -483,7 +486,7 @@ fun ContinueRow(
                     wideCard.onFocus(item.key, it)
                 },
                 onClick = { onResume(item) },
-                modifier = upAndDown,
+                modifier = upAndDown.then(memory.card(item.key)),
                 tag = { IptvTag() },
             )
         }

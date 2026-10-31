@@ -97,13 +97,17 @@ class VodStore(context: Context) {
 
     fun resumePoint(key: String): ResumePoint? = resumePoints().firstOrNull { it.key == key }
 
-    /** Saves where you are, or clears it once you're near the end (or barely started). */
+    /** Saves where you are, or clears it once you're near the end (or a film barely started). */
     fun savePosition(point: ResumePoint) {
         synchronized(lock) {
             val nearEnd = point.duration > 0 && point.duration - point.position < 3 * 60_000
             val barelyStarted = point.position < 60_000
             val others = resumePoints().filterNot { it.key == point.key || (point.seriesId != null && it.seriesId == point.seriesId) }
-            val kept = if (nearEnd || barelyStarted) others else listOf(point) + others
+            // An episode is kept even when barely started, so a series stays in Continue
+            // watching after one episode ends and the next has only just begun (Play Next).
+            // A film barely started still isn't kept.
+            val dropped = nearEnd || (barelyStarted && point.seriesId == null)
+            val kept = if (dropped) others else listOf(point) + others
             if (nearEnd) markWatched(point.key)
             write(kept.take(30))
         }
