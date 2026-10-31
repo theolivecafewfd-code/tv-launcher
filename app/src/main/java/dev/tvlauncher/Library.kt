@@ -41,42 +41,73 @@ class Library(context: Context) {
 
     fun watched(): Set<String> = prefs.getStringSet(KEY_WATCHED, emptySet())?.toSet() ?: emptySet()
 
-    private fun toJson(t: Title) = JSONObject().apply {
-        put("id", t.id)
-        put("type", t.type.path)
-        put("name", t.name)
-        put("year", t.year)
-        put("overview", t.overview)
-        put("rating", t.rating)
-        put("genres", JSONArray(t.genreIds))
-        put("backdrop", t.backdropUrl ?: "")
-        put("poster", t.posterUrl ?: "")
-        put("sources", JSONArray(t.sources.map { it.name }))
-    }
+    private fun toJson(t: Title) = titleToJson(t)
 
-    private fun fromJson(o: JSONObject): Title? {
-        val type = MediaType.entries.firstOrNull { it.path == o.optString("type") } ?: return null
-        val genres = o.optJSONArray("genres")
-        val sources = o.optJSONArray("sources")
-        return Title(
-            id = o.optInt("id"),
-            type = type,
-            name = o.optString("name"),
-            year = o.optString("year"),
-            overview = o.optString("overview"),
-            rating = o.optDouble("rating", 0.0),
-            popularity = 0.0,
-            genreIds = if (genres == null) emptyList() else (0 until genres.length()).map { genres.getInt(it) },
-            backdropUrl = o.optString("backdrop").ifBlank { null },
-            posterUrl = o.optString("poster").ifBlank { null },
-            sources = if (sources == null) emptyList() else (0 until sources.length()).mapNotNull { i ->
-                Source.entries.firstOrNull { it.name == sources.getString(i) }
-            },
-        )
-    }
+    private fun fromJson(o: JSONObject): Title? = titleFromJson(o)
 
     companion object {
         private const val KEY_LIST = "my_list"
         private const val KEY_WATCHED = "watched"
     }
+}
+
+/**
+ * The last Recommended row for TV Shows and for Movies, saved on the device so the home screen
+ * shows it the moment it opens (after an update, a restart, or Fire TV closing the launcher);
+ * a fresh copy replaces it quietly once it arrives.
+ */
+class SavedRows(context: Context) {
+    private val prefs = context.getSharedPreferences("saved_rows", Context.MODE_PRIVATE)
+
+    fun load(type: MediaType): ContentRow? = runCatching {
+        val o = JSONObject(prefs.getString(type.path, null) ?: return null)
+        val array = o.getJSONArray("items")
+        val items = (0 until array.length()).mapNotNull { titleFromJson(array.getJSONObject(it)) }
+        if (items.isEmpty()) null
+        else ContentRow(o.optString("key", "recommended"), o.optString("title"), o.optString("note"), ranked = false, items = items)
+    }.getOrNull()
+
+    fun save(type: MediaType, row: ContentRow) {
+        val o = JSONObject()
+            .put("key", row.key)
+            .put("title", row.title)
+            .put("note", row.note)
+            .put("items", JSONArray(row.items.map { titleToJson(it) }))
+        prefs.edit().putString(type.path, o.toString()).apply()
+    }
+}
+
+/** A TMDB title as saved on the device (My List, the saved Recommended rows). */
+internal fun titleToJson(t: Title) = JSONObject().apply {
+    put("id", t.id)
+    put("type", t.type.path)
+    put("name", t.name)
+    put("year", t.year)
+    put("overview", t.overview)
+    put("rating", t.rating)
+    put("genres", JSONArray(t.genreIds))
+    put("backdrop", t.backdropUrl ?: "")
+    put("poster", t.posterUrl ?: "")
+    put("sources", JSONArray(t.sources.map { it.name }))
+}
+
+internal fun titleFromJson(o: JSONObject): Title? {
+    val type = MediaType.entries.firstOrNull { it.path == o.optString("type") } ?: return null
+    val genres = o.optJSONArray("genres")
+    val sources = o.optJSONArray("sources")
+    return Title(
+        id = o.optInt("id"),
+        type = type,
+        name = o.optString("name"),
+        year = o.optString("year"),
+        overview = o.optString("overview"),
+        rating = o.optDouble("rating", 0.0),
+        popularity = 0.0,
+        genreIds = if (genres == null) emptyList() else (0 until genres.length()).map { genres.getInt(it) },
+        backdropUrl = o.optString("backdrop").ifBlank { null },
+        posterUrl = o.optString("poster").ifBlank { null },
+        sources = if (sources == null) emptyList() else (0 until sources.length()).mapNotNull { i ->
+            Source.entries.firstOrNull { it.name == sources.getString(i) }
+        },
+    )
 }
