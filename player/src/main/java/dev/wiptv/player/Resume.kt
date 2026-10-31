@@ -113,6 +113,13 @@ class VodStore(context: Context) {
         }
     }
 
+    /** Where you last skipped a series' intro (ms into the episode), so Skip intro shows there. */
+    fun introAt(seriesId: Long): Long? = prefs.getLong("intro:$seriesId", -1).takeIf { it >= 0 }
+
+    fun setIntroAt(seriesId: Long, position: Long) {
+        prefs.edit().putLong("intro:$seriesId", position).apply()
+    }
+
     fun watched(): Set<String> = prefs.getStringSet("watched", emptySet())?.toSet() ?: emptySet()
 
     private fun markWatched(key: String) {

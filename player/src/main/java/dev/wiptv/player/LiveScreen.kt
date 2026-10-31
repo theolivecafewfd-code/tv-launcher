@@ -114,10 +114,12 @@ fun LiveScreen(
 ) {
     val context = LocalContext.current
     var account by remember { mutableStateOf<Account?>(null) }
-    var groups by remember { mutableStateOf<List<Group>?>(null) }
+    // Kept between tabs while the player runs (SessionCache), so coming back is instant.
+    val cache = remember(login) { SessionCache.of(login, "LIVE") }
+    var groups by remember { mutableStateOf(cache.liveGroups) }
     var groupsError by remember { mutableStateOf<String?>(null) }
     var groupsAttempt by remember { mutableIntStateOf(0) }
-    val channelsByGroup = remember { mutableStateMapOf<String, List<Channel>>() }
+    val channelsByGroup = cache.channels
     var channelsError by remember { mutableStateOf<String?>(null) }
     var selectedGroup by remember { mutableStateOf(LastWatched.group(context)) }
     var showAccount by remember { mutableStateOf(false) }
@@ -174,10 +176,12 @@ fun LiveScreen(
         account = runCatching { Xtream.signIn(login, withCatalogue = false) }.getOrNull()
     }
     LaunchedEffect(groupsAttempt) {
+        if (groupsAttempt == 0 && groups != null) return@LaunchedEffect
         groupsError = null
         try {
             val loaded = Xtream.liveGroups(login)
             groups = loaded
+            cache.liveGroups = loaded
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

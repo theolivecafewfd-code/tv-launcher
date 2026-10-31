@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
+import androidx.media3.common.C
+import androidx.media3.common.Tracks
 import dev.wiptv.design.Glass
 import dev.wiptv.design.KeyHints
 import dev.wiptv.design.PlaybackPanel
@@ -108,6 +110,16 @@ fun VodPlayerScreen(
         duration - position in 1..NEXT_CARD_MS
     var showOverlay by remember { mutableStateOf(true) }
     val focus = remember { FocusRequester() }
+    // Audio & subtitles (Down): the file's languages and subtitles, kept up to date as it loads.
+    var tracks by remember { mutableStateOf(player.currentTracks) }
+    var tracksOpen by remember { mutableStateOf(false) }
+    // Skip intro, for episodes: once you've skipped in a series, it shows around the same point
+    // in its other episodes; until then, in the first five minutes. Skipping or Back hides it.
+    val seriesId = start.seriesId
+    val introAt = remember { seriesId?.let { store.introAt(it) } }
+    var introDone by remember { mutableStateOf(false) }
+    val inIntroWindow = if (introAt != null) position in (introAt - 30_000)..(introAt + 60_000) else position in 10_000..INTRO_WINDOW_MS
+    val showSkip = seriesId != null && !introDone && error == null && duration > 0 && inIntroWindow && !showNext && !tracksOpen
 
     fun save() {
         if (!rememberPosition) return
@@ -120,6 +132,10 @@ fun VodPlayerScreen(
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playing = isPlaying
+            }
+
+            override fun onTracksChanged(newTracks: Tracks) {
+                tracks = newTracks
             }
 
             override fun onPlaybackStateChanged(state: Int) {
@@ -220,9 +236,22 @@ fun VodPlayerScreen(
         overlayTick++
     }
 
-    // Back hides the Play Next card first (the episode plays on to its end); then it closes.
+    fun closeTracks() {
+        tracksOpen = false
+        runCatching { focus.requestFocus() }
+    }
+
+    // Back closes Audio & subtitles, then hides Skip intro or the Play Next card (the episode plays
+    // on); then it closes the player.
     Dialog(
-        onDismissRequest = { if (showNext) nextHidden = true else onClose() },
+        onDismissRequest = {
+            when {
+                tracksOpen -> closeTracks()
+                showSkip -> introDone = true
+                showNext -> nextHidden = true
+                else -> onClose()
+            }
+        },
         properties = DialogProperties(usePlatformDefaultWidth = false),
     ) {
         Box(
@@ -232,13 +261,20 @@ fun VodPlayerScreen(
                 .focusRequester(focus)
                 .focusable()
                 .onPreviewKeyEvent { event ->
+                    // The Audio & subtitles panel has the remote while it's open.
+                    if (tracksOpen) return@onPreviewKeyEvent false
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (event.nativeKeyEvent.keyCode) {
-                        // OK with the Play Next card up: the next episode, now.
+                        // OK with Skip intro up skips it; with the Play Next card up, the next
+                        // episode, now; otherwise pause or play.
                         AndroidKeyEvent.KEYCODE_DPAD_CENTER, AndroidKeyEvent.KEYCODE_ENTER,
                         AndroidKeyEvent.KEYCODE_NUMPAD_ENTER -> {
                             if (event.nativeKeyEvent.repeatCount == 0) {
-                                if (showNext) {
+                                if (showSkip) {
+                                    seriesId?.let { store.setIntroAt(it, player.currentPosition) }
+                                    introDone = true
+                                    seekBy(INTRO_SKIP_MS)
+                                } else if (showNext) {
                                     save()
                                     finished()
                                 } else {
@@ -259,8 +295,12 @@ fun VodPlayerScreen(
                         AndroidKeyEvent.KEYCODE_MEDIA_PAUSE -> { player.pause(); overlayTick++; true }
                         AndroidKeyEvent.KEYCODE_DPAD_LEFT, AndroidKeyEvent.KEYCODE_MEDIA_REWIND -> { seekBy(-10_000); true }
                         AndroidKeyEvent.KEYCODE_DPAD_RIGHT, AndroidKeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { seekBy(30_000); true }
-                        AndroidKeyEvent.KEYCODE_DPAD_UP, AndroidKeyEvent.KEYCODE_DPAD_DOWN,
-                        AndroidKeyEvent.KEYCODE_INFO -> { overlayTick++; true }
+                        // Down: Audio & subtitles, when the file has a choice.
+                        AndroidKeyEvent.KEYCODE_DPAD_DOWN -> {
+                            if (hasTrackChoices(tracks)) tracksOpen = true else overlayTick++
+                            true
+                        }
+                        AndroidKeyEvent.KEYCODE_DPAD_UP, AndroidKeyEvent.KEYCODE_INFO -> { overlayTick++; true }
                         else -> false
                     }
                 },
@@ -312,6 +352,41 @@ fun VodPlayerScreen(
                 )
             }
 
+            // Skip intro, bottom right, above the progress panel when that's showing.
+            AnimatedVisibility(
+                visible = showSkip,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 24.dp, bottom = if (showOverlay || !playing) 150.dp else 24.dp),
+            ) {
+                Text(
+                    text = "⏭  Skip intro",
+                    modifier = Modifier
+                        .background(WiptvColors.primaryFill, WiptvShapes.pill)
+                        .padding(horizontal = 18.dp, vertical = 9.dp),
+                    style = WiptvType.control.copy(color = WiptvColors.onPrimary, fontWeight = FontWeight.SemiBold),
+                )
+            }
+
+            // Audio & subtitles, on the right.
+            if (tracksOpen) {
+                TracksPanel(
+                    audio = audioChoices(tracks),
+                    subtitles = subtitleChoices(tracks),
+                    onAudio = {
+                        choose(player, it, C.TRACK_TYPE_AUDIO)
+                        closeTracks()
+                    },
+                    onSubtitles = {
+                        choose(player, it, C.TRACK_TYPE_TEXT)
+                        closeTracks()
+                    },
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 24.dp),
+                )
+            }
+
             val next = upNext
             AnimatedVisibility(
                 visible = showNext && next != null,
@@ -327,6 +402,10 @@ fun VodPlayerScreen(
         }
     }
 }
+
+/** Skip intro: how far it jumps, and (until you've skipped in a series) how long it's offered. */
+private const val INTRO_SKIP_MS = 85_000L
+private const val INTRO_WINDOW_MS = 5 * 60_000L
 
 /** How long before the end the Play Next card shows, and its countdown. */
 private const val NEXT_CARD_MS = 60_000L
@@ -410,7 +489,7 @@ private fun ProgressBar(title: String, subtitle: String?, position: Long, durati
         )
         Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(text = clockOf(position), style = WiptvType.hint.copy(color = WiptvColors.text))
-            KeyHints(hints = listOf("◀ 10s", "OK pause", "30s ▶"), modifier = Modifier.weight(1f).padding(horizontal = 16.dp))
+            KeyHints(hints = listOf("◀ 10s", "OK pause", "30s ▶", "▼ audio & subtitles"), modifier = Modifier.weight(1f).padding(horizontal = 16.dp))
             if (duration > 0) Text(text = clockOf(duration), style = WiptvType.hint.copy(color = WiptvColors.text))
         }
     }
