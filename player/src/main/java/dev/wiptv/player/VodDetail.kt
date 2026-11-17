@@ -110,6 +110,11 @@ fun VodDetailScreen(
     onClose: () -> Unit,
     /** A title from "More like this": its page replaces this one. */
     onOpenOther: (VodItem) -> Unit = {},
+    /**
+     * An episode key ("episode:…") to start on, from Continue watching's Episodes: its season
+     * shows and focus starts on that episode instead of the buttons.
+     */
+    focusEpisode: String? = null,
 ) {
     val context = LocalContext.current
     // More like this: other titles from the same provider category, from the player's own list
@@ -139,6 +144,8 @@ fun VodDetailScreen(
     // Bumped when playback ends, so Resume buttons and progress bars refresh.
     var refresh by remember { mutableIntStateOf(0) }
     val firstButton = remember { FocusRequester() }
+    val episodeFocus = remember { FocusRequester() }
+    val listState = rememberLazyListState()
 
     LaunchedEffect(item.key) {
         try {
@@ -154,6 +161,22 @@ fun VodDetailScreen(
     // Focus starts on the main action. My List holds it while the details load, then it moves to
     // Play or Resume once they arrive (before you'd have had time to move it yourself).
     LaunchedEffect(movie != null || series != null) {
+        // From Continue watching's Episodes: straight to the episode you were on.
+        val s = series
+        if (focusEpisode != null && s != null) {
+            val episodes = s.seasons.firstNotNullOfOrNull { sn ->
+                s.episodes[sn].orEmpty().takeIf { list -> list.any { "episode:${it.id}" == focusEpisode } }
+            }.orEmpty()
+            val index = episodes.indexOfFirst { "episode:${it.id}" == focusEpisode }
+            if (index >= 0) {
+                // The header, then the season tabs, then the episodes.
+                listState.scrollToItem(2 + index)
+                repeat(40) {
+                    if (runCatching { episodeFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+                    delay(50)
+                }
+            }
+        }
         repeat(40) {
             if (runCatching { firstButton.requestFocus() }.isSuccess) return@LaunchedEffect
             delay(50)
@@ -228,7 +251,6 @@ fun VodDetailScreen(
         }
         refocusMoreInfo = false
     }
-    val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
@@ -403,8 +425,8 @@ fun VodDetailScreen(
                     if (s != null && s.seasons.isNotEmpty()) {
                         // The season you're up to, until you pick another.
                         val shownSeason = if (season in s.seasons) season else {
-                            resume?.let { r ->
-                                s.seasons.firstOrNull { sn -> s.episodes[sn].orEmpty().any { "episode:${it.id}" == r.key } }
+                            (focusEpisode ?: resume?.key)?.let { key ->
+                                s.seasons.firstOrNull { sn -> s.episodes[sn].orEmpty().any { "episode:${it.id}" == key } }
                             } ?: s.seasons.first()
                         }
                         val seasonEpisodes = s.episodes[shownSeason].orEmpty()
@@ -435,6 +457,7 @@ fun VodDetailScreen(
                                     point = point,
                                     watched = "episode:${episode.id}" in watched,
                                     onClick = { playEpisode(s, episode, point?.position ?: 0) },
+                                    modifier = if ("episode:${episode.id}" == focusEpisode) Modifier.focusRequester(episodeFocus) else Modifier,
                                 )
                             }
                         }
@@ -600,11 +623,13 @@ private fun EpisodeRow(
     point: ResumePoint?,
     watched: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val progress = point?.progress?.takeIf { it > 0f }
     // The shared list row: no box at rest, a hairline underneath, and the guide's focus.
     ListRow(
         onClick = onClick,
+        modifier = modifier,
         hairline = true,
         contentPadding = PaddingValues(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(18.dp),

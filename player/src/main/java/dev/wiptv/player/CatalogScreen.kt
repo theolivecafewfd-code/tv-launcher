@@ -139,7 +139,7 @@ private val FocusGap = ArtFocusGap
 /**
  * Films or series, Netflix style: Continue watching and My List first, then a row per category
  * from your provider (hide and reorder them with Edit categories at the bottom). OK on a poster
- * opens its details; OK on Continue watching picks up where you stopped.
+ * opens its details; OK on Continue watching offers Continue, or Episodes (Start over for a film).
  */
 @Composable
 fun CatalogScreen(
@@ -150,7 +150,7 @@ fun CatalogScreen(
     tabs: @Composable () -> Unit,
     /** A title the launcher asked for: a film plays at once, a series opens its page. */
     openId: Long? = null,
-    /** A Continue watching key the launcher asked to resume: plays straight away. */
+    /** A Continue watching key the launcher asked to resume: offers the same choice as here. */
     openResume: String? = null,
     /** Called when that title is closed, so the player can hand back to the launcher. */
     onOpenFinished: () -> Unit = {},
@@ -181,6 +181,10 @@ fun CatalogScreen(
     var detail by remember { mutableStateOf<VodItem?>(null) }
     var playing by remember { mutableStateOf<ResumePoint?>(null) }
     var playingNext by remember { mutableStateOf<NextUp?>(null) }
+    // The Continue / Episodes choice for a Continue watching card.
+    var choosing by remember { mutableStateOf<ResumePoint?>(null) }
+    // The episode a series page opened from that choice lands on.
+    var focusEpisode by remember { mutableStateOf<String?>(null) }
     // Bumped after watching or changing My List, so those rows refresh.
     var refresh by remember { mutableIntStateOf(0) }
 
@@ -295,7 +299,7 @@ fun CatalogScreen(
         val key = openResume ?: return@LaunchedEffect
         val point = store.resumePoint(key) ?: return@LaunchedEffect
         openedFromLauncher = true
-        resumePlaying(point)
+        choosing = point
     }
     LaunchedEffect(openId) {
         val id = openId ?: return@LaunchedEffect
@@ -450,7 +454,7 @@ fun CatalogScreen(
                                             if (has) focusResume(point)
                                             wideCard.onFocus(point.key, has)
                                         },
-                                        onClick = { resumePlaying(point) },
+                                        onClick = { choosing = point },
                                         modifier = (if (point == resume.first()) first else Modifier).then(rowStart.card(point.key)),
                                     )
                                 }
@@ -598,9 +602,14 @@ fun CatalogScreen(
                     playingNext = next
                 },
                 onListChanged = { refresh++ },
-                onOpenOther = { detail = it },
+                focusEpisode = focusEpisode,
+                onOpenOther = {
+                    focusEpisode = null
+                    detail = it
+                },
                 onClose = {
                     detail = null
+                    focusEpisode = null
                     if (openedFromLauncher) onOpenFinished()
                     if (openedBySurprise) {
                         openedBySurprise = false
@@ -609,6 +618,33 @@ fun CatalogScreen(
                 },
             )
         }
+    }
+
+    choosing?.let { point ->
+        ResumeChoice(
+            point = point,
+            onContinue = {
+                choosing = null
+                resumePlaying(point)
+            },
+            onStartOver = {
+                choosing = null
+                resumePlaying(point.copy(position = 0))
+            },
+            onEpisodes = {
+                choosing = null
+                // The series' page, on the season and episode you were watching.
+                val item = catalogueItemFor(point) ?: resumeItemFor(point)
+                if (item != null) {
+                    focusEpisode = point.key
+                    detail = item
+                } else if (openedFromLauncher) onOpenFinished()
+            },
+            onClose = {
+                choosing = null
+                if (openedFromLauncher) onOpenFinished()
+            },
+        )
     }
 
     playing?.let { point ->
