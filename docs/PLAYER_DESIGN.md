@@ -56,36 +56,35 @@ Centralize these as native theme values before restyling screens. Values below a
 
 ### Colour
 
-Version 0.2 (charcoal glass). These are the values in `WiptvColors` (`design/.../Wiptv.kt`), the one place both apps take their colours from; [tokens.json](player-design/tokens.json) mirrors them.
+Version 0.3 (after the "max" player Wayne liked). These are the values in `WiptvColors` (`design/.../Wiptv.kt`), the one place both apps take their colours from; [tokens.json](player-design/tokens.json) mirrors them. Version 0.2's navy charcoal is recorded in section 16.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| Background | `#0B111B` | Root canvas, below the gradient |
-| Raised background (`backgroundTop`) | `#111A27` | Top of the static backdrop gradient, quiet side panels |
-| Panel surface (`surface`) | `#192332` | Glass, trays, dialogs, sheets, placeholders |
-| Elevated surface | `#233041` | A focused list row's fill; artwork placeholders |
-| Primary text | `#F2F4F8` | Main labels and programme titles |
-| Secondary text | `#AFB8C7` | Times, metadata, captions, inactive headings |
-| Muted text (`quiet`) | `#8793A5` | Hints and non-critical labels |
-| Focus accent | `#DCE7FA` | Focus outline, focused small controls, list focus bar |
-| Primary button fill | `#DCE7FA` | Primary actions (Play, Resume, Watch on) |
-| Primary button text (`onLight`) | `#101724` | Text on pale fills |
-| Subtle border | White at 12% | Edges of panels and quiet buttons |
+| Background | `#0D0D0F` | Root canvas, below the gradient |
+| Raised background (`backgroundTop`) | `#141416` | Top of the static backdrop gradient, quiet side panels |
+| Panel surface (`surface`) | `#1C1C1F` | Glass, trays, dialogs, sheets, placeholders |
+| Elevated surface | `#2C2C30` | A focused list row's fill, the selected menu item, artwork placeholders |
+| Accent | `#C5E86C` | Primary actions (Play, Resume), progress, the guide's now line, labels such as #1 TRENDING |
+| Primary text | `#F2F2F2` | Main labels and programme titles |
+| Secondary text | `#C4C4CA` | Times, metadata, captions, inactive headings |
+| Muted text (`quiet`) | `#8E8E94` | Hints and non-critical labels |
+| Focus | `#F2F2F2` | Focus outline on cards and buttons, the focused menu item's fill |
+| Text on light or accent fills (`onLight`, `onPrimary`) | `#121212` | Text on the white focus fill and the accent |
+| Subtle border | White at 10% | Edges of panels and quiet buttons |
 | Positive | `#B4EED6` | Live dot or saved confirmation |
 | Warning | `#FFD09B` | Recoverable warnings |
 | Error | `#FFB8B4` | Failure labels, with explanatory text |
-| Progress | `#DCE7FA` | Playback and watched progress |
-| Scrim | Black at 25–85% | 25% behind the Apps tray; more over images and video |
+| Scrim | Black at 25–85% | Behind trays and dialogs; more over images and video |
 
-The result is near-black charcoal with a restrained navy undertone: no broad saturated blue fills or bright gradients. Branded tiles, posters, backdrops and video keep their own colours; theme overlays sit only on background layers.
+The result is near-black neutral grey with no tint: the artwork and video bring the colour, and the one lime accent marks what to press and how far through you are. Branded tiles, posters, backdrops and video keep their own colours.
 
-**Background.** `Modifier.wiptvBackground()`: a vertical gradient from `#111A27` at the top to `#0B111B` by just over halfway, under a static monochrome grain tile at 2% (one bundled 128 px PNG, repeated). Screens with cinematic artwork fade it into this base.
+**Background.** `Modifier.wiptvBackground()`: a vertical gradient from `#141416` at the top to `#0D0D0F` by just over halfway, under a static monochrome grain tile at 2% (one bundled 128 px PNG, repeated). Screens with cinematic artwork fade it into this base.
 
 **Type.** Platform sans-serif in both apps. Semantic styles in `WiptvType`: `pageTitle` (24 sp semibold), `sectionHeading` (17 sp medium), `body` (16 sp), `metadata` (14 sp, secondary), `caption` (14 sp, secondary, names under posters and tiles), plus `hero`, `control` and `hint`.
 
-**Focus.** Posters and app tiles: a thin pale outline (2 dp) just outside the art and a slight lift. Guide and episode rows: the elevated fill and a slim pale bar at the leading edge, no outline. Primary actions: pale fill and dark text at rest, with the outline when focused. Secondary actions: dark translucent slate with a 12% edge at rest, pale with dark text when focused. Focus stays different from selected (soft wash and underline), playing (▶) and favourite (★).
+**Focus.** Posters and app tiles: a thin white outline (2 dp) just outside the art and a slight lift. Guide and episode rows: the elevated fill and a slim pale bar at the leading edge, no outline. Primary actions: the accent fill and dark text at rest, with the outline when focused. The player's top menu: a white fill and dark text on the focused item. Secondary actions: dark translucent slate with a 12% edge at rest, pale with dark text when focused. Focus stays different from selected (soft wash and underline), playing (▶) and favourite (★).
 
-Borders use white at 12% by default; glass edges fade from about 16% at the top to 5% at the bottom. Use text, icons and state shapes alongside colour. A green dot alone cannot explain a state.
+Borders use white at 10% by default; glass edges fade from about 16% at the top to 5% at the bottom. Use text, icons and state shapes alongside colour. A green dot alone cannot explain a state.
 
 Target text contrast of at least 4.5:1 for ordinary text; focus and essential boundaries should remain clear at 3:1 against adjacent colours. Check the composited result, including artwork and video, rather than just token pairs. Increase the panel opacity when contrast fails.
 
@@ -368,6 +367,7 @@ Kept up to date as stages land. "Built" means the GitHub build passed; "emulator
 
 | Stage | Pull requests | Built | Emulator | Fire Stick |
 | --- | --- | --- | --- | --- |
+| Stand-alone player, version 0.3 (added) | #97 (colours, top menu, Library), #98 (Edit Library), #99 (Channels grid), #100 (Guide with catch-up days), #101 (Movies and TV Shows grid, Filter and sort), #102 (player panel, sleep timer) | Yes | — | Merged on Wayne's go-ahead, up to build 246; no separate check recorded |
 | 1 — Shared style + Live TV | #31 (design module, header, Live TV), #35 (calmer guide), #43–#44 (soft row focus, no programme boxes, quality badges) | Yes | — | Yes (build 112) |
 | Launcher in the player's style (added) | #32, #47–#50 (cinematic home, details, search, app editor; polish) | Yes | — | Yes (build 125) |
 | 2 — Live Categories drawer | Dropped (Wayne is happy with Live TV as it is) | | | |
@@ -376,6 +376,15 @@ Kept up to date as stages land. "Built" means the GitHub build passed; "emulator
 | One app feel (added) | #67–#70, #73, #74, #79 (glass, shared header, posters, rows, cards, launcher hero) | Yes | — | Yes (build 196) |
 
 **Agreed deviations from version 0.1**
+
+- **Version 0.3 and a stand-alone player (#97–#102).** Wayne liked the "max" IPTV player, so the player is being reworked to stand on its own; the launcher will be retired eventually. The colours above replace version 0.2 (navy charcoal `#0B111B`, accent `#DCE7FA`): near-black neutral greys, one lime accent (`#C5E86C`) for primary actions, progress and the now line, and white for focus. Both apps take the new colours.
+- **Top menu (#97).** The player's header is now `WiptvTopMenu` (`design/.../Header.kt`): one centred capsule of Library · Channels · Movies · TV Shows · Guide · Favourites · Settings, with a small clock pill and, when a newer build is ready, a lit Update button at the right. The focused item takes a white fill with dark text. The player no longer has the launcher's Apps, search and dice. The launcher keeps `WiptvHeader`.
+- **Library (#97, #98).** The start page: a TMDB trending banner (the player now gets the TMDB key at build time), Continue watching and My List. Edit Library shows, hides and reorders its rows (banner, Continue watching, My List films, My List shows, favourite channels, new on the provider, trending, provider categories).
+- **Channels (#99).** Groups on the left; the group's channels as a four-across grid of logo tiles, each with now, its progress and the time left. Sort (provider order or A–Z) with counts. Nothing plays on this page: OK watches full screen; Menu (≡) toggles the favourite. Favourites opens this screen on ★ Favourites.
+- **Guide (#100).** The full guide is its own menu item: logo tiles down the left, programme blocks across, the accent now line, and day pills at the top (Today and 7 days back) for catch-up. ⟲ programmes replay from the start.
+- **Movies and TV Shows grid (#101).** One category at a time as a six-across grid of 126 × 189 dp posters; the focused poster's name turns semibold and gains its year. The header reads "Movies: <category>" (or TV Shows) with the count and sort, and a Filter and sort pill opens a 340 dp panel on the right: Sort by (provider order, newest, name, year, rating), the categories with counts, and Edit categories. The choice is remembered per section. The hero, backdrop and the Continue watching and My List rows left this page for Library; the earlier deviations about the catalogue hero, its rows and widening posters below now apply to the launcher only.
+- **Player panel (#102).** Films, episodes and catch-up use a new panel in place of `PlaybackPanel`: a back circle, WIPTV and the clock at the top; at the bottom, over a gradient, the quality badge (4K, 1080p, 720p or SD, from the video) and MOVIES, TV SHOWS or CATCH-UP, the title (30 sp extra-bold), details and runtime, a round Play/Pause (42 dp) with "Playing · ends at …", round 36 dp buttons for Audio, Subtitles, Skip intro (episodes only) and Sleep timer, then the progress bar with a knob, the time gone and the time left, and remote hints. Up moves to the buttons, Left and Right between them, Down back to the bar; on the bar Left and Right seek −10 s and +30 s. Icons are drawn in code (no new dependency). Live TV keeps `PlaybackPanel`.
+- **Sleep timer (#102).** Off, 15, 30, 45, 60 or 90 minutes, or the end of this film or episode (which hides Play Next). In its last minute a reminder shows and any key turns it off; when it runs out the position is saved, playback pauses and the player closes. Films and episodes only for now.
 
 - **Launcher hero like the player's (#79).** The launcher's featured Top 10 block is gone. Its home screen is laid out like the player's Movies and TV Shows: the header, then the focused card's title, details and synopsis (`HeroInfo` in `design/.../Hero.kt`, 470 × 144 dp, shared by both apps) over its artwork (`CinematicBackdrop`, 780 × 439 dp, top right), both fixed; the rows scroll below with the focused row at the top. Continue watching cards show "episode · Resume from … · time left", with the synopsis from TMDB; a starred channel shows its name and "Live TV · OK to watch". Top 10 this week is an ordinary row.
 - **Leaving the launcher (#78).** Back on the home screen asks "Leave WIPTV?" on a small `Glass.Sheet` panel, Stay (primary, focused) and Leave.

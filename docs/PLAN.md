@@ -1,38 +1,40 @@
 # WIPTV — Project Plan (Fire Stick)
 
-Oct 27, 2026 · Wayne
+Nov 24, 2026 · Wayne
 
 > A copy of the WIPTV project plan. The live version is kept in Claude Docs; this file is refreshed from it now and then.
 
 ## Status
 
-**WIPTV** (the launcher) and **WIPTV Player** (the IPTV app) are both live on the Fire TV Stick HD, at **build 196**, in one shared charcoal-glass style: the same header, posters, rows and hero in both, so going from one to the other feels like changing tab. The launcher's home keeps the focused card's artwork and synopsis at the top, like the player, over Continue watching, Your channels, Top 10, My List (shared with the player) and Recommended. The player has Live TV with a schedule and catch-up, and Movies and Series. One update pill in either app updates both, without hitting GitHub's limits. The launcher is still opened from the apps list; making it the Home screen is waiting for access to the Chromebook. Work is now done in Claude Code; see [the handover](HANDOVER.md).
+**WIPTV** (the launcher) and **WIPTV Player** (the IPTV app) are both live on the Fire TV Stick HD; the player is at **build 246** (PR #102). Since build 235 the player is being reworked into a stand-alone IPTV app in the style of the "max" player Wayne liked: version 0.3 colours (near-black greys, a lime accent, white focus), one top menu (Library · Channels · Movies · TV Shows · Guide · Favourites · Settings), a Library start page, a Channels logo grid, a Guide with catch-up days, poster grids with Filter and sort, and a new player panel with a sleep timer. The launcher still works and links to the player, but it will be retired eventually. One update pill in either app updates both. Work is done in Claude Code; see [the handover](HANDOVER.md).
 
 | Area | Status | Notes |
 | --- | --- | --- |
 | Build pipeline and updates | Done | Every pull request builds both apps; merges publish releases one at a time; the pill reads a build-number file in each release (#33, #34, #45) |
-| Launcher home: TV Shows \| Movies | Done | Fixed header and hero (the focused card's artwork and synopsis), as in the player (#79); Continue watching, Your channels, Top 10 this week, My List, Recommended for you; expanding cards; Back asks before leaving (#78) |
-| Launcher details, search, Surprise me | Done | Details like the player's: Watch on, Trailer, My List, Mark as watched, More info, More like this |
-| Launcher header, Apps tray and quick settings | Done | The shared header (#68, #69); Apps tray (#67); hide and reorder apps; Wi-Fi, Bluetooth, Display & sound and Settings tiles |
-| Launcher in the player's style | Done | #47–#51, #62 (charcoal background, no Top 10 numbers) |
-| Player: sign-in and account | Done | Xtream Codes login stored encrypted on the TV; account expiry and screen limit |
-| Player: Live TV | Done | Groups, guide, preview, Edit groups, favourites on Menu (≡); soft row focus, no programme boxes, FHD/HD/SD badges (#43, #44) |
-| Player: full-screen watching | Done | Up/Down zap, Left for channels then groups, Right for the last channel, info bar |
-| Player: Movies and Series | Done | Rows, details, seasons and episodes, Continue watching, My List, resume, next episode; cinematic redesign and refinements (#37–#41, #46) |
+| Player: version 0.3 look and top menu | Done | Near-black greys, lime accent, white focus, in both apps; one centred menu with the clock and Update (#97) |
+| Player: Library | Done | TMDB trending banner, Continue watching, My List (#97); Edit Library to show, hide and reorder rows (#98) |
+| Player: Channels | Done | Groups and a four-across logo grid with now, progress and time left; sort and counts (#99) |
+| Player: Guide and catch-up | Done | Logo tiles, programme blocks, the now line, day pills for Today and 7 days back; ⟲ replays from the start (#66, #76, #86, #100) |
+| Player: Movies and TV Shows | Done | One category at a time as a six-across poster grid; Filter and sort panel; Edit categories (#101) |
+| Player: details and resume | Done | Seasons, episodes, More like this, More info, My List; Continue or Episodes, Resume or Start over (#96) |
+| Player: film and episode playback | Done | New panel with quality badge, round buttons and progress, and a sleep timer (#102); Audio & subtitles, Skip intro (#94); Play Next (#89); next episode on resume (#90) |
+| Player: Live TV full screen | Done | Up/Down zap, channel and group lists, info bar, favourites on Menu (≡) |
+| Player: sign-in and account | Done | Xtream Codes login stored encrypted on the TV; account expiry and screen limit; now the Settings page |
+| Player: Search | Next (Wayne picks) | The player lost the launcher's search when the links went |
+| Player: full Favourites page | Next (Wayne picks) | Favourites opens Live TV on the Favourites group for now |
+| Player: Live TV sleep timer | Next (Wayne picks) | Films and episodes have one |
+| Launcher home: TV Shows \| Movies | Done | Hero at the top; Continue watching, Your channels (now and next, #81), My List, Recommended (#87), a More pill; widening posters (#91–#93) |
+| Launcher details, search, Surprise me, Apps tray | Done | Kept as they are while the launcher lasts |
+| Launcher link | Done | Details, search, Continue watching, My List and Your channels shared with the player (#52–#65) |
 | Native screenshots | Done | Emulator run against a pretend provider, only on request (#36) |
-| Player: Live Categories drawer | Dropped | Wayne is happy with Live TV as it is |
-| Player: full guide | Done | Right on a channel: a 48-hour grid of the category under the preview (#86) |
-| Player: playback overlays and remaining screens | Mostly done | Overlays (#75), sign-in and account (#77); the edit screens are left |
-| Player: catch-up | Done | A channel's schedule from yesterday to tomorrow, ⟲ replays from the start (#66); catch-up badge on channels (#76). A full guide grid may follow |
-| Launcher link | Done | "Watch on IPTV" first on details, IPTV in search and hold-OK, IPTV badges (#52–#54); Continue watching (#58); one My List for both apps (#64); Your channels (#65); one header, Back to where you came from (#69, #70). Next idea: what's on for Your channels |
-| Optional extras | Not started | IMDb and Rotten Tomatoes scores (needs an OMDb key); Prime via Fire TV search |
-| Fire Stick as Home screen | Waiting | Home on Fire needs a permission granted over ADB from another device; to be done from the Chromebook |
-| Own stick | Idea | A certified Google TV / Android TV stick, where WIPTV can be the real Home screen; budget matters |
+| Optional extras | Not started | IMDb and Rotten Tomatoes scores (needs an OMDb key) |
+| Fire Stick as Home screen | Waiting | Home on Fire needs a permission granted over ADB from the Chromebook; less important now the player stands alone |
+| Own stick | Idea | A certified Google TV / Android TV stick; budget matters |
 | Default home on the Xiaomi | Dropped | The stick was counterfeit and was retired |
 
 **Links:** [GitHub repo](https://github.com/theolivecafewfd-code/tv-launcher) · launcher `is.gd/mAyKiF` · player `is.gd/pPSEvh` (both always the newest build)
 
-**How changes are made:** Claude writes each change and opens a pull request; GitHub builds both apps (and, once #36 is merged, takes screenshots of player changes); Wayne checks it and says "merge it", then Claude merges; the update pill offers the new build on the TV.
+**How changes are made:** Claude writes each change and opens a pull request; GitHub builds both apps (screenshots only when Wayne asks); Wayne checks it and says "merge it", then Claude merges; the update pill offers the new build on the TV.
 
 ## Goal
 
@@ -51,7 +53,7 @@ The home screen as built (Launcher v2), driven by the remote's arrow keys. The e
 | Screen | What's on it | Data from |
 | --- | --- | --- |
 | Home, top | Greeting; weather, clock and build in one pill; TV Shows · Movies · Live TV · Apps · search · Surprise me; the focused card's artwork, title, details and synopsis | TMDB, Open-Meteo, WIPTV Player |
-| Home, rows | Continue watching, Your channels, Top 10 this week, My List, Recommended for you | WIPTV Player; TMDB, filtered to Netflix and Prime in Ireland |
+| Home, rows | Continue watching, Your channels, My List, Recommended, then a More pill into the player | WIPTV Player; TMDB, filtered to Netflix and Prime in Ireland |
 | Apps tray | Your apps, quick settings and Edit apps, over the bottom of the screen | Apps on the TV |
 | Details | Name, year, length, genres, score, where it's on, plot, director or creators, cast; Watch on, Trailer, My List, Mark as watched; More like this | TMDB, YouTube, Wikidata (Netflix ids) |
 | Search | Results as you type; your services first, the rest dimmed | TMDB |
@@ -144,11 +146,13 @@ Every merge publishes a new build of both apps. Each app checks GitHub when it o
 
 ## Roadmap
 
-Remaining work, in order. Progress for every area is in the Status table at the top.
+Remaining work. Progress for every area is in the Status table at the top. Wayne picks the order.
 
-1. **Make the launcher the Fire Stick's Home screen** with Home on Fire, granted over ADB from the Chromebook (on hold until Wayne has it set up).
-2. **Shared edit screens** (low priority).
-3. **Optional extras:** IMDb and Rotten Tomatoes scores; Prime via Fire TV search.
+1. **Player: Search.**
+2. **Player: a full Favourites page.**
+3. **Player: a sleep timer for Live TV.**
+4. **Make the launcher the Fire Stick's Home screen** with Home on Fire, granted over ADB from the Chromebook (on hold).
+5. **Optional extras:** IMDb and Rotten Tomatoes scores.
 
 ## Safety and recovery
 
@@ -170,15 +174,17 @@ Everything in this plan can be undone, because apps are only disabled, never del
 
 ## App 2: WIPTV Player
 
-A separate app for your Xtream Codes provider, in `player/` in the same repo. It uses TiviMate as a guide for layout and features, but has its own design (see [the player design](PLAYER_DESIGN.md)). It appears as a tile in the launcher's dock; later the launcher's "Watch on IPTV" button will open it.
+A stand-alone app for your Xtream Codes provider, in `player/` in the same repo. It started from TiviMate's layout; since build 235 it follows the "max" player Wayne liked (see [the player design](PLAYER_DESIGN.md), section 16). The launcher still opens it ("Watch on IPTV", Continue watching, Your channels), but the player no longer needs the launcher.
 
-| Screen | What's on it |
+| Page (top menu) | What's on it |
 | --- | --- |
-| TV guide (main screen) | Live preview and programme details on top, guide grid below, a line at the time now, catch-up icons |
-| Groups | Opens with left on the remote; hide or reorder groups, Favourites and Recently watched at the top |
-| Watching | Full-screen video; OK opens the channel list, up and down change channel, an info bar with restart, favourite, audio and subtitles |
-| Movies and Series | Netflix-style rows from your provider's catalogue, a detail page, continue watching |
-| Settings | Login, account expiry and screen limit, guide refresh, hidden groups |
+| Library (start page) | TMDB trending banner, Continue watching, My List and other rows, chosen with Edit Library |
+| Channels | Groups, then a grid of channel logos with what's on now and the time left; OK watches full screen |
+| Movies, TV Shows | One category at a time as a poster grid; Filter and sort; details, seasons and episodes |
+| Guide | The group's channels against the day; day pills to go back a week for catch-up |
+| Favourites | Live TV on the Favourites group (a full page may follow) |
+| Settings | Login, account expiry and screen limit, sign out |
+| Watching | Live: Up/Down zap, channel and group lists, info bar. Films and episodes: the player panel with Audio, Subtitles, Skip intro, Sleep timer and Play Next |
 
 | Part | Choice |
 | --- | --- |
@@ -194,12 +200,13 @@ A separate app for your Xtream Codes provider, in `player/` in the same repo. It
 | --- | --- |
 | 1. Login and account | Done (#19) |
 | 2. Live TV basics: groups, channels, full-screen playback, channel up and down | Done (#20, #21) |
-| 3. TV guide: preview, now and next, simple guide | Done (#22, #23); the full XMLTV guide is still to come |
+| 3. TV guide: preview, now and next, guide grid | Done (#22, #23, #86, #100) |
 | 4. Watching screen: channel list over the video, favourites, last channel | Done (#24–#28) |
-| 5. Catch-up | Not started |
+| 5. Catch-up | Done (#66, #76, #100) |
 | 6. Movies and Series: rows, details, Continue watching, My List | Done (#29); redesign done (#37–#41, #46) |
-| 7. Launcher link: "play this title" from the launcher, provider rows | "Play this title" done (#52–#54); provider rows next |
+| 7. Launcher link: "play this title" from the launcher, provider rows | Done (#52–#65) |
 | 8. Fire Stick check | Ongoing: each build is tried on the Fire Stick |
+| 9. Stand-alone rework: Library, Channels, Guide, poster grids, player panel | Done (#97–#102) |
 
 ## Brief for the dev chat
 

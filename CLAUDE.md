@@ -9,8 +9,8 @@ Guidance for Claude working in this repo. Read [docs/HANDOVER.md](docs/HANDOVER.
 | Module | Package | What it is |
 | --- | --- | --- |
 | `app/` | `dev.tvlauncher` | **WIPTV**, the launcher: greeting, Waterford weather, clock; TV Shows \| Movies home with the focused card's artwork and synopsis at the top and rows from TMDB (Netflix and Prime in Ireland) and the player; details, search, Surprise me; Apps tray with quick settings |
-| `player/` | `dev.wiptv.player` | **WIPTV Player**, an Xtream Codes IPTV app: Live TV (preview, guide, favourites, full screen), Movies and Series (rows, details, seasons, episodes, Continue watching, My List) |
-| `design/` | `dev.wiptv.design` | Shared glass look: `WiptvColors`, `WiptvType`, `WiptvShapes`, `Modifier.glass(shape, Glass.*)`, `focusOutline`, `SectionCapsule`, `WiptvButton`, `GlassPill`, `PivotScrolling` / `RowScrolling` |
+| `player/` | `dev.wiptv.player` | **WIPTV Player**, a stand-alone Xtream Codes IPTV app (version 0.3, the main focus now): top menu Library · Channels · Movies · TV Shows · Guide · Favourites · Settings; poster grids with Filter and sort; guide with catch-up days; details, seasons, episodes, Continue watching, My List; film player panel with sleep timer |
+| `design/` | `dev.wiptv.design` | Shared look (version 0.3: near-black greys, lime accent, white focus): `WiptvTopMenu`, `WiptvColors`, `WiptvType`, `WiptvShapes`, `Modifier.glass(shape, Glass.*)`, `focusOutline`, `SectionCapsule`, `WiptvButton`, `GlassPill`, `PivotScrolling` / `RowScrolling` |
 | `update/` | `dev.wiptv.update` | Shared updater: the pill in either app checks both releases and installs whichever app is out of date |
 
 **Stack:** Kotlin 2.0.21, AGP 8.7.3, Compose BOM 2024.12.01, `androidx.tv:tv-material` 1.0.0, Coil 2.7.0, Media3 1.5.1. minSdk 28, target and compile SDK 35. No Google Play services (Fire OS has none). Don't add dependencies without asking.
