@@ -88,6 +88,9 @@ private object LastWatched {
     fun group(context: Context): String? = prefs(context).getString("group", null)
     fun channel(context: Context): Long = prefs(context).getLong("channel", -1)
     /** Channels in name order (A–Z) rather than the provider's own order. */
+    fun setGroup(context: Context, id: String) {
+        prefs(context).edit().putString("group", id).apply()
+    }
     fun sortByName(context: Context): Boolean = prefs(context).getBoolean("sortByName", false)
     fun setSortByName(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean("sortByName", value).apply()
@@ -106,8 +109,8 @@ private class WatchList(val channels: List<Channel>, val groupId: String, val gr
  * with what's on now, how far through it is and how long is left. OK on a tile watches it full
  * screen; Menu (≡) adds it to (or removes it from) Favourites. Nothing plays on this page.
  *
- * The full guide (the menu's Guide) is still part of this screen: there, a small preview plays
- * what you pick, and OK again on it goes full screen.
+ * The guide (the menu's Guide) is part of this screen too: the group's channels against the day,
+ * with day pills to go back through the week for catch-up. OK there watches full screen as well.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -165,9 +168,6 @@ fun LiveScreen(
             android.widget.Toast.LENGTH_SHORT,
         ).show()
     }
-
-    // The group the preview's channel was picked from, so full screen can change channel within it.
-    var previewSource by remember { mutableStateOf<Pair<String, List<Channel>>?>(null) }
 
     val live = rememberLivePlayer()
     val guide = remember(login) { GuideStore(login) }
@@ -238,13 +238,15 @@ fun LiveScreen(
 
     val unsorted = if (selectedGroup == FAVOURITES_ID) favourites else selectedGroup?.let { channelsByGroup[it] }
     val channels = remember(unsorted, sortByName) { unsorted?.let(::arrange) }
+    // The group you're on, so the menu's Guide opens on it.
+    LaunchedEffect(selectedGroup) { selectedGroup?.let { LastWatched.setGroup(context, it) } }
     fun groupName(id: String?): String =
         if (id == FAVOURITES_ID) "Favourites" else groups?.firstOrNull { it.id == id }?.name.orEmpty()
 
-    // The full guide (Right on a channel): the channel it was opened from, and the programme
-    // highlighted in it. A past programme playing from it is catch-up.
+    // The guide: the channel it opened on. A past programme playing from it is catch-up.
     var gridFrom by remember { mutableStateOf<Channel?>(null) }
-    var gridPick by remember { mutableStateOf<Pair<Channel, Programme?>?>(null) }
+    // Bumped to give the guide its focus back after full screen or catch-up.
+    var guideFocus by remember { mutableIntStateOf(0) }
     val fullGuide = remember(login) { FullGuideStore(login) }
     var catchUp by remember { mutableStateOf<Pair<Channel, ResumePoint>?>(null) }
     val vodStore = remember { VodStore(context) }
@@ -257,30 +259,21 @@ fun LiveScreen(
         guideOpened = true
         val last = LastWatched.channel(context)
         val from = list.firstOrNull { it.id == last } ?: list.first()
-        gridPick = from to null
         gridFrom = from
     }
 
     // Opening a channel from the launcher: nothing else starts playing meanwhile.
     var opening by remember { mutableStateOf(openChannel != null) }
 
-    // In the full guide, the preview picks up the last channel you watched.
-    LaunchedEffect(channels, gridFrom != null) {
-        if (gridFrom == null || live.channel != null || opening) return@LaunchedEffect
-        val last = LastWatched.channel(context)
-        val list = channels ?: return@LaunchedEffect
-        list.firstOrNull { it.id == last }?.let {
-            previewSource = (selectedGroup ?: "") to list
-            live.play(login, format, it)
-        }
-    }
-
-    /** Full screen for whatever's in the preview, changing channel within the group it came from. */
-    fun watchPreview() {
-        val current = live.channel ?: return
-        val (groupId, list) = previewSource?.takeIf { (_, l) -> l.any { it.id == current.id } }
-            ?: (current.groupId to listOf(current))
-        watching = WatchList(list, groupId, groupName(groupId), list.indexOfFirst { it.id == current.id }.coerceAtLeast(0))
+    /** Full screen on [channel], changing channel within the group you're in. */
+    fun watch(channel: Channel) {
+        val list = channels?.takeIf { l -> l.any { it.id == channel.id } } ?: listOf(channel)
+        watching = WatchList(
+            list,
+            selectedGroup ?: channel.groupId,
+            groupName(selectedGroup ?: channel.groupId),
+            list.indexOfFirst { it.id == channel.id }.coerceAtLeast(0),
+        )
     }
 
     /** Replays a past programme from the start (catch-up), from the full guide. */
@@ -320,23 +313,15 @@ fun LiveScreen(
         } catch (e: Exception) {
             null
         }?.takeIf { l -> l.any { it.id == id } }?.let(::arrange) ?: listOf(channel)
-        previewSource = channel.groupId to list
         watching = WatchList(list, channel.groupId, groupName(channel.groupId), list.indexOfFirst { it.id == id }.coerceAtLeast(0))
         opening = false
     }
 
-    // One stream at a time, and none hidden: the channel grid has no preview, so whatever was
-    // playing (the guide's preview, or full screen just closed) stops there.
-    val onGrid = gridFrom == null && watching == null && catchUp == null && !opening
-    LaunchedEffect(onGrid) {
-        if (onGrid) live.stop()
-    }
-
-    // Whatever's in the preview: load its guide for the panel, and remember it for next time.
-    LaunchedEffect(live.channel?.id) {
-        val channel = live.channel ?: return@LaunchedEffect
-        LastWatched.save(context, channel)
-        guide.ensure(channel)
+    // One stream at a time, and none hidden: nothing plays on this page, so once full screen
+    // closes the stream stops.
+    val idle = watching == null && catchUp == null && !opening
+    LaunchedEffect(idle) {
+        if (idle) live.stop()
     }
 
     // Put the focus somewhere sensible: that channel if it's in the list, else the selected group.
@@ -363,17 +348,6 @@ fun LiveScreen(
         modifier = Modifier
             .fillMaxSize()
             .wiptvBackground()
-            .onPreviewKeyEvent { event ->
-                // Play/Pause goes full screen on the preview from anywhere on this screen.
-                val key = event.nativeKeyEvent.keyCode
-                val isPlay = key == android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE || key == android.view.KeyEvent.KEYCODE_MEDIA_PLAY
-                if (isPlay && live.channel != null) {
-                    if (event.type == KeyEventType.KeyDown) watchPreview()
-                    true
-                } else {
-                    false
-                }
-            }
             .padding(start = 32.dp, end = 32.dp, top = 20.dp),
     ) {
       Column(modifier = Modifier.fillMaxSize()) {
@@ -495,59 +469,41 @@ fun LiveScreen(
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
                 val from = gridFrom
                 if (from != null) {
-                // The full guide: the preview and what's highlighted, then the group's channels,
-                // yesterday to tomorrow.
-                Row(modifier = Modifier.height(136.dp)) {
-                    Preview(live = live, attached = watching == null, onClick = ::watchPreview)
-                    Spacer(Modifier.width(16.dp))
-                    val pick = gridPick
-                    if (pick != null) {
-                        GuideDetailPanel(
-                            channel = pick.first,
-                            programme = pick.second,
-                            loaded = fullGuide.programmes(pick.first.id) != null,
-                            now = now,
-                            modifier = Modifier.weight(1f).padding(top = 2.dp),
-                        )
-                    } else {
-                        NowPanel(
-                            channel = live.channel,
-                            programmes = live.channel?.let { guide.programmes(it.id) },
-                            now = now,
-                            modifier = Modifier.weight(1f).padding(top = 2.dp),
-                        )
-                    }
-                }
-                Spacer(Modifier.height(10.dp))
-                    val gridChannels = channels.orEmpty().ifEmpty { listOf(from) }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = groupName(selectedGroup).ifBlank { "Full guide" },
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(start = 4.dp).width(ChannelCellWidth - 8.dp),
-                            style = WiptvType.control.copy(color = WiptvColors.text),
-                        )
-                        KeyHints(listOf("◀ ▶ through the day", "▲ ▼ channels", "OK watch", "≡ favourite", "Back to Channels"))
-                    }
-                    Spacer(Modifier.height(4.dp))
-                    GuideGrid(
-                        channels = gridChannels,
-                        startIndex = gridChannels.indexOfFirst { it.id == from.id }.coerceAtLeast(0),
-                        store = fullGuide,
-                        now = now,
-                        playingId = live.channel?.id,
-                        favouriteIds = favouriteIds,
-                        onSelect = { channel, programme -> gridPick = channel to programme },
-                        // What's on now: into the preview; OK again on the one in the preview goes full screen.
-                        onWatch = { channel ->
-                            previewSource = (selectedGroup ?: "") to gridChannels
-                            if (live.channel?.id == channel.id) watchPreview() else live.play(login, format, channel)
-                        },
-                        onCatchUp = ::startCatchUp,
-                        onToggleFavourite = { toggleFavourite(it) },
-                        modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                // The guide: the group, how many channels and the time, then the grid itself.
+                val gridChannels = channels.orEmpty().ifEmpty { listOf(from) }
+                Row(
+                    modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        text = groupName(selectedGroup).ifBlank { "Guide" },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                        style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
                     )
+                    Text(
+                        text = "${gridChannels.size} channel${if (gridChannels.size == 1) "" else "s"} · Today, ${timeOf(now)}",
+                        maxLines = 1,
+                        modifier = Modifier.padding(bottom = 2.dp),
+                        style = TextStyle(fontSize = 13.sp, color = WiptvColors.quiet),
+                    )
+                    Spacer(Modifier.weight(1f))
+                    KeyHints(listOf("OK watch", "≡ favourite", "Back to Channels"))
+                }
+                GuideGrid(
+                    channels = gridChannels,
+                    startIndex = gridChannels.indexOfFirst { it.id == from.id }.coerceAtLeast(0),
+                    store = fullGuide,
+                    now = now,
+                    favouriteIds = favouriteIds,
+                    onWatch = ::watch,
+                    onCatchUp = ::startCatchUp,
+                    onToggleFavourite = { toggleFavourite(it) },
+                    refocus = guideFocus,
+                    modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+                )
                 } else {
                 // The selected group's channels, as a grid of logo tiles.
                 Row(
@@ -610,16 +566,7 @@ fun LiveScreen(
                                 programmes = guide.programmes(channel.id),
                                 now = now,
                                 favourite = channel.id in favouriteIds,
-                                onClick = {
-                                    val list = channels.orEmpty()
-                                    previewSource = (selectedGroup ?: "") to list
-                                    watching = WatchList(
-                                        list,
-                                        selectedGroup ?: channel.groupId,
-                                        groupName(selectedGroup),
-                                        list.indexOfFirst { it.id == channel.id }.coerceAtLeast(0),
-                                    )
-                                },
+                                onClick = { watch(channel) },
                                 onMenu = { toggleFavourite(channel) },
                                 modifier = Modifier
                                     .focusRequester(requesterFor(channel.id))
@@ -640,15 +587,13 @@ fun LiveScreen(
     BackHandler(enabled = gridFrom != null && watching == null && catchUp == null) {
         pendingFocus = gridFrom?.id
         gridFrom = null
-        gridPick = null
     }
 
     catchUp?.let { (channel, point) ->
         val finish = {
             catchUp = null
-            // Back to the full guide, with the preview playing live again.
-            previewSource = (selectedGroup ?: "") to (channels?.takeIf { l -> l.any { it.id == channel.id } } ?: listOf(channel))
-            live.play(login, format, channel)
+            // Back to the guide, where you were.
+            guideFocus++
         }
         VodPlayerScreen(
             start = point,
@@ -692,12 +637,13 @@ fun LiveScreen(
             onClose = { last, groupId ->
                 watching = null
                 // Back in the guide, on the group and channel you finished on.
-                if (groupId.isNotEmpty()) {
-                    selectedGroup = groupId
-                    val list = if (groupId == FAVOURITES_ID) favourites else channelsByGroup[groupId]
-                    previewSource = groupId to (list?.let(::arrange) ?: listOf(last))
+                if (gridFrom != null) {
+                    // Back in the guide, where you were.
+                    guideFocus++
+                } else {
+                    if (groupId.isNotEmpty()) selectedGroup = groupId
+                    pendingFocus = last.id
                 }
-                pendingFocus = last.id
             },
         )
     }
@@ -928,58 +874,5 @@ private fun timeLeft(millis: Long): String {
         hours == 0L -> "${minutes}m left"
         minutes % 60 == 0L -> "${hours}h left"
         else -> "${hours}h ${minutes % 60}m left"
-    }
-}
-
-/**
- * The small picture at the top, with loading and error notes over it. It can be highlighted
- * (Up from the top of the guide), and OK on it goes full screen.
- *
- * The video can't sit inside a TV "Surface" (the picture goes black, only sound plays), so the
- * highlight is a plain border drawn over the picture instead.
- */
-@Composable
-private fun Preview(live: LivePlayer, attached: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(17.dp)
-    var focused by remember { mutableStateOf(false) }
-    Box(
-        modifier = Modifier
-            .size(width = 242.dp, height = 136.dp)
-            .background(androidx.compose.ui.graphics.Color.White.copy(alpha = 0.10f), WiptvShapes.panel)
-            .padding(3.dp)
-            .onFocusChanged { focused = it.isFocused }
-            .onKeyEvent { event ->
-                val key = event.nativeKeyEvent.keyCode
-                val isOk = key == android.view.KeyEvent.KEYCODE_DPAD_CENTER ||
-                    key == android.view.KeyEvent.KEYCODE_ENTER ||
-                    key == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER
-                if (isOk && event.type == KeyEventType.KeyUp) onClick()
-                isOk
-            }
-            .focusable()
-            .clip(shape)
-            .background(androidx.compose.ui.graphics.Color.Black),
-    ) {
-        PlayerSurface(live, attached = attached, modifier = Modifier.fillMaxSize())
-        val note = when {
-            live.channel == null -> "Press OK on a channel to preview it"
-            live.error != null -> live.error
-            live.buffering -> "Loading…"
-            else -> null
-        }
-        if (note != null) {
-            Text(
-                text = note,
-                maxLines = 3,
-                modifier = Modifier.align(Alignment.Center).padding(12.dp),
-                style = TextStyle(
-                    fontSize = 12.sp,
-                    color = if (live.error != null && live.channel != null) Palette.warn else Palette.quiet,
-                ),
-            )
-        }
-        if (focused) {
-            Box(modifier = Modifier.matchParentSize().border(3.dp, Palette.glow, shape))
-        }
     }
 }
