@@ -119,6 +119,8 @@ fun PlayerRoot(
         // A title Library opened to play or resume: closing it goes back to Library (rather than
         // to the launcher, as one the launcher opened does).
         var openedFromLibrary by remember { mutableStateOf(false) }
+        // A channel to play full screen on opening Live TV: the launcher's, or one picked in Library.
+        var channelToOpen by remember { mutableStateOf(openChannel) }
         val openFinished: () -> Unit = {
             if (openedFromLibrary) {
                 openedFromLibrary = false
@@ -134,6 +136,7 @@ fun PlayerRoot(
                 onSelect = {
                     launchOpen = null
                     openedFromLibrary = false
+                    channelToOpen = null
                     section = it
                 },
                 update = update,
@@ -148,6 +151,7 @@ fun PlayerRoot(
             }
             when (section) {
                 Section.LIBRARY -> LibraryScreen(
+                    login = current,
                     store = store,
                     header = tabs,
                     onPlay = { title ->
@@ -169,12 +173,17 @@ fun PlayerRoot(
                         launchOpen = OpenTitle(kind, id, resumeKey = point.key)
                         section = sectionOf(kind)
                     },
+                    onWatchChannel = { channel ->
+                        // Full screen; Back there goes to its group in Channels.
+                        channelToOpen = channel.id
+                        section = Section.LIVE
+                    },
                 )
                 Section.LIVE, Section.GUIDE, Section.FAVOURITES -> LiveScreen(
                     login = current,
                     update = update,
                     header = tabs,
-                    openChannel = openChannel.takeIf { section == Section.LIVE },
+                    openChannel = channelToOpen.takeIf { section == Section.LIVE },
                     startOnFavourites = section == Section.FAVOURITES,
                     startInGuide = section == Section.GUIDE,
                     onSignOut = signOut,
