@@ -2,10 +2,10 @@
 
 Two Android TV apps for Wayne's Fire TV Stick, built entirely in GitHub. Every merge to `main` produces new app files ready to install from the TV.
 
-- **WIPTV** (`app/`): a custom home screen. Greeting, Waterford weather and clock; TV Shows | Movies with a featured Top 10 and a few rows of titles on Netflix and Prime in Ireland; details pages with trailers and My List; search and Surprise me; your apps with quick settings.
-- **WIPTV Player** (`player/`): an IPTV app for an Xtream Codes provider. Live TV with a preview and a simple guide, favourites, full-screen channel lists, and Movies and Series with Continue watching and My List.
+- **WIPTV Player** (`player/`): a stand-alone IPTV app for an Xtream Codes provider. Library (trending, Continue watching, My List), Channels, Movies and TV Shows poster grids with filter and sort, a Guide with a week of catch-up, Favourites, and a film player with audio, subtitles, Skip intro and a sleep timer.
+- **WIPTV** (`app/`): a custom home screen. Greeting, Waterford weather and clock; TV Shows | Movies with rows from Netflix and Prime in Ireland and from the player; details pages with trailers and My List; search and Surprise me; your apps with quick settings. It will be retired once the player covers everything.
 
-Both use the same restrained "glass" look (`design/`), and a single update button in either app keeps both up to date (`update/`).
+Both use the same near-black look with one lime accent (`design/`), and a single update button in either app keeps both up to date (`update/`).
 
 ## Download links
 

@@ -9,8 +9,8 @@ Copy the relevant stage into each implementation PR, or update this record with 
 
 | Field | Record |
 | --- | --- |
-| Implementation commit / PR | Stage 1: #31, #35 · Launcher: #32 · Stage 3: #36–#39 (in review) |
-| APK / build artifact | Build 79 on `main` (both apps) |
+| Implementation commit / PR | Stage 1: #31, #35 · Launcher: #32 · Stage 3: #36–#39 · Stage 4: #75, #77 · Stand-alone player (version 0.3): #97–#102 |
+| APK / build artifact | Player build 246 on `main` (latest at the time of writing) |
 | Device model | Fire TV Stick HD (1st generation) |
 | Android / Fire OS version | Fire OS 7.7.1.7 (Android 9) |
 | Output resolution / font scale | Pending |
