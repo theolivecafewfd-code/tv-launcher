@@ -1,5 +1,6 @@
 package dev.wiptv.player
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,31 +13,27 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -45,101 +42,66 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
-import dev.wiptv.design.ContinueCard
-import dev.wiptv.design.ContinueGap
-import dev.wiptv.design.PosterCard
-import dev.wiptv.design.PosterPlaceholder
-import dev.wiptv.design.SectionDim
-import dev.wiptv.design.SectionRow
-import dev.wiptv.design.rememberWideCard
-import dev.wiptv.design.sectionCaption
-import dev.wiptv.design.PivotScrolling
-import dev.wiptv.design.RowScrolling
-import dev.wiptv.design.WiptvColors
-import dev.wiptv.design.WiptvType
 import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.ArtFrame
-import dev.wiptv.design.rememberRowStart
+import dev.wiptv.design.DisplayTitles
+import dev.wiptv.design.PivotScrolling
 import dev.wiptv.design.PosterHeight
 import dev.wiptv.design.PosterWidth
-import androidx.compose.ui.text.style.TextAlign
-import dev.wiptv.design.CinematicBackdrop
-import dev.wiptv.design.Hero
-import dev.wiptv.design.HeroInfo
-import dev.wiptv.design.DisplayTitles
+import dev.wiptv.design.WiptvColors
+import dev.wiptv.design.WiptvShapes
+import dev.wiptv.design.WiptvType
 import dev.wiptv.design.focusOutline
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
-import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** What the big area at the top describes: the poster you're on. */
-/** A series' details in the shape the hero uses (the same fields a film's details have). */
-private fun SeriesDetails.asHeroDetails() = MovieDetails(
-    plot = plot,
-    genre = genre,
-    cast = cast,
-    director = "",
-    year = year,
-    durationMinutes = null,
-    backdrop = backdrop,
-    trailer = trailer,
-    rating = rating,
-    extension = "",
-)
+/** The side margin. */
+private val ScreenEdge = 32.dp
 
-private fun heroOf(item: VodItem, details: MovieDetails? = null): Hero {
-    val year = details?.year?.ifBlank { null } ?: item.year
-    return Hero(
-        title = DisplayTitles.withoutYear(item.name, year),
-        meta = listOfNotNull(
-            year,
-            details?.durationMinutes?.let(::runtimeOf),
-            details?.genre?.ifBlank { null }?.split(',', '/')?.take(2)?.joinToString(", ") { it.trim() },
-            scoreOf(details?.rating ?: item.rating),
-        ).joinToString(" · "),
-        plot = details?.plot?.ifBlank { null } ?: item.plot,
-        backdrop = item.backdrop ?: details?.backdrop,
-        poster = item.poster,
-    )
+/** How the posters in a category are ordered. */
+private enum class CatalogSort(val label: String, val note: String?) {
+    PROVIDER("Provider's order", null),
+    NEWEST("Recently added", "newest first"),
+    NAME("Name A–Z", "A–Z"),
+    YEAR("Year, newest first", "by year"),
+    RATING("Score, highest first", "by score"),
+}
+
+private fun List<VodItem>.sortedFor(sort: CatalogSort): List<VodItem> = when (sort) {
+    CatalogSort.PROVIDER -> this
+    // Providers number titles in the order they add them.
+    CatalogSort.NEWEST -> sortedByDescending { it.id }
+    CatalogSort.NAME -> sortedBy { DisplayTitles.withoutYear(it.name, it.year).lowercase() }
+    CatalogSort.YEAR -> sortedByDescending { it.year?.toIntOrNull() ?: 0 }
+    CatalogSort.RATING -> sortedByDescending { it.rating ?: -1.0 }
+}
+
+/** The category and sort last chosen for films and for series, kept on the device. */
+private class CatalogChoice(context: Context, kind: VodKind) {
+    private val prefs = context.getSharedPreferences("catalog", Context.MODE_PRIVATE)
+    private val prefix = kind.name
+
+    fun category(): String? = prefs.getString("$prefix.category", null)
+    fun setCategory(id: String) = prefs.edit().putString("$prefix.category", id).apply()
+
+    fun sort(): CatalogSort = runCatching { CatalogSort.valueOf(prefs.getString("$prefix.sort", null).orEmpty()) }
+        .getOrDefault(CatalogSort.PROVIDER)
+    fun setSort(sort: CatalogSort) = prefs.edit().putString("$prefix.sort", sort.name).apply()
 }
 
 /**
- * Something you've started: its title once, then where you're up to and how long is left. The
- * picture and synopsis come from the catalogue entry (and its cached details) when the saved
- * point has no wide artwork of its own, so the top area is never left empty.
- */
-private fun heroOf(point: ResumePoint, item: VodItem?, details: MovieDetails?) = Hero(
-    title = point.title,
-    meta = listOfNotNull(
-        point.subtitle?.takeIf { it.isNotBlank() },
-        "Resume from ${clockOf(point.position)}",
-        timeLeft(point),
-    ).joinToString(" · "),
-    plot = details?.plot?.ifBlank { null } ?: item?.plot,
-    backdrop = point.image ?: item?.backdrop ?: details?.backdrop,
-    poster = point.poster ?: item?.poster,
-)
-
-/** The side margin; poster sizes and gaps come from the shared design module. */
-private val ScreenEdge = 32.dp
-
-/** The gap between artwork and the focus outline (the shared [ArtFrame]'s). */
-private val FocusGap = ArtFocusGap
-
-/**
- * Films or series, Netflix style: Continue watching and My List first, then a row per category
- * from your provider (hide and reorder them with Edit categories at the bottom). OK on a poster
- * opens its details; OK on Continue watching offers Continue, or Episodes (Start over for a film).
+ * Films or series as a grid of posters, one category at a time. "Filter and sort" at the top
+ * right picks the category and the order (and hides or reorders categories with Edit categories).
+ * OK on a poster opens its details. Continue watching and My List are in Library.
  */
 @Composable
 fun CatalogScreen(
@@ -150,7 +112,7 @@ fun CatalogScreen(
     tabs: @Composable () -> Unit,
     /** A title the launcher asked for: a film plays at once, a series opens its page. */
     openId: Long? = null,
-    /** A Continue watching key the launcher asked to resume: offers the same choice as here. */
+    /** A Continue watching key the launcher asked to resume: offers the same choice as Library. */
     openResume: String? = null,
     /** Called when that title is closed, so the player can hand back to the launcher. */
     onOpenFinished: () -> Unit = {},
@@ -162,122 +124,58 @@ fun CatalogScreen(
 ) {
     val context = LocalContext.current
     val noun = if (kind == VodKind.MOVIE) "films" else "series"
+    val section = if (kind == VodKind.MOVIE) "Movies" else "TV Shows"
     // Kept between tabs while the player runs (SessionCache), so coming back is instant.
     val cache = remember(kind, login) { SessionCache.of(login, kind.name) }
     var categories by remember(kind) { mutableStateOf(cache.categories) }
     var error by remember(kind) { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     val itemsByCategory = cache.items
-    // Rows whose titles couldn't be loaded, and how many times you've asked again: a failed row
-    // stays on screen with "try again" rather than looking like an empty category.
-    val failedCategories = remember(kind) { mutableStateMapOf<String, Int>() }
-    var hero by remember(kind) { mutableStateOf<Hero?>(null) }
-    // Films' rows rarely carry a backdrop or synopsis, so once focus rests on one its details are
-    // fetched (once) to fill the top area. Never per key press: moving on cancels the wait.
-    var restingOn by remember(kind) { mutableStateOf<VodItem?>(null) }
-    // Set while focus is on a Continue watching card, so its details fill in the resume hero.
-    var restingPoint by remember(kind) { mutableStateOf<ResumePoint?>(null) }
-    val movieDetails = cache.details
     var detail by remember { mutableStateOf<VodItem?>(null) }
     var playing by remember { mutableStateOf<ResumePoint?>(null) }
     var playingNext by remember { mutableStateOf<NextUp?>(null) }
-    // The Continue / Episodes choice for a Continue watching card.
+    // The Continue / Episodes choice for something opened from the launcher's Continue watching.
     var choosing by remember { mutableStateOf<ResumePoint?>(null) }
     // The episode a series page opened from that choice lands on.
     var focusEpisode by remember { mutableStateOf<String?>(null) }
-    // Bumped after watching or changing My List, so those rows refresh.
-    var refresh by remember { mutableIntStateOf(0) }
 
     val prefs = remember(kind) { GroupPrefs(context, if (kind == VodKind.MOVIE) "movie-groups" else "series-groups") }
     var hidden by remember(kind) { mutableStateOf(prefs.hidden()) }
     var order by remember(kind) { mutableStateOf(prefs.order()) }
     var editing by remember { mutableStateOf(false) }
+    var filtering by remember { mutableStateOf(false) }
     val arranged = categories?.let { GroupPrefs.arrange(it, order) }
     val shown = arranged?.filter { it.id !in hidden }
 
-    val resumePrefix = if (kind == VodKind.MOVIE) "movie:" else "episode:"
-    val resume = remember(refresh, kind) { store.resumePoints().filter { it.key.startsWith(resumePrefix) } }
-    val myList = remember(refresh, kind) { store.favourites().filter { it.kind == kind } }
-    // The launcher can change My List while the player is in the background: check on return.
-    val currentList by rememberUpdatedState(myList)
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, kind) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && store.favourites().filter { it.kind == kind } != currentList) refresh++
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
+    val choice = remember(kind) { CatalogChoice(context, kind) }
+    var chosenId by remember(kind) { mutableStateOf(choice.category()) }
+    var sort by remember(kind) { mutableStateOf(choice.sort()) }
+    // The category on screen: the one you chose, or the first showing if that's gone or hidden.
+    val category = shown?.let { list -> list.firstOrNull { it.id == chosenId } ?: list.firstOrNull() }
+    // The category whose titles couldn't be loaded (it says so, with Try again).
+    var failedId by remember(kind) { mutableStateOf<String?>(null) }
+    var retry by remember { mutableIntStateOf(0) }
+    val loaded = category?.let { itemsByCategory[it.id] }
+    val posters = remember(loaded, sort) { loaded?.sortedFor(sort) }
 
-    val firstPoster = remember { FocusRequester() }
-    val listState = rememberLazyListState()
-
-    // Films' rows rarely carry a synopsis or backdrop, and nor do titles added to My List from the
-    // launcher (films or series): fetch their details once focus rests, and keep what's found in
-    // My List so the entry is complete next time (here and in the launcher).
-    LaunchedEffect(restingOn) {
-        val item = restingOn ?: return@LaunchedEffect
-        if (movieDetails.containsKey(item.id)) return@LaunchedEffect
-        if (item.backdrop != null && !item.plot.isNullOrBlank()) return@LaunchedEffect
-        delay(400)
-        val details = try {
-            if (item.kind == VodKind.MOVIE) Xtream.movieDetails(login, item) else Xtream.seriesDetails(login, item).asHeroDetails()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            return@LaunchedEffect
-        }
-        movieDetails[item.id] = details
-        hero = restingPoint?.let { heroOf(it, item, details) } ?: heroOf(item, details)
-        if (myList.any { it.key == item.key }) {
-            withContext(Dispatchers.IO) {
-                store.fillInFavourite(
-                    item.copy(
-                        plot = item.plot?.ifBlank { null } ?: details.plot.ifBlank { null },
-                        backdrop = item.backdrop ?: details.backdrop,
-                        year = item.year ?: details.year.ifBlank { null },
-                        rating = item.rating ?: details.rating,
-                    ),
-                )
-            }
-        }
-    }
-
-    fun focusItem(item: VodItem) {
-        hero = heroOf(item, movieDetails[item.id])
-        restingPoint = null
-        restingOn = item
-    }
-
-    /** The catalogue entry a Continue watching card belongs to, from what's already loaded. */
+    /** The catalogue entry a Continue watching key belongs to, from what's already loaded. */
     fun catalogueItemFor(point: ResumePoint): VodItem? {
         val id = (if (kind == VodKind.MOVIE) point.key.removePrefix("movie:").toLongOrNull() else point.seriesId) ?: return null
-        return myList.firstOrNull { it.id == id }
-            ?: itemsByCategory.values.firstNotNullOfOrNull { list -> list.firstOrNull { it.id == id } }
+        return itemsByCategory.values.firstNotNullOfOrNull { list -> list.firstOrNull { it.id == id } }
     }
 
-    /** Just enough of a catalogue entry, from the saved point, to fetch its details. */
+    /** Just enough of a catalogue entry, from the saved point, to open its page. */
     fun resumeItemFor(point: ResumePoint): VodItem? {
         val id = (if (kind == VodKind.MOVIE) point.key.removePrefix("movie:").toLongOrNull() else point.seriesId) ?: return null
         return VodItem(kind = kind, id = id, name = point.title, poster = point.poster, categoryId = "", rating = null, extension = null)
     }
 
-    fun focusResume(point: ResumePoint) {
-        // A film or series whose row hasn't loaded (or isn't in any row) still gets its details
-        // fetched for the hero: the saved point knows its id, name and poster.
-        val item = catalogueItemFor(point) ?: resumeItemFor(point)
-        hero = heroOf(point, item, item?.let { movieDetails[it.id] })
-        restingPoint = point
-        restingOn = item
-    }
-
-
     // Opened from the launcher: once that film or series page is closed, go back there.
     var openedFromLauncher by remember { mutableStateOf(false) }
     // Opened by the header's dice: once that page is closed, back to where the dice was pressed.
     var openedBySurprise by remember { mutableStateOf(false) }
-    // Resuming from Continue watching (here or the launcher's): an episode then looks up its
-    // series so the next episode follows, and Play Next shows, as from the series' page.
+    // Resuming from Continue watching (the launcher's): an episode then looks up its series so the
+    // next episode follows, and Play Next shows, as from the series' page.
     val resumeScope = rememberCoroutineScope()
     fun resumePlaying(point: ResumePoint) {
         playingNext = null
@@ -292,7 +190,7 @@ fun CatalogScreen(
                 return@launch // no next episode this time; the episode still plays
             }
             // Still the same episode playing (not closed or changed meanwhile).
-            if (playing?.key == point.key) playingNext = nextUpAfter(login, store, point, details) { refresh++ }
+            if (playing?.key == point.key) playingNext = nextUpAfter(login, store, point, details) {}
         }
     }
     LaunchedEffect(openResume) {
@@ -374,16 +272,30 @@ fun CatalogScreen(
         }
     }
 
-    // Start on the first poster once something is showing.
-    var focused by remember(kind) { mutableStateOf(false) }
-    val anyPoster = resume.isNotEmpty() || myList.isNotEmpty() ||
-        shown.orEmpty().any { !itemsByCategory[it.id].isNullOrEmpty() }
-    LaunchedEffect(anyPoster) {
-        if (!anyPoster || focused) return@LaunchedEffect
+    // The category's titles, once (kept for the session).
+    LaunchedEffect(kind, category?.id, retry) {
+        val id = category?.id ?: return@LaunchedEffect
+        if (itemsByCategory[id] != null) return@LaunchedEffect
+        failedId = null
+        try {
+            itemsByCategory[id] = Xtream.vodItems(login, kind, id)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            failedId = id
+        }
+    }
+
+    // Focus goes to the first poster when the screen first fills, and after choosing a category
+    // or an order in Filter and sort.
+    val firstPoster = remember { FocusRequester() }
+    var wantFirst by remember(kind) { mutableIntStateOf(1) }
+    LaunchedEffect(wantFirst, posters) {
+        if (wantFirst == 0 || posters.isNullOrEmpty()) return@LaunchedEffect
         delay(100)
         repeat(20) {
             if (runCatching { firstPoster.requestFocus() }.isSuccess) {
-                focused = true
+                wantFirst = 0
                 return@LaunchedEffect
             }
             delay(50)
@@ -391,203 +303,109 @@ fun CatalogScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(WiptvColors.background)) {
-        // The focused title's artwork, large, top right, fading into the dark behind the text.
-        CinematicBackdrop(
-            backdrop = hero?.backdrop,
-            poster = hero?.poster,
-            modifier = Modifier.align(Alignment.TopEnd).size(width = 780.dp, height = 439.dp),
-        )
-
         Column(modifier = Modifier.fillMaxSize().padding(top = 20.dp)) {
             Box(modifier = Modifier.padding(horizontal = ScreenEdge)) { tabs() }
 
-            // What the focused poster is: title, year and score, a short synopsis.
-            HeroText(
-                hero = hero,
-                message = when {
-                    error != null -> error
-                    categories == null -> "Loading $noun…"
-                    else -> null
-                },
-                isError = error != null,
-                onRetry = { attempt++ },
-            )
-
-            // The focused row always moves to the top of the list, one row per press, so the row
-            // above never shows its leftover captions.
-            PivotScrolling(pivot = 34.dp, alwaysAlign = true) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(bottom = 40.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    var firstAssigned = false
-                    fun firstModifier(): Modifier =
-                        if (!firstAssigned) Modifier.focusRequester(firstPoster).also { firstAssigned = true } else Modifier
-
-                    if (resume.isNotEmpty()) {
-                        val first = firstModifier()
-                        item(key = "resume") {
-                            // The same expanding cards as the launcher's Continue watching; where
-                            // you're up to also shows in the hero above.
-                            val wideCard = rememberWideCard()
-                            val rowStart = rememberRowStart()
-                            SectionRow(
-                                title = "Continue watching",
-                                edge = ScreenEdge,
-                                contentStart = ScreenEdge,
-                                spacing = ContinueGap,
-                                rowModifier = rowStart.rowModifier(resume.firstOrNull()?.key),
-                            ) {
-                                items(resume, key = { it.key }) { point ->
-                                    ContinueCard(
-                                        title = point.title,
-                                        episode = point.subtitle?.substringBefore(" · "),
-                                        left = timeLeft(point),
-                                        posterUrl = point.poster,
-                                        imageUrl = point.image,
-                                        progress = point.progress,
-                                        wide = wideCard.wide == point.key,
-                                        focused = wideCard.focused == point.key,
-                                        onFocusChange = { has ->
-                                            if (has) focusResume(point)
-                                            wideCard.onFocus(point.key, has)
-                                        },
-                                        onClick = { choosing = point },
-                                        modifier = (if (point == resume.first()) first else Modifier).then(rowStart.card(point.key)),
-                                    )
-                                }
-                            }
-                        }
+            // "Movies: Comedy  312 films", and Filter and sort on the right.
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = ScreenEdge, end = ScreenEdge, top = 14.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = category?.let { "$section: ${it.name}" } ?: section,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                        style = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
+                    )
+                    val count = posters?.let { "${it.size} $noun" }
+                    val note = listOfNotNull(count, sort.note).joinToString(" · ")
+                    if (note.isNotEmpty()) {
+                        Text(
+                            text = note,
+                            maxLines = 1,
+                            modifier = Modifier.padding(start = 12.dp, bottom = 3.dp),
+                            style = TextStyle(fontSize = 14.sp, color = WiptvColors.quiet),
+                        )
                     }
+                }
+                if (categories != null) FilterButton(onClick = { filtering = true })
+            }
 
-                    if (myList.isNotEmpty()) {
-                        val first = firstModifier()
-                        item(key = "mylist") {
-                            val wideCard = rememberWideCard()
-                            val rowStart = rememberRowStart()
-                            SectionRow(title = "My List", edge = ScreenEdge, rowModifier = rowStart.rowModifier(myList.firstOrNull()?.key)) {
-                                items(myList, key = { it.key }) { item ->
-                                    PosterCard(
-                                        name = item.name,
-                                        posterUrl = item.poster,
-                                        backdropUrl = item.backdrop ?: movieDetails[item.id]?.backdrop,
-                                        onFocus = { has ->
-                                            if (has) focusItem(item)
-                                            wideCard.onFocus(item.key, has)
-                                        },
-                                        wide = wideCard.wide == item.key,
-                                        onClick = { detail = item },
-                                        modifier = (if (item == myList.first()) first else Modifier).then(rowStart.card(item.key)),
-                                    )
-                                }
-                            }
-                        }
+            val message = when {
+                error != null -> error
+                categories == null -> "Loading $noun…"
+                shown.isNullOrEmpty() -> "Every category is hidden. Show some with Filter and sort, then Edit categories."
+                category != null && failedId == category.id -> "Couldn't load ${category.name}."
+                posters == null -> "Loading ${category?.name ?: noun}…"
+                posters.isEmpty() -> "Nothing in ${category?.name ?: "this category"} yet."
+                else -> null
+            }
+            if (message != null) {
+                Column(modifier = Modifier.padding(horizontal = ScreenEdge, vertical = 12.dp)) {
+                    val isError = error != null || (category != null && failedId == category.id)
+                    Text(text = message, style = WiptvType.metadata.copy(color = if (isError) WiptvColors.warning else WiptvColors.quiet))
+                    if (isError) {
+                        Spacer(Modifier.height(10.dp))
+                        PlayerButton(text = "Try again", onClick = { if (error != null) attempt++ else retry++ })
                     }
-
-                    val firstCategoryModifier = firstModifier()
-                    // Rows that turned out empty are left out, so Down never lands on nothing.
-                    val visibleCategories = shown.orEmpty().filter { itemsByCategory[it.id]?.isEmpty() != true }
-                    visibleCategories.forEachIndexed { index, category ->
-                        item(key = "cat:" + category.id) {
-                            // Each row loads its own titles when it first comes on screen.
-                            val attempt = failedCategories[category.id]
-                            LaunchedEffect(category.id, attempt) {
-                                if (itemsByCategory[category.id] == null && (attempt == null || attempt > 0)) {
-                                    try {
-                                        itemsByCategory[category.id] = Xtream.vodItems(login, kind, category.id)
-                                        failedCategories.remove(category.id)
-                                    } catch (e: CancellationException) {
-                                        throw e
-                                    } catch (e: Exception) {
-                                        // Not "empty": the row stays, with a card to try again.
-                                        failedCategories[category.id] = 0
-                                    }
-                                }
-                            }
-                            val failed = attempt == 0
-                            val rowItems = itemsByCategory[category.id]
-                            // While a row loads it shows placeholder posters that can take focus, so
-                            // Down moves exactly one row instead of jumping to the next loaded one.
-                            // If focus is on a placeholder when the titles arrive, it moves to the first.
-                            val firstInRow = remember { FocusRequester() }
-                            var waiting by remember { mutableStateOf(false) }
-                            LaunchedEffect(rowItems) {
-                                if (rowItems.isNullOrEmpty() || !waiting) return@LaunchedEffect
-                                repeat(20) {
-                                    if (runCatching { firstInRow.requestFocus() }.isSuccess) return@LaunchedEffect
-                                    delay(25)
-                                }
-                            }
-                            val wideCard = rememberWideCard()
-                            // Up or Down into the row lands on its first card.
-                            val rowStart = rememberRowStart()
-                            SectionRow(
-                                title = category.name,
-                                edge = ScreenEdge,
-                                rowModifier = rowStart.rowModifier(rowItems?.firstOrNull()?.key),
-                            ) {
-                                if (rowItems == null && failed) {
-                                    item(key = "retry") {
-                                        RetryCard(
-                                            onClick = {
-                                                // Focus goes to the first title once they arrive.
-                                                waiting = true
-                                                failedCategories[category.id] = 1
-                                            },
-                                            modifier = Modifier.focusRequester(firstInRow)
-                                                .then(if (index == 0) firstCategoryModifier else Modifier),
-                                        )
-                                    }
-                                } else if (rowItems == null) {
-                                    items(6) { i ->
-                                        PosterPlaceholder(
-                                            onFocusChange = { focused -> if (focused) waiting = true },
-                                            modifier = if (index == 0 && i == 0) firstCategoryModifier else Modifier,
-                                        )
-                                    }
-                                } else {
-                                    items(rowItems, key = { it.key }) { item ->
-                                        val first = item == rowItems.firstOrNull()
-                                        PosterCard(
-                                            name = item.name,
-                                            posterUrl = item.poster,
-                                            backdropUrl = item.backdrop ?: movieDetails[item.id]?.backdrop,
-                                            onFocus = { has ->
-                                                if (has) {
-                                                    waiting = false
-                                                    focusItem(item)
-                                                }
-                                                wideCard.onFocus(item.key, has)
-                                            },
-                                            wide = wideCard.wide == item.key,
-                                            onClick = { detail = item },
-                                            modifier = (
-                                                if (first) {
-                                                    Modifier.focusRequester(firstInRow).then(if (index == 0) firstCategoryModifier else Modifier)
-                                                } else Modifier
-                                            ).then(rowStart.card(item.key)),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (categories != null) {
-                        item(key = "edit") {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                modifier = Modifier.padding(start = ScreenEdge, top = 4.dp),
-                            ) {
-                                PlayerButton(text = "Edit categories", onClick = { editing = true })
-                            }
+                }
+            } else if (posters != null) {
+                // A fresh grid, at the top, for each category and order.
+                val grid = remember(kind, category?.id, sort) { LazyGridState() }
+                // The focused row moves to the top, one row per press.
+                PivotScrolling(pivot = 6.dp, alwaysAlign = true) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(6),
+                        state = grid,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentPadding = PaddingValues(
+                            start = ScreenEdge - ArtFocusGap,
+                            end = ScreenEdge - ArtFocusGap,
+                            top = 6.dp,
+                            bottom = 40.dp,
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        itemsIndexed(posters, key = { _, item -> item.key }) { index, item ->
+                            GridPoster(
+                                item = item,
+                                onClick = { detail = item },
+                                modifier = if (index == 0) Modifier.focusRequester(firstPoster) else Modifier,
+                            )
                         }
                     }
                 }
             }
         }
+    }
+
+    if (filtering && shown != null) {
+        FilterPanel(
+            categories = shown,
+            current = category?.id,
+            count = { itemsByCategory[it]?.size },
+            sort = sort,
+            onSort = {
+                filtering = false
+                sort = it
+                choice.setSort(it)
+                wantFirst++
+            },
+            onCategory = {
+                filtering = false
+                chosenId = it.id
+                choice.setCategory(it.id)
+                wantFirst++
+            },
+            onEdit = {
+                filtering = false
+                editing = true
+            },
+            onClose = { filtering = false },
+        )
     }
 
     detail?.let { item ->
@@ -601,7 +419,7 @@ fun CatalogScreen(
                     playing = point
                     playingNext = next
                 },
-                onListChanged = { refresh++ },
+                onListChanged = {},
                 focusEpisode = focusEpisode,
                 onOpenOther = {
                     focusEpisode = null
@@ -659,13 +477,11 @@ fun CatalogScreen(
                     // Straight on to the next episode, if there is one.
                     val next = playingNext?.advance()
                     playing = next
-                    refresh++
                     // A film opened from the launcher: back there when it ends.
                     if (next == null && detail == null && openedFromLauncher) onOpenFinished()
                 },
                 onClose = {
                     playing = null
-                    refresh++
                     if (detail == null && openedFromLauncher) onOpenFinished()
                 },
             )
@@ -708,35 +524,179 @@ fun CatalogScreen(
     }
 }
 
-/** The focused poster's title, details and synopsis (the shared [HeroInfo]), or a loading or error message. */
+/** The "☰ Filter and sort" pill at the top right. */
 @Composable
-private fun HeroText(hero: Hero?, message: String?, isError: Boolean, onRetry: () -> Unit) {
-    HeroInfo(hero = hero, start = ScreenEdge) {
-        if (message != null) {
-            Text(text = message, style = WiptvType.metadata.copy(color = if (isError) WiptvColors.warning else WiptvColors.quiet))
-            if (isError) {
-                Spacer(Modifier.height(10.dp))
-                PlayerButton(text = "Try again", onClick = onRetry)
+private fun FilterButton(onClick: () -> Unit) {
+    val shape = WiptvShapes.pill
+    Surface(
+        onClick = onClick,
+        shape = ClickableSurfaceDefaults.shape(shape = shape),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = WiptvColors.surface,
+            contentColor = WiptvColors.text,
+            focusedContainerColor = WiptvColors.focus,
+            focusedContentColor = WiptvColors.onLight,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
+        border = focusOutline(shape),
+    ) {
+        Text(
+            text = "☰  Filter and sort",
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium),
+        )
+    }
+}
+
+/**
+ * A poster with its name underneath. Focus is the bright outline round the poster; the focused
+ * one's name turns bold and gains its year.
+ */
+@Composable
+private fun GridPoster(item: VodItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    var focused by remember { mutableStateOf(false) }
+    val title = remember(item.name, item.year) { DisplayTitles.withoutYear(item.name, item.year) }
+    Column(modifier = Modifier.width(PosterWidth + ArtFocusGap * 2)) {
+        ArtFrame(
+            width = PosterWidth,
+            height = PosterHeight,
+            onFocusChange = { focused = it },
+            onClick = onClick,
+            modifier = modifier,
+        ) {
+            // The name, for posters that are missing or still loading.
+            Text(
+                text = title,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center).padding(10.dp),
+                style = WiptvType.metadata.copy(color = WiptvColors.secondary),
+            )
+            if (item.poster != null) {
+                AsyncImage(
+                    model = item.poster,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        val year = item.year?.takeIf { it.isNotBlank() }
+        Text(
+            text = if (focused && year != null) "$title · $year" else title,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp),
+            style = WiptvType.caption.copy(
+                fontWeight = if (focused) FontWeight.SemiBold else FontWeight.Normal,
+                color = if (focused) WiptvColors.text else WiptvColors.secondary,
+            ),
+        )
+    }
+}
+
+/**
+ * Filter and sort: a panel down the right with the orders, then every showing category (with how
+ * many titles, once loaded), then Edit categories. It opens on the category you're in. OK
+ * chooses and closes it; Back closes it without changing anything.
+ */
+@Composable
+private fun FilterPanel(
+    categories: List<Group>,
+    current: String?,
+    count: (String) -> Int?,
+    sort: CatalogSort,
+    onSort: (CatalogSort) -> Unit,
+    onCategory: (Group) -> Unit,
+    onEdit: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val currentIndex = categories.indexOfFirst { it.id == current }
+    // List positions: the sort caption, the orders, the category caption, then the categories.
+    val firstCategory = 2 + CatalogSort.entries.size
+    val list = rememberLazyListState(
+        initialFirstVisibleItemIndex = if (currentIndex >= 0) (firstCategory + currentIndex - 2).coerceAtLeast(0) else 0,
+    )
+    val start = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        repeat(20) {
+            if (runCatching { start.requestFocus() }.isSuccess) return@LaunchedEffect
+            delay(50)
+        }
+    }
+
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Row(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.weight(1f).fillMaxHeight().background(Color.Black.copy(alpha = 0.3f)))
+            Column(
+                modifier = Modifier
+                    .width(340.dp)
+                    .fillMaxHeight()
+                    .background(WiptvColors.surface)
+                    .padding(start = 16.dp, end = 16.dp, top = 24.dp),
+            ) {
+                Text(
+                    text = "Filter and sort",
+                    modifier = Modifier.padding(start = 12.dp),
+                    style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
+                )
+                Text(
+                    text = "OK chooses · Back closes",
+                    modifier = Modifier.padding(start = 12.dp, top = 2.dp, bottom = 6.dp),
+                    style = WiptvType.hint,
+                )
+                LazyColumn(
+                    state = list,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(vertical = 4.dp, horizontal = 2.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    item(key = "sortCaption") { PanelCaption("SORT BY") }
+                    items(CatalogSort.entries, key = { "sort:" + it.name }) { option ->
+                        val selected = option == sort
+                        MenuItem(
+                            onClick = { onSort(option) },
+                            selected = selected,
+                            trailing = if (selected) "✓" else null,
+                            modifier = if (currentIndex < 0 && selected) Modifier.focusRequester(start) else Modifier,
+                        ) {
+                            Text(text = option.label, style = TextStyle(fontSize = 14.sp))
+                        }
+                    }
+                    item(key = "categoryCaption") { PanelCaption("CATEGORY") }
+                    items(categories, key = { "cat:" + it.id }) { group ->
+                        val selected = group.id == current
+                        MenuItem(
+                            onClick = { onCategory(group) },
+                            selected = selected,
+                            trailing = count(group.id)?.toString(),
+                            modifier = if (selected) Modifier.focusRequester(start) else Modifier,
+                        ) {
+                            Text(
+                                text = group.name,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                            )
+                        }
+                    }
+                    item(key = "edit") {
+                        Spacer(Modifier.height(8.dp))
+                        MenuItem(onClick = onEdit, selected = false) {
+                            Text(text = "Edit categories", style = TextStyle(fontSize = 13.sp))
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-
-/**
- * In place of a row's posters when its titles couldn't be loaded: a poster-sized card that says
- * so. OK asks the provider again (the row shows placeholders while it does).
- */
 @Composable
-private fun RetryCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    ArtFrame(width = PosterWidth, height = PosterHeight, onFocusChange = {}, onClick = onClick, modifier = modifier) {
-        Column(
-            modifier = Modifier.fillMaxSize().background(WiptvColors.surface).padding(12.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(text = "Couldn't load", style = WiptvType.metadata.copy(color = WiptvColors.text), textAlign = TextAlign.Center)
-            Text(text = "OK to try again", style = WiptvType.hint, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
-        }
-    }
+private fun PanelCaption(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 4.dp),
+        style = TextStyle(fontSize = 11.sp, letterSpacing = 1.sp, color = WiptvColors.quiet),
+    )
 }

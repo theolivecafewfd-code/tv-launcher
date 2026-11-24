@@ -395,7 +395,7 @@ fun LiveScreen(
                 ) {
                     item(key = "sort") {
                         // Channels in the provider's order, or by name.
-                        ListItem(
+                        MenuItem(
                             onClick = {
                                 sortByName = !sortByName
                                 LastWatched.setSortByName(context, sortByName)
@@ -408,7 +408,7 @@ fun LiveScreen(
                     }
                     item(key = FAVOURITES_ID) {
                         val selected = selectedGroup == FAVOURITES_ID
-                        ListItem(
+                        MenuItem(
                             onClick = { requesterForFirstChannel(channels, ::requesterFor) },
                             selected = selected,
                             trailing = favourites.size.toString(),
@@ -432,7 +432,7 @@ fun LiveScreen(
                     }
                     itemsIndexed(list, key = { _, g -> g.id }) { _, group ->
                         val selected = group.id == selectedGroup
-                        ListItem(
+                        MenuItem(
                             onClick = { requesterForFirstChannel(channels, ::requesterFor) },
                             selected = selected,
                             trailing = channelsByGroup[group.id]?.size?.toString(),
@@ -450,7 +450,7 @@ fun LiveScreen(
                     }
                     item(key = "edit") {
                         Spacer(Modifier.height(8.dp))
-                        ListItem(
+                        MenuItem(
                             onClick = { editingGroups = true },
                             selected = false,
                             modifier = if (list.isEmpty()) Modifier.focusRequester(firstFocus) else Modifier,
@@ -459,7 +459,7 @@ fun LiveScreen(
                         }
                     }
                     item(key = "account") {
-                        ListItem(onClick = { showAccount = true }, selected = false) {
+                        MenuItem(onClick = { showAccount = true }, selected = false) {
                             Text(text = "Account & sign out", style = TextStyle(fontSize = 13.sp))
                         }
                     }
@@ -702,7 +702,7 @@ private fun requesterForFirstChannel(channels: List<Channel>?, requesterFor: (Lo
  * competing with the guide's bright focus bar.
  */
 @Composable
-private fun ListItem(
+internal fun MenuItem(
     onClick: () -> Unit,
     selected: Boolean,
     modifier: Modifier = Modifier,
