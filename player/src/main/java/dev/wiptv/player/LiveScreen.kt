@@ -21,6 +21,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.heightIn
 import dev.wiptv.design.Glass
 import dev.wiptv.design.KeyHints
+import dev.wiptv.design.PivotScrolling
 import androidx.activity.compose.BackHandler
 import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvShapes
@@ -66,6 +71,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Surface
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import kotlinx.coroutines.CancellationException
@@ -81,6 +87,11 @@ private object LastWatched {
     private const val PREFS = "live"
     fun group(context: Context): String? = prefs(context).getString("group", null)
     fun channel(context: Context): Long = prefs(context).getLong("channel", -1)
+    /** Channels in name order (A–Z) rather than the provider's own order. */
+    fun sortByName(context: Context): Boolean = prefs(context).getBoolean("sortByName", false)
+    fun setSortByName(context: Context, value: Boolean) {
+        prefs(context).edit().putBoolean("sortByName", value).apply()
+    }
     fun save(context: Context, channel: Channel) {
         prefs(context).edit().putString("group", channel.groupId).putLong("channel", channel.id).apply()
     }
@@ -91,11 +102,12 @@ private object LastWatched {
 private class WatchList(val channels: List<Channel>, val groupId: String, val groupName: String, val start: Int)
 
 /**
- * Live TV: groups on the left; on the right, a small preview with what's on, and below it the
- * group's channels as a simple two-hour guide. Moving around leaves the preview alone: OK on a
- * channel previews it, and OK again on the channel in the preview goes full screen. Play/Pause,
- * or OK on the preview itself, also goes full screen from anywhere. Holding OK on a channel adds
- * it to (or removes it from) Favourites.
+ * Channels (Live TV): groups on the left, and the group's channels as a grid of logo tiles, each
+ * with what's on now, how far through it is and how long is left. OK on a tile watches it full
+ * screen; Menu (≡) adds it to (or removes it from) Favourites. Nothing plays on this page.
+ *
+ * The full guide (the menu's Guide) is still part of this screen: there, a small preview plays
+ * what you pick, and OK again on it goes full screen.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -167,7 +179,11 @@ fun LiveScreen(
     var pendingFocus by remember { mutableStateOf<Long?>(LastWatched.channel(context)) }
 
     val groupList = rememberLazyListState()
-    val channelList = rememberLazyListState()
+    val channelGrid = rememberLazyGridState()
+    var sortByName by remember { mutableStateOf(LastWatched.sortByName(context)) }
+    /** A group's channels in the order chosen with Sort. */
+    fun arrange(list: List<Channel>): List<Channel> =
+        if (sortByName) list.sortedBy { ChannelLabels.of(it.name).name.lowercase() } else list
     val firstFocus = remember { FocusRequester() }
     val channelRequesters = remember { mutableMapOf<Long, FocusRequester>() }
     fun requesterFor(id: Long) = channelRequesters.getOrPut(id) { FocusRequester() }
@@ -220,7 +236,8 @@ fun LiveScreen(
         }
     }
 
-    val channels = if (selectedGroup == FAVOURITES_ID) favourites else selectedGroup?.let { channelsByGroup[it] }
+    val unsorted = if (selectedGroup == FAVOURITES_ID) favourites else selectedGroup?.let { channelsByGroup[it] }
+    val channels = remember(unsorted, sortByName) { unsorted?.let(::arrange) }
     fun groupName(id: String?): String =
         if (id == FAVOURITES_ID) "Favourites" else groups?.firstOrNull { it.id == id }?.name.orEmpty()
 
@@ -247,9 +264,9 @@ fun LiveScreen(
     // Opening a channel from the launcher: nothing else starts playing meanwhile.
     var opening by remember { mutableStateOf(openChannel != null) }
 
-    // When the app opens, the preview picks up the last channel you watched.
-    LaunchedEffect(channels) {
-        if (live.channel != null || opening) return@LaunchedEffect
+    // In the full guide, the preview picks up the last channel you watched.
+    LaunchedEffect(channels, gridFrom != null) {
+        if (gridFrom == null || live.channel != null || opening) return@LaunchedEffect
         val last = LastWatched.channel(context)
         val list = channels ?: return@LaunchedEffect
         list.firstOrNull { it.id == last }?.let {
@@ -302,10 +319,17 @@ fun LiveScreen(
             throw e
         } catch (e: Exception) {
             null
-        }?.takeIf { l -> l.any { it.id == id } } ?: listOf(channel)
+        }?.takeIf { l -> l.any { it.id == id } }?.let(::arrange) ?: listOf(channel)
         previewSource = channel.groupId to list
         watching = WatchList(list, channel.groupId, groupName(channel.groupId), list.indexOfFirst { it.id == id }.coerceAtLeast(0))
         opening = false
+    }
+
+    // One stream at a time, and none hidden: the channel grid has no preview, so whatever was
+    // playing (the guide's preview, or full screen just closed) stops there.
+    val onGrid = gridFrom == null && watching == null && catchUp == null && !opening
+    LaunchedEffect(onGrid) {
+        if (onGrid) live.stop()
     }
 
     // Whatever's in the preview: load its guide for the panel, and remember it for next time.
@@ -324,7 +348,7 @@ fun LiveScreen(
         delay(50)
         val index = channels?.indexOfFirst { it.id == target } ?: -1
         if (index >= 0) {
-            channelList.scrollToItem((index - 3).coerceAtLeast(0))
+            channelGrid.scrollToItem(index)
             delay(50)
             if (runCatching { requesterFor(target).requestFocus() }.isSuccess) {
                 pendingFocus = null
@@ -357,20 +381,13 @@ fun LiveScreen(
         header()
         Spacer(Modifier.height(12.dp))
         Row(modifier = Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            // Groups, on a glass panel (not while the full guide is open: it has the whole width).
+            // Groups down the left (not while the full guide is open: it has the whole width).
             if (gridFrom == null) Column(
                 modifier = Modifier
-                    .width(200.dp)
+                    .width(196.dp)
                     .fillMaxHeight()
-                    .padding(bottom = 20.dp)
-                    .glass(WiptvShapes.panel, Glass.Quiet)
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                    .padding(top = 4.dp, bottom = 20.dp),
             ) {
-                Text(
-                    text = "Categories",
-                    modifier = Modifier.padding(start = 12.dp, bottom = 4.dp),
-                    style = WiptvType.hint,
-                )
                 when {
                     groupsError != null -> {
                         Text(text = groupsError!!, style = TextStyle(fontSize = 13.sp, color = Palette.warn))
@@ -402,11 +419,25 @@ fun LiveScreen(
                     contentPadding = PaddingValues(vertical = 4.dp, horizontal = 2.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
+                    item(key = "sort") {
+                        // Channels in the provider's order, or by name.
+                        ListItem(
+                            onClick = {
+                                sortByName = !sortByName
+                                LastWatched.setSortByName(context, sortByName)
+                            },
+                            selected = false,
+                            trailing = if (sortByName) "Name A–Z ›" else "Provider ›",
+                        ) {
+                            Text(text = "Sort", style = TextStyle(fontSize = 14.sp))
+                        }
+                    }
                     item(key = FAVOURITES_ID) {
                         val selected = selectedGroup == FAVOURITES_ID
                         ListItem(
                             onClick = { requesterForFirstChannel(channels, ::requesterFor) },
                             selected = selected,
+                            trailing = favourites.size.toString(),
                             modifier = Modifier
                                 .then(if (selected) Modifier.focusRequester(firstFocus) else Modifier)
                                 .onFocusChanged { if (it.isFocused) selectedGroup = FAVOURITES_ID },
@@ -418,11 +449,19 @@ fun LiveScreen(
                             )
                         }
                     }
+                    item(key = "categoriesCaption") {
+                        Text(
+                            text = "CATEGORIES",
+                            modifier = Modifier.padding(start = 12.dp, top = 12.dp, bottom = 4.dp),
+                            style = TextStyle(fontSize = 11.sp, letterSpacing = 1.sp, color = WiptvColors.quiet),
+                        )
+                    }
                     itemsIndexed(list, key = { _, g -> g.id }) { _, group ->
                         val selected = group.id == selectedGroup
                         ListItem(
                             onClick = { requesterForFirstChannel(channels, ::requesterFor) },
                             selected = selected,
+                            trailing = channelsByGroup[group.id]?.size?.toString(),
                             modifier = Modifier
                                 .then(if (selected) Modifier.focusRequester(firstFocus) else Modifier)
                                 .onFocusChanged { if (it.isFocused) selectedGroup = group.id },
@@ -454,13 +493,15 @@ fun LiveScreen(
             }
 
             Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
-                // Preview and what's on.
+                val from = gridFrom
+                if (from != null) {
+                // The full guide: the preview and what's highlighted, then the group's channels,
+                // yesterday to tomorrow.
                 Row(modifier = Modifier.height(136.dp)) {
                     Preview(live = live, attached = watching == null, onClick = ::watchPreview)
                     Spacer(Modifier.width(16.dp))
                     val pick = gridPick
-                    if (gridFrom != null && pick != null) {
-                        // The full guide: what's highlighted in it.
+                    if (pick != null) {
                         GuideDetailPanel(
                             channel = pick.first,
                             programme = pick.second,
@@ -478,10 +519,6 @@ fun LiveScreen(
                     }
                 }
                 Spacer(Modifier.height(10.dp))
-
-                val from = gridFrom
-                if (from != null) {
-                    // The full guide: this group's channels, yesterday to tomorrow.
                     val gridChannels = channels.orEmpty().ifEmpty { listOf(from) }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -491,7 +528,7 @@ fun LiveScreen(
                             modifier = Modifier.padding(start = 4.dp).width(ChannelCellWidth - 8.dp),
                             style = WiptvType.control.copy(color = WiptvColors.text),
                         )
-                        KeyHints(listOf("◀ ▶ through the day", "▲ ▼ channels", "OK watch", "≡ favourite", "Back to Live TV"))
+                        KeyHints(listOf("◀ ▶ through the day", "▲ ▼ channels", "OK watch", "≡ favourite", "Back to Channels"))
                     }
                     Spacer(Modifier.height(4.dp))
                     GuideGrid(
@@ -512,14 +549,18 @@ fun LiveScreen(
                         modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
                     )
                 } else {
-                // The selected group's channels, as a guide.
-                Row(verticalAlignment = Alignment.Bottom) {
+                // The selected group's channels, as a grid of logo tiles.
+                Row(
+                    modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 10.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
                     Text(
                         text = groupName(selectedGroup),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(start = 4.dp).width(ChannelCellWidth - 8.dp),
-                        style = WiptvType.control.copy(color = WiptvColors.text),
+                        modifier = Modifier.weight(1f, fill = false),
+                        style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
                     )
                     Text(
                         text = when {
@@ -529,54 +570,64 @@ fun LiveScreen(
                             channels.isEmpty() && selectedGroup == FAVOURITES_ID ->
                                 "No favourites yet. Press Menu (≡) on a channel to add it."
                             channels.isEmpty() -> "No channels in this group"
-                            else -> ""
+                            channels.size == 1 -> "1 channel"
+                            else -> "${channels.size} channels"
                         },
-                        style = TextStyle(fontSize = 12.sp, color = if (channelsError != null) Palette.warn else Palette.quiet),
+                        maxLines = 1,
+                        modifier = Modifier.padding(bottom = 2.dp),
+                        style = TextStyle(fontSize = 13.sp, color = if (channelsError != null) Palette.warn else WiptvColors.quiet),
                     )
+                    if (!channels.isNullOrEmpty()) {
+                        Spacer(Modifier.weight(1f))
+                        KeyHints(listOf("OK watch", "≡ favourite"))
+                    }
                 }
-                TimeRuler(windowStart = guideStart(now))
-                LazyColumn(
-                    state = channelList,
-                    modifier = Modifier
-                        .weight(1f)
-                        .focusProperties {
-                            enter = {
-                                val last = selectedGroup?.let { lastChannelInGroup[it] }
-                                val visible = last != null &&
-                                    channelList.layoutInfo.visibleItemsInfo.any { it.key == last }
-                                if (visible) requesterFor(last!!) else FocusRequester.Default
+                // A row that's partly off screen settles at the top, so whole rows show.
+                PivotScrolling(pivot = 6.dp) {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(4),
+                        state = channelGrid,
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusProperties {
+                                enter = {
+                                    val last = selectedGroup?.let { lastChannelInGroup[it] }
+                                    val visible = last != null &&
+                                        channelGrid.layoutInfo.visibleItemsInfo.any { it.key == last }
+                                    if (visible) requesterFor(last!!) else FocusRequester.Default
+                                }
                             }
-                        }
-                        .focusGroup(),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp, start = 4.dp, end = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(0.dp),
-                ) {
-                    itemsIndexed(channels.orEmpty(), key = { _, c -> c.id }) { index, channel ->
-                        // Each row loads its own guide as it comes on screen, and again every half hour.
-                        LaunchedEffect(channel.id, now / (30 * 60_000L)) { guide.ensure(channel) }
-                        GuideRow(
-                            channel = channel,
-                            programmes = guide.programmes(channel.id),
-                            windowStart = guideStart(now),
-                            now = now,
-                            playing = live.channel?.id == channel.id,
-                            favourite = channel.id in favouriteIds,
-                            // First OK previews the channel; OK on the channel already in the preview goes full screen.
-                            onClick = {
-                                previewSource = (selectedGroup ?: "") to channels.orEmpty()
-                                if (live.channel?.id == channel.id) watchPreview() else live.play(login, format, channel)
-                            },
-                            onMenu = { toggleFavourite(channel) },
-                            onGuide = {
-                                gridPick = channel to null
-                                gridFrom = channel
-                            },
-                            modifier = Modifier
-                                .focusRequester(requesterFor(channel.id))
-                                .onFocusChanged { focus ->
-                                    if (focus.isFocused) selectedGroup?.let { lastChannelInGroup[it] = channel.id }
+                            .focusGroup(),
+                        contentPadding = PaddingValues(top = 6.dp, bottom = 24.dp, start = 4.dp, end = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        gridItemsIndexed(channels.orEmpty(), key = { _, c -> c.id }) { _, channel ->
+                            // Each tile loads its own guide as it comes on screen, and again every half hour.
+                            LaunchedEffect(channel.id, now / (30 * 60_000L)) { guide.ensure(channel) }
+                            ChannelTile(
+                                channel = channel,
+                                programmes = guide.programmes(channel.id),
+                                now = now,
+                                favourite = channel.id in favouriteIds,
+                                onClick = {
+                                    val list = channels.orEmpty()
+                                    previewSource = (selectedGroup ?: "") to list
+                                    watching = WatchList(
+                                        list,
+                                        selectedGroup ?: channel.groupId,
+                                        groupName(selectedGroup),
+                                        list.indexOfFirst { it.id == channel.id }.coerceAtLeast(0),
+                                    )
                                 },
-                        )
+                                onMenu = { toggleFavourite(channel) },
+                                modifier = Modifier
+                                    .focusRequester(requesterFor(channel.id))
+                                    .onFocusChanged { focus ->
+                                        if (focus.isFocused) selectedGroup?.let { lastChannelInGroup[it] = channel.id }
+                                    },
+                            )
+                        }
                     }
                 }
                 }
@@ -618,15 +669,17 @@ fun LiveScreen(
             startIndex = playing.start,
             groups = listOf(FAVOURITES_ID to "★ Favourites") + shownGroups.orEmpty().map { it.id to it.name },
             loadGroup = { id ->
-                if (id == FAVOURITES_ID) favourites
-                else channelsByGroup[id] ?: Xtream.liveChannels(login, id).also { channelsByGroup[id] = it }
+                arrange(
+                    if (id == FAVOURITES_ID) favourites
+                    else channelsByGroup[id] ?: Xtream.liveChannels(login, id).also { channelsByGroup[id] = it },
+                )
             },
             groupOf = { channel ->
                 val inGroup = channelsByGroup[channel.groupId]
                 when {
                     inGroup != null && inGroup.any { it.id == channel.id } ->
-                        ChannelGroup(channel.groupId, groupName(channel.groupId), inGroup)
-                    favourites.any { it.id == channel.id } -> ChannelGroup(FAVOURITES_ID, "Favourites", favourites)
+                        ChannelGroup(channel.groupId, groupName(channel.groupId), arrange(inGroup))
+                    favourites.any { it.id == channel.id } -> ChannelGroup(FAVOURITES_ID, "Favourites", arrange(favourites))
                     else -> ChannelGroup(channel.groupId, groupName(channel.groupId), listOf(channel))
                 }
             },
@@ -642,7 +695,7 @@ fun LiveScreen(
                 if (groupId.isNotEmpty()) {
                     selectedGroup = groupId
                     val list = if (groupId == FAVOURITES_ID) favourites else channelsByGroup[groupId]
-                    previewSource = groupId to (list ?: listOf(last))
+                    previewSource = groupId to (list?.let(::arrange) ?: listOf(last))
                 }
                 pendingFocus = last.id
             },
@@ -707,6 +760,8 @@ private fun ListItem(
     onClick: () -> Unit,
     selected: Boolean,
     modifier: Modifier = Modifier,
+    /** A quiet note on the right: a count, or the Sort setting. */
+    trailing: String? = null,
     content: @Composable () -> Unit,
 ) {
     val shape = WiptvShapes.card
@@ -723,10 +778,156 @@ private fun ListItem(
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
         border = focusOutline(shape),
     ) {
-        Box(
+        Row(
             modifier = Modifier.selectedMarker(selected, WiptvColors.focus.copy(alpha = 0.45f)).padding(horizontal = 12.dp, vertical = 10.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) { content() }
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(modifier = Modifier.weight(1f)) { content() }
+            if (trailing != null) {
+                Text(
+                    text = trailing,
+                    maxLines = 1,
+                    modifier = Modifier.padding(start = 8.dp),
+                    style = TextStyle(fontSize = 13.sp, color = LocalContentColor.current.copy(alpha = 0.6f)),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One channel in the grid: its logo on a dark tile (the name stands in until the logo loads, or
+ * if there isn't one), then how far through the current programme it is, the channel's name, and
+ * what's on with the time left. Focus is a bright outline round the tile; a favourite has a ★.
+ */
+@Composable
+private fun ChannelTile(
+    channel: Channel,
+    programmes: List<Programme>?,
+    now: Long,
+    favourite: Boolean,
+    onClick: () -> Unit,
+    onMenu: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = remember(channel.name) { ChannelLabels.of(channel.name) }
+    val shape = RoundedCornerShape(10.dp)
+    var logoShown by remember(channel.logo) { mutableStateOf(false) }
+    val current = programmes?.firstOrNull { it.isOn(now) }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Surface(
+            onClick = onClick,
+            modifier = modifier
+                .fillMaxWidth()
+                .height(92.dp)
+                // The remote's Menu (≡) button: adds the channel to Favourites, or takes it off.
+                // Play/Pause watches it, like OK.
+                .onPreviewKeyEvent { event ->
+                    val action = when (event.nativeKeyEvent.keyCode) {
+                        android.view.KeyEvent.KEYCODE_MENU -> onMenu
+                        android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, android.view.KeyEvent.KEYCODE_MEDIA_PLAY -> onClick
+                        else -> null
+                    } ?: return@onPreviewKeyEvent false
+                    if (event.type == KeyEventType.KeyUp) action()
+                    true
+                },
+            shape = ClickableSurfaceDefaults.shape(shape = shape),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = WiptvColors.surface,
+                contentColor = WiptvColors.secondary,
+                focusedContainerColor = WiptvColors.elevated,
+                focusedContentColor = WiptvColors.text,
+            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.0f),
+            border = focusOutline(shape, width = 3.dp),
+        ) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (!logoShown) {
+                    Text(
+                        text = label.name,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.Bold, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
+                    )
+                }
+                if (channel.logo != null) {
+                    AsyncImage(
+                        model = channel.logo,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        onSuccess = { logoShown = true },
+                        onError = { logoShown = false },
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp),
+                    )
+                }
+                if (favourite) {
+                    Text(
+                        text = "★",
+                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 8.dp),
+                        style = TextStyle(fontSize = 13.sp, color = WiptvColors.text),
+                    )
+                }
+            }
+        }
+        // How far through what's on now.
+        if (current != null) {
+            val progress = ((now - current.start).toFloat() / (current.end - current.start)).coerceIn(0f, 1f)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .background(WiptvColors.elevated, RoundedCornerShape(2.dp)),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress)
+                        .fillMaxHeight()
+                        .background(WiptvColors.progress, RoundedCornerShape(2.dp)),
+                )
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = label.name,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+                style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
+            )
+            label.quality?.let { QualityBadge(it) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                text = when {
+                    current != null -> current.title
+                    programmes == null -> "Loading…"
+                    else -> "No information"
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+                style = TextStyle(fontSize = 12.sp, color = if (current != null) WiptvColors.secondary else WiptvColors.quiet),
+            )
+            if (current != null) {
+                Text(
+                    text = timeLeft(current.end - now),
+                    maxLines = 1,
+                    style = TextStyle(fontSize = 12.sp, color = WiptvColors.secondary),
+                )
+            }
+        }
+    }
+}
+
+/** "24m left", "1h 10m left". */
+private fun timeLeft(millis: Long): String {
+    val minutes = (millis / 60_000).coerceAtLeast(0)
+    val hours = minutes / 60
+    return when {
+        hours == 0L -> "${minutes}m left"
+        minutes % 60 == 0L -> "${hours}h left"
+        else -> "${hours}h ${minutes % 60}m left"
     }
 }
 
