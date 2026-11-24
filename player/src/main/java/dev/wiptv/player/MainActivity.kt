@@ -44,7 +44,8 @@ class MainActivity : ComponentActivity() {
                 initialSection = when (open?.kind) {
                     VodKind.MOVIE -> Section.MOVIES
                     VodKind.SERIES -> Section.SERIES
-                    null -> section ?: Section.LIVE
+                    // Opened from the app list: Library, the home (version 0.3).
+                    null -> section ?: if (channel != null) Section.LIVE else Section.LIBRARY
                 },
                 open = open,
                 openChannel = channel.takeIf { open == null },

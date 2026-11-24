@@ -49,7 +49,13 @@ import java.time.temporal.ChronoUnit
  * watch on at once. Live TV, the guide and films are added to this screen in the next phases.
  */
 @Composable
-fun AccountScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
+fun AccountScreen(
+    login: Login,
+    update: UpdateHandle,
+    onSignOut: () -> Unit,
+    /** The menu's Settings: the top menu instead of the wordmark, and no "Back" hint. */
+    header: (@Composable () -> Unit)? = null,
+) {
     var account by remember { mutableStateOf<Account?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -88,17 +94,26 @@ fun AccountScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .wiptvBackground()
-            .padding(horizontal = 48.dp, vertical = 32.dp),
+            .padding(horizontal = if (header != null) 32.dp else 48.dp, vertical = if (header != null) 20.dp else 32.dp),
     ) {
-        UpdatePill(update, modifier = Modifier.align(Alignment.TopEnd))
+        if (header == null) UpdatePill(update, modifier = Modifier.align(Alignment.TopEnd))
 
         Column(
             modifier = Modifier.align(Alignment.TopStart).padding(top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Wordmark()
-            Spacer(Modifier.height(10.dp))
-            Text(text = "Your account", style = WiptvType.pageTitle)
+            if (header != null) {
+                header()
+                Spacer(Modifier.height(18.dp))
+                Text(text = "Settings", style = WiptvType.pageTitle)
+                // The build, and installing an update (the menu only shows a lit Update).
+                UpdatePill(update, modifier = Modifier.padding(vertical = 6.dp))
+                Spacer(Modifier.height(6.dp))
+            } else {
+                Wordmark()
+                Spacer(Modifier.height(10.dp))
+            }
+            Text(text = "Your account", style = if (header != null) WiptvType.section else WiptvType.pageTitle)
             Text(text = "${login.username} · ${hostOf(login.server)}", style = WiptvType.metadata)
             Spacer(Modifier.height(18.dp))
 
@@ -121,8 +136,10 @@ fun AccountScreen(login: Login, update: UpdateHandle, onSignOut: () -> Unit) {
                     onClick = { if (confirmSignOut) onSignOut() else confirmSignOut = true },
                 )
             }
-            Spacer(Modifier.height(10.dp))
-            Text(text = "Back returns to Live TV.", style = WiptvType.hint)
+            if (header == null) {
+                Spacer(Modifier.height(10.dp))
+                Text(text = "Back returns to Live TV.", style = WiptvType.hint)
+            }
         }
     }
 }

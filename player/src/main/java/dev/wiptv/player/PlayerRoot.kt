@@ -32,7 +32,7 @@ import dev.wiptv.design.GlassPill
 import dev.wiptv.design.DiceIcon
 import dev.wiptv.design.NavItem
 import dev.wiptv.design.SearchIcon
-import dev.wiptv.design.WiptvHeader
+import dev.wiptv.design.WiptvTopMenu
 import dev.wiptv.design.WiptvButton
 import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.Wordmark
@@ -61,8 +61,19 @@ internal object Palette {
     val warn = WiptvColors.warning
 }
 
-/** The player's three parts, switched with the tabs at the top left. */
-enum class Section(val label: String) { LIVE("Live TV"), MOVIES("Movies"), SERIES("Series") }
+/**
+ * The player's parts, in the top menu's order (version 0.3). Channels is Live TV; Guide is Live
+ * TV opened straight into the full guide, and Favourites on ★ Favourites.
+ */
+enum class Section(val label: String) {
+    LIBRARY("Library"),
+    LIVE("Channels"),
+    MOVIES("Movies"),
+    SERIES("TV Shows"),
+    GUIDE("Guide"),
+    FAVOURITES("Favourites"),
+    SETTINGS("Settings"),
+}
 
 /** A title another app asked the player to open (the launcher's "Watch on IPTV"). */
 data class OpenTitle(val kind: VodKind, val id: Long, val resumeKey: String? = null)
@@ -70,7 +81,7 @@ data class OpenTitle(val kind: VodKind, val id: Long, val resumeKey: String? = n
 /** Shows the sign-in screen until there are saved details, then Live TV, Movies or Series. */
 @Composable
 fun PlayerRoot(
-    initialSection: Section = Section.LIVE,
+    initialSection: Section = Section.LIBRARY,
     open: OpenTitle? = null,
     openChannel: Long? = null,
     onOpenFinished: () -> Unit = {},
@@ -95,8 +106,8 @@ fun PlayerRoot(
         // The title the launcher opened us on: only until you move to another section, so going
         // back to that section doesn't open it again.
         var launchOpen by remember { mutableStateOf(open) }
-        // A surprise pick (the dice), opened on its details page in its section; closing that page
-        // goes back to the section you rolled from.
+        // A title to open on its details page in its section (Library's More info and My List);
+        // closing that page goes back to the section it was opened from.
         var surprise by remember { mutableStateOf<IndexedTitle?>(null) }
         var surpriseFrom by remember { mutableStateOf<Section?>(null) }
         val surpriseClosed = {
@@ -105,47 +116,75 @@ fun PlayerRoot(
         }
         // Keep the list of films and series the launcher asks about up to date (about daily).
         LaunchedEffect(current) { CatalogIndex.refreshIfStale(context, current) }
+        // A title Library opened to play or resume: closing it goes back to Library (rather than
+        // to the launcher, as one the launcher opened does).
+        var openedFromLibrary by remember { mutableStateOf(false) }
+        val openFinished: () -> Unit = {
+            if (openedFromLibrary) {
+                openedFromLibrary = false
+                launchOpen = null
+                section = Section.LIBRARY
+            } else {
+                onOpenFinished()
+            }
+        }
         val tabs: @Composable () -> Unit = {
             SectionTabs(
                 selected = section,
                 onSelect = {
                     launchOpen = null
+                    openedFromLibrary = false
                     section = it
-                },
-                onSurprise = {
-                    scope.launch {
-                        val pick = withContext(Dispatchers.IO) { CatalogIndex.random(context) }
-                        if (pick == null) {
-                            android.widget.Toast.makeText(context, "Your provider's list isn't ready yet", android.widget.Toast.LENGTH_SHORT).show()
-                        } else {
-                            launchOpen = null
-                            surprise = pick
-                            surpriseFrom = section
-                            section = if (pick.kind == VodKind.MOVIE) Section.MOVIES else Section.SERIES
-                        }
-                    }
                 },
                 update = update,
             )
         }
+        fun sectionOf(kind: VodKind) = if (kind == VodKind.MOVIE) Section.MOVIES else Section.SERIES
         // Only one part is on screen at a time, so leaving Live TV also stops its stream.
         key(section) {
+            val signOut = {
+                LoginStore.clear(context)
+                login = null
+            }
             when (section) {
-                Section.LIVE -> LiveScreen(
+                Section.LIBRARY -> LibraryScreen(
+                    store = store,
+                    header = tabs,
+                    onPlay = { title ->
+                        // A film plays at once; a series opens its page.
+                        openedFromLibrary = true
+                        launchOpen = OpenTitle(title.kind, title.id)
+                        section = sectionOf(title.kind)
+                    },
+                    onDetails = { kind, id ->
+                        launchOpen = null
+                        surprise = IndexedTitle(kind, id, "", null, null, null, null, "")
+                        surpriseFrom = Section.LIBRARY
+                        section = sectionOf(kind)
+                    },
+                    onResume = { point ->
+                        val kind = if (point.key.startsWith("movie:")) VodKind.MOVIE else VodKind.SERIES
+                        val id = point.seriesId ?: point.key.substringAfter(':').toLongOrNull() ?: 0L
+                        openedFromLibrary = true
+                        launchOpen = OpenTitle(kind, id, resumeKey = point.key)
+                        section = sectionOf(kind)
+                    },
+                )
+                Section.LIVE, Section.GUIDE, Section.FAVOURITES -> LiveScreen(
                     login = current,
                     update = update,
                     header = tabs,
-                    openChannel = openChannel,
-                    onSignOut = {
-                        LoginStore.clear(context)
-                        login = null
-                    },
+                    openChannel = openChannel.takeIf { section == Section.LIVE },
+                    startOnFavourites = section == Section.FAVOURITES,
+                    startInGuide = section == Section.GUIDE,
+                    onSignOut = signOut,
                 )
+                Section.SETTINGS -> AccountScreen(login = current, update = update, onSignOut = signOut, header = tabs)
                 Section.MOVIES -> CatalogScreen(
                     VodKind.MOVIE, current, update, store, tabs,
                     openId = launchOpen?.takeIf { it.kind == VodKind.MOVIE && it.resumeKey == null }?.id,
                     openResume = launchOpen?.takeIf { it.kind == VodKind.MOVIE }?.resumeKey,
-                    onOpenFinished = onOpenFinished,
+                    onOpenFinished = openFinished,
                     surpriseId = surprise?.takeIf { it.kind == VodKind.MOVIE }?.id,
                     onSurpriseShown = { surprise = null },
                     onSurpriseClosed = surpriseClosed,
@@ -154,7 +193,7 @@ fun PlayerRoot(
                     VodKind.SERIES, current, update, store, tabs,
                     openId = launchOpen?.takeIf { it.kind == VodKind.SERIES && it.resumeKey == null }?.id,
                     openResume = launchOpen?.takeIf { it.kind == VodKind.SERIES }?.resumeKey,
-                    onOpenFinished = onOpenFinished,
+                    onOpenFinished = openFinished,
                     surpriseId = surprise?.takeIf { it.kind == VodKind.SERIES }?.id,
                     onSurpriseShown = { surprise = null },
                     onSurpriseClosed = surpriseClosed,
@@ -248,57 +287,19 @@ fun PlayerButton(
 }
 
 /**
- * The header across the top of Live TV, Movies and Series: the same as the launcher's (greeting,
- * weather, clock and build, then the navigation capsule), so moving between the two apps feels
- * like one. TV Shows is the player's Series and Movies its Movies; Live TV is Live TV. Apps and
- * search go back to the launcher with the Apps tray or search open; the dice opens a surprise
- * pick from your provider's films and series. OK on a section switches to it.
+ * The top menu on every screen (version 0.3, after the max player): Library, Channels, Movies,
+ * TV Shows, Guide, Favourites and Settings in one centred capsule, the clock at the right (with
+ * a lit Update when there's a newer build). The player stands on its own now: no launcher links.
+ * OK on a section switches to it; focus alone doesn't.
  */
 @Composable
-fun SectionTabs(selected: Section, onSelect: (Section) -> Unit, onSurprise: () -> Unit, update: UpdateHandle) {
-    val context = LocalContext.current
-    fun section(label: String, target: Section) =
-        NavItem(label = label, selected = selected == target, onClick = { if (selected != target) onSelect(target) })
-    WiptvHeader(
-        nav = listOf(
-            section("TV Shows", Section.SERIES),
-            section("Movies", Section.MOVIES),
-            section("Live TV", Section.LIVE),
-            NavItem(label = "Apps", onClick = { Launcher.open(context, "apps", selected) }),
-            NavItem(
-                icon = { colour -> SearchIcon(color = colour, size = 20.dp) },
-                description = "Search",
-                onClick = { Launcher.open(context, "search", selected) },
-            ),
-            NavItem(icon = { colour -> DiceIcon(color = colour, size = 20.dp) }, description = "Surprise me", onClick = onSurprise),
-        ),
+fun SectionTabs(selected: Section, onSelect: (Section) -> Unit, update: UpdateHandle) {
+    WiptvTopMenu(
+        nav = Section.entries.map { target ->
+            NavItem(label = target.label, selected = selected == target, onClick = { if (selected != target) onSelect(target) })
+        },
         updateLabel = update.state.label(BuildConfig.VERSION_CODE),
         updateLoud = update.state.loud,
         onUpdateClick = update.onClick,
     )
-}
-
-/** The launcher, for the header's Apps and search. */
-private object Launcher {
-    private const val PACKAGE = "dev.tvlauncher"
-
-    /**
-     * Hands over to the launcher with the Apps tray or search open. The player stays as it is
-     * behind (its stream stops while it's out of sight), and backing out of the tray or search
-     * brings it straight back on [from].
-     */
-    fun open(context: android.content.Context, what: String, from: Section) {
-        try {
-            context.startActivity(
-                android.content.Intent(android.content.Intent.ACTION_MAIN)
-                    .setClassName(PACKAGE, "$PACKAGE.MainActivity")
-                    .putExtra("wiptv_open", what)
-                    .putExtra("wiptv_return", from.name)
-                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
-                android.app.ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle(),
-            )
-        } catch (e: Exception) {
-            android.widget.Toast.makeText(context, "Couldn't open WIPTV", android.widget.Toast.LENGTH_SHORT).show()
-        }
-    }
 }

@@ -42,47 +42,50 @@ import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 
 /**
- * The WIPTV colours, shared by the launcher and the player (the only place they're defined):
- * near-black charcoal with a restrained navy undertone, with artwork and video providing the
- * colour. Text is light on dark; focused small controls and primary actions are pale with dark
- * text. See docs/PLAYER_DESIGN.md, section 16.
+ * The WIPTV colours, shared by both apps (the only place they're defined). Version 0.3, after
+ * the max player Wayne liked: near-black neutral greys with artwork and video providing the
+ * colour, one lime accent for primary actions and progress, and white for focus (a white fill on
+ * the menu, a white outline on cards and buttons). See docs/PLAYER_DESIGN.md, section 16.
  */
 object WiptvColors {
-    /** The screen: charcoal with a hint of navy. */
-    val background = Color(0xFF0B111B)
+    /** The screen: near-black. */
+    val background = Color(0xFF0D0D0F)
 
     /** Raised background: the top of the screen's gradient, quiet side panels. */
-    val backgroundTop = Color(0xFF111A27)
+    val backgroundTop = Color(0xFF141416)
     val raised = backgroundTop
 
     /** Panel surface: glass, trays, dialogs, placeholders. */
-    val surface = Color(0xFF192332)
+    val surface = Color(0xFF1C1C1F)
 
-    /** Elevated surface: a focused list row's fill, artwork placeholders. */
-    val elevated = Color(0xFF233041)
+    /** Elevated surface: a focused list row's fill, the selected menu item, placeholders. */
+    val elevated = Color(0xFF2C2C30)
+
+    /** The one accent: primary buttons (Play), progress, the "now" line, labels like #1 TRENDING. */
+    val accent = Color(0xFFC5E86C)
 
     /** The base of the glass recipes. */
     val panel = surface
 
     /** Primary, secondary and muted text. */
-    val text = Color(0xFFF2F4F8)
-    val secondary = Color(0xFFAFB8C7)
-    val quiet = Color(0xFF8793A5)
+    val text = Color(0xFFF2F2F2)
+    val secondary = Color(0xFFC4C4CA)
+    val quiet = Color(0xFF8E8E94)
     val muted = quiet
 
-    /** The focus accent, and primary buttons' pale fill with their dark text. */
-    val focus = Color(0xFFDCE7FA)
-    val primaryFill = focus
-    val onLight = Color(0xFF101724)
+    /** Focus: white (outlines, the focused menu item's fill). Primary buttons rest on the accent. */
+    val focus = Color(0xFFF2F2F2)
+    val primaryFill = accent
+    val onLight = Color(0xFF121212)
     val onPrimary = onLight
 
     /** A subtle edge for panels and quiet buttons. */
-    val border = Color.White.copy(alpha = 0.12f)
+    val border = Color.White.copy(alpha = 0.10f)
 
     val positive = Color(0xFFB4EED6)
     val warning = Color(0xFFFFD09B)
     val error = Color(0xFFFFB8B4)
-    val progress = focus
+    val progress = accent
 
     /** A focused list row (guide, episodes): a subtle raised fill and a short pale bar on the left. */
     val rowFocus = elevated
@@ -271,10 +274,9 @@ class NavItem(
 
 /**
  * A row of destinations and actions in one continuous glass capsule, with one background and a
- * faint edge (the launcher's top navigation). Each item is focusable on its own, in the order
- * given. Focus is a subtle rounded wash inside the capsule with brighter text; the selected
- * destination keeps bright text and a short underline wherever focus is, so only one thing ever
- * looks lit. OK acts; focus alone never does.
+ * faint edge (the top menu). Each item is focusable on its own, in the order given. The focused
+ * item fills white with dark text; the selected destination keeps a grey fill and bright text
+ * wherever focus is, so the two never look alike. OK acts; focus alone never does.
  */
 @Composable
 fun NavCapsule(items: List<NavItem>, modifier: Modifier = Modifier) {
@@ -289,12 +291,12 @@ fun NavCapsule(items: List<NavItem>, modifier: Modifier = Modifier) {
                 modifier = item.modifier.semantics { contentDescription = item.description },
                 shape = ClickableSurfaceDefaults.shape(shape = WiptvShapes.pill),
                 colors = ClickableSurfaceDefaults.colors(
-                    containerColor = Color.Transparent,
+                    containerColor = if (item.selected) WiptvColors.elevated else Color.Transparent,
                     contentColor = if (item.selected) WiptvColors.text else WiptvColors.secondary,
-                    focusedContainerColor = WiptvColors.focus.copy(alpha = 0.18f),
-                    focusedContentColor = WiptvColors.text,
-                    pressedContainerColor = WiptvColors.focus.copy(alpha = 0.24f),
-                    pressedContentColor = WiptvColors.text,
+                    focusedContainerColor = WiptvColors.focus,
+                    focusedContentColor = WiptvColors.onLight,
+                    pressedContainerColor = WiptvColors.focus,
+                    pressedContentColor = WiptvColors.onLight,
                 ),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
             ) {
@@ -310,9 +312,6 @@ fun NavCapsule(items: List<NavItem>, modifier: Modifier = Modifier) {
                         Text(text = item.label, maxLines = 1, style = WiptvType.control.copy(fontSize = 15.sp, lineHeight = 18.sp))
                     } else {
                         item.icon?.invoke(colour)
-                    }
-                    if (item.selected) {
-                        Box(Modifier.padding(top = 2.dp).width(18.dp).height(2.dp).background(WiptvColors.focus, WiptvShapes.pill))
                     }
                 }
             }

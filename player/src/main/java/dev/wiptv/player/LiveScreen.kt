@@ -105,6 +105,10 @@ fun LiveScreen(
     onSignOut: () -> Unit,
     /** A favourite channel to open full screen straight away (from the launcher). */
     openChannel: Long? = null,
+    /** Open on ★ Favourites (the menu's Favourites) rather than the last group you were in. */
+    startOnFavourites: Boolean = false,
+    /** Open straight into the full guide (the menu's Guide), on the group you were last in. */
+    startInGuide: Boolean = false,
     header: @Composable () -> Unit = {
         Text(
             text = "Live TV",
@@ -121,7 +125,7 @@ fun LiveScreen(
     var groupsAttempt by remember { mutableIntStateOf(0) }
     val channelsByGroup = cache.channels
     var channelsError by remember { mutableStateOf<String?>(null) }
-    var selectedGroup by remember { mutableStateOf(LastWatched.group(context)) }
+    var selectedGroup by remember { mutableStateOf(if (startOnFavourites) FAVOURITES_ID else LastWatched.group(context)) }
     var showAccount by remember { mutableStateOf(false) }
 
     // Groups you've hidden or reordered (Edit groups).
@@ -227,6 +231,18 @@ fun LiveScreen(
     val fullGuide = remember(login) { FullGuideStore(login) }
     var catchUp by remember { mutableStateOf<Pair<Channel, ResumePoint>?>(null) }
     val vodStore = remember { VodStore(context) }
+    // The menu's Guide: straight into the full guide once the group's channels are here, on the
+    // channel last watched if it's in the group.
+    var guideOpened by remember { mutableStateOf(!startInGuide) }
+    LaunchedEffect(channels) {
+        val list = channels ?: return@LaunchedEffect
+        if (guideOpened || list.isEmpty()) return@LaunchedEffect
+        guideOpened = true
+        val last = LastWatched.channel(context)
+        val from = list.firstOrNull { it.id == last } ?: list.first()
+        gridPick = from to null
+        gridFrom = from
+    }
 
     // Opening a channel from the launcher: nothing else starts playing meanwhile.
     var opening by remember { mutableStateOf(openChannel != null) }
