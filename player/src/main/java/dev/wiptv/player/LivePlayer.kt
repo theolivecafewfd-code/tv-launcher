@@ -105,6 +105,14 @@ class LivePlayer(context: Context) {
         exo.clearMediaItems()
     }
 
+    /** Stops the stream and forgets the channel: nothing is playing, and nothing comes back on its own. */
+    fun stop() {
+        hold()
+        channel = null
+        buffering = false
+        error = null
+    }
+
     fun resumeFromBackground() {
         if (exo.currentMediaItem != null) {
             exo.seekToDefaultPosition()
