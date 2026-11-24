@@ -165,6 +165,16 @@ object CatalogIndex {
     }
 
     /** A random film or series with a poster, for the header's Surprise me; null if the list is empty. */
+    /**
+     * The provider's newest films or series (Library's "New on your provider"): the highest ids,
+     * which providers hand out in the order titles are added, with posters, one copy per name.
+     */
+    fun newest(context: Context, kind: VodKind, limit: Int = 20): List<IndexedTitle> =
+        db(context).query("titles", COLUMNS, "kind = ? AND poster IS NOT NULL", arrayOf(kind.name), null, null, "id DESC", "${limit * 3}")
+            .use { c -> generateSequence { if (c.moveToNext()) read(c) else null }.toList() }
+            .distinctBy { normalise(it.name) }
+            .take(limit)
+
     fun random(context: Context): IndexedTitle? =
         db(context).rawQuery("SELECT ${COLUMNS.joinToString()} FROM titles WHERE poster IS NOT NULL ORDER BY RANDOM() LIMIT 1", null)
             .use { c -> if (c.moveToFirst()) read(c) else null }
