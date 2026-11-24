@@ -590,7 +590,7 @@ fun LiveScreen(
     }
 
     catchUp?.let { (channel, point) ->
-        val finish = {
+        val finish: () -> Unit = {
             catchUp = null
             // Back to the guide, where you were.
             guideFocus++
