@@ -280,7 +280,11 @@ fun ActionButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifie
                 .padding(3.dp)
                 .height(42.dp)
                 .background(
-                    if (focused || primary) WiptvColors.primaryFill else WiptvColors.surface.copy(alpha = 0.72f),
+                    when {
+                        primary -> WiptvColors.primaryFill
+                        focused -> WiptvColors.focus
+                        else -> WiptvColors.surface.copy(alpha = 0.72f)
+                    },
                     inner,
                 )
                 .border(1.dp, if (focused || primary) Color.Transparent else WiptvColors.border, inner)

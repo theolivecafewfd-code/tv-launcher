@@ -20,6 +20,11 @@ android {
 
         // Where the in-app updater looks for new builds (the "player" release in this repo).
         buildConfigField("String", "UPDATE_REPO", "\"theolivecafewfd-code/tv-launcher\"")
+
+        // The TMDB key (Library's trending titles) comes from the TMDB_API_KEY GitHub secret at
+        // build time, as for the launcher; it's never in the code.
+        val tmdbKey = (System.getenv("TMDB_API_KEY") ?: "").trim()
+        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbKey\"")
     }
 
     signingConfigs {

@@ -115,6 +115,51 @@ fun WiptvHeader(
     }
 }
 
+/**
+ * The player's top menu (version 0.3): one centred capsule of destinations — Library, Channels,
+ * Movies, TV Shows, Guide, Favourites, Settings — and, at the right, a small pill with the clock,
+ * plus a lit Update button when a newer build is ready ([updateLabel] is shown in Settings).
+ * The caller adds the side margins.
+ */
+@Composable
+fun WiptvTopMenu(
+    nav: List<NavItem>,
+    updateLabel: String,
+    updateLoud: Boolean,
+    onUpdateClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var now by remember { mutableStateOf(LocalTime.now()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = LocalTime.now()
+            delay(15_000)
+        }
+    }
+    Box(modifier = modifier.fillMaxWidth().height(40.dp)) {
+        NavCapsule(items = nav, modifier = Modifier.align(Alignment.Center))
+        Row(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .height(30.dp)
+                .glass(WiptvShapes.pill)
+                .padding(start = 14.dp, end = 3.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = now.format(DateTimeFormatter.ofPattern("HH:mm")), style = StatusText)
+            // Room is short beside the centred menu: the build shows in Settings, and here only
+            // a lit "Update" when there is one.
+            if (updateLoud) {
+                StatusDivider()
+                UpdateButton(label = "Update", loud = true, onClick = onUpdateClick)
+            } else {
+                Spacer(Modifier.width(11.dp))
+            }
+        }
+    }
+}
+
 private fun greeting(now: LocalTime): String = when (now.hour) {
     in 5..11 -> "Good morning"
     in 12..17 -> "Good afternoon"
