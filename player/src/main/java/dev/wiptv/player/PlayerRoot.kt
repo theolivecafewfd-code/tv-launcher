@@ -120,6 +120,8 @@ fun PlayerRoot(
         var returnTo by remember { mutableStateOf<Section?>(null) }
         // A channel to play full screen on opening Live TV: the launcher's, or one picked in My Page.
         var channelToOpen by remember { mutableStateOf(openChannel) }
+        // That channel's details when it isn't one of your favourites (Home's Sports row).
+        var channelInfo by remember { mutableStateOf<Channel?>(null) }
         val openFinished: () -> Unit = {
             val back = returnTo
             if (back != null) {
@@ -137,6 +139,7 @@ fun PlayerRoot(
                     launchOpen = null
                     returnTo = null
                     channelToOpen = null
+                    channelInfo = null
                     section = it
                 },
                 update = update,
@@ -166,6 +169,7 @@ fun PlayerRoot(
             }
             when (section) {
                 Section.HOME -> HomeScreen(
+                    login = current,
                     store = store,
                     header = tabs,
                     onPlay = { title ->
@@ -176,6 +180,16 @@ fun PlayerRoot(
                     },
                     onDetails = { kind, id -> details(kind, id, Section.HOME) },
                     onResume = { point -> resume(point, Section.HOME) },
+                    onWatchChannel = { channel ->
+                        // Full screen; Back there goes to its group in Live TV.
+                        channelToOpen = channel.id
+                        channelInfo = channel
+                        section = Section.LIVE
+                    },
+                    onOpenGroup = { groupId ->
+                        LiveGroupPrefs.setGroup(context, groupId)
+                        section = Section.LIVE
+                    },
                 )
                 Section.LIBRARY -> LibraryScreen(
                     login = current,
@@ -196,6 +210,7 @@ fun PlayerRoot(
                     update = update,
                     header = tabs,
                     openChannel = channelToOpen,
+                    openChannelInfo = channelInfo,
                     onSignOut = signOut,
                 )
                 Section.MOVIES -> CatalogScreen(
