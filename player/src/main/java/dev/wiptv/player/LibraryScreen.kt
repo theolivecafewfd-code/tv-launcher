@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -26,20 +25,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.tv.material3.Text
-import dev.wiptv.design.ActionButton
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
 import coil.compose.AsyncImage
@@ -47,7 +38,6 @@ import dev.wiptv.design.ArtFrame
 import dev.wiptv.design.ArtFocusGap
 import dev.wiptv.design.SectionDim
 import dev.wiptv.design.sectionCaption
-import dev.wiptv.design.CinematicBackdrop
 import dev.wiptv.design.ContinueCard
 import dev.wiptv.design.ContinueGap
 import dev.wiptv.design.PivotScrolling
@@ -68,9 +58,47 @@ import kotlinx.coroutines.withContext
 data class LibraryPick(val trending: TrendingTitle, val title: IndexedTitle)
 
 /** This week's trending picks, kept while the player runs (refetched after three hours). */
-private object LibraryCache {
+private object TrendingCache {
     var picks: List<LibraryPick>? = null
     var at = 0L
+}
+
+/**
+ * What's trending on TMDB this week that your provider has, films and shows in turn, the most
+ * popular first (up to 20). Null while it loads; empty without a TMDB key or a match. Shared by
+ * Home's card and My Page's trending rows, and kept while the player runs.
+ */
+@Composable
+fun rememberTrendingPicks(): List<LibraryPick>? {
+    val context = LocalContext.current
+    var picks by remember { mutableStateOf(TrendingCache.picks) }
+    LaunchedEffect(Unit) {
+        if (!Tmdb.hasKey) {
+            picks = emptyList()
+            return@LaunchedEffect
+        }
+        if (picks != null && System.currentTimeMillis() - TrendingCache.at < 3 * 60 * 60_000L) return@LaunchedEffect
+        val found = try {
+            val films = Tmdb.trending(VodKind.MOVIE)
+            val shows = Tmdb.trending(VodKind.SERIES)
+            withContext(Dispatchers.IO) {
+                fun available(list: List<TrendingTitle>) = list.mapNotNull { t ->
+                    CatalogIndex.match(context, t.kind, t.name, t.year, t.tmdbId)?.let { LibraryPick(t, it) }
+                }
+                val a = available(films)
+                val b = available(shows)
+                (0 until maxOf(a.size, b.size)).flatMap { listOfNotNull(a.getOrNull(it), b.getOrNull(it)) }.take(20)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            picks ?: emptyList()
+        }
+        TrendingCache.picks = found
+        TrendingCache.at = System.currentTimeMillis()
+        picks = found
+    }
+    return picks
 }
 
 private val Edge = 32.dp
@@ -97,7 +125,6 @@ class LibraryPrefs(context: android.content.Context) {
 
     companion object {
         val BUILT_IN = listOf(
-            Group("hero", "Trending banner"),
             Group("resume", "Continue watching"),
             Group("mylist_films", "My List: films"),
             Group("mylist_shows", "My List: TV shows"),
@@ -107,58 +134,30 @@ class LibraryPrefs(context: android.content.Context) {
             Group("trend_films", "Trending films"),
             Group("trend_shows", "Trending TV shows"),
         )
-        val DEFAULT_SHOWN = setOf("hero", "resume", "mylist_films", "mylist_shows", "channels")
+        val DEFAULT_SHOWN = setOf("resume", "mylist_films", "mylist_shows", "channels")
     }
 }
 
 /**
- * Library, the player's home (version 0.3, after the max player), made of the rows you choose
- * (Edit Library at the bottom): the trending banner — what's trending this week on TMDB that
- * your provider has, with Play and More info, Left on Play and Right on More info moving
- * through it, and moving on by itself otherwise — Continue watching, My List, your favourite
- * channels, what's new on your provider, trending films or shows, and any of your provider's
- * categories. Play starts a film (a series opens its page); More info and posters open the
- * details page; a Continue watching card resumes; a channel plays full screen.
+ * My Page (it was Library): Edit My Page and Settings at the top, then the rows you choose —
+ * Continue watching, My List, your favourite channels, what's new on your provider, trending
+ * films or shows, and any of your provider's categories. Posters open the details page; a
+ * Continue watching card resumes; a channel plays full screen. The trending banner moved to
+ * Home's card.
  */
 @Composable
 fun LibraryScreen(
     login: Login,
     store: VodStore,
     header: @Composable () -> Unit,
-    onPlay: (IndexedTitle) -> Unit,
+    onSignOut: () -> Unit,
+    update: UpdateHandle,
     onDetails: (VodKind, Long) -> Unit,
     onResume: (ResumePoint) -> Unit,
     onWatchChannel: (Channel) -> Unit,
 ) {
     val context = LocalContext.current
-    var picks by remember { mutableStateOf(LibraryCache.picks) }
-    LaunchedEffect(Unit) {
-        if (!Tmdb.hasKey) {
-            picks = emptyList()
-            return@LaunchedEffect
-        }
-        if (picks != null && System.currentTimeMillis() - LibraryCache.at < 3 * 60 * 60_000L) return@LaunchedEffect
-        val found = try {
-            val films = Tmdb.trending(VodKind.MOVIE)
-            val shows = Tmdb.trending(VodKind.SERIES)
-            withContext(Dispatchers.IO) {
-                fun available(list: List<TrendingTitle>) = list.mapNotNull { t ->
-                    CatalogIndex.match(context, t.kind, t.name, t.year, t.tmdbId)?.let { LibraryPick(t, it) }
-                }
-                // Films and shows in turn, the most popular first.
-                val a = available(films)
-                val b = available(shows)
-                (0 until maxOf(a.size, b.size)).flatMap { listOfNotNull(a.getOrNull(it), b.getOrNull(it)) }.take(20)
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            picks ?: emptyList()
-        }
-        LibraryCache.picks = found
-        LibraryCache.at = System.currentTimeMillis()
-        picks = found
-    }
+    val picks = rememberTrendingPicks()
 
     // Your rows: the built-in ones and your provider's categories (films, then series).
     val prefs = remember { LibraryPrefs(context) }
@@ -190,42 +189,18 @@ fun LibraryScreen(
     val myList = remember(editing) { store.favourites() }
     val channels = remember(editing) { FavouritePrefs(context).load() }
 
-    var slide by remember { mutableIntStateOf(0) }
-    val shown = picks.orEmpty()
-    val current = shown.getOrNull(slide.coerceIn(0, (shown.size - 1).coerceAtLeast(0)))
-    val heroOn = shelves.any { it.id == "hero" }
-    var heroFocused by remember { mutableStateOf(false) }
-    // The banner moves on by itself, except while you're on its buttons.
-    LaunchedEffect(shown.size, heroFocused, slide) {
-        if (shown.size < 2 || heroFocused) return@LaunchedEffect
-        delay(9_000)
-        slide = (slide + 1) % shown.size
-    }
-
-    val play = remember { FocusRequester() }
+    val first = remember { FocusRequester() }
     val listState = rememberLazyListState()
-    // Focus starts on Play once the banner is there.
-    var placed by remember { mutableStateOf(false) }
-    LaunchedEffect(current != null, heroOn) {
-        if (placed || current == null || !heroOn) return@LaunchedEffect
+    // Focus starts on Edit My Page, at the top.
+    LaunchedEffect(Unit) {
         repeat(20) {
-            if (runCatching { play.requestFocus() }.isSuccess) {
-                placed = true
-                return@LaunchedEffect
-            }
+            if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
             delay(50)
         }
     }
+    var showAccount by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize().wiptvBackground()) {
-        // The banner's artwork, large at the top right, while the banner is on screen.
-        if (heroOn && current != null && listState.firstVisibleItemIndex == 0 && shelves.firstOrNull()?.id == "hero") {
-            CinematicBackdrop(
-                backdrop = current.trending.backdrop,
-                poster = current.trending.poster,
-                modifier = Modifier.align(Alignment.TopEnd).size(width = 780.dp, height = 439.dp),
-            )
-        }
         Column(modifier = Modifier.fillMaxSize().padding(top = 20.dp)) {
             Box(modifier = Modifier.padding(horizontal = Edge)) { header() }
             PivotScrolling(pivot = 34.dp, alwaysAlign = true) {
@@ -235,22 +210,18 @@ fun LibraryScreen(
                     contentPadding = PaddingValues(bottom = 40.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
+                    // Choosing the rows, and the account.
+                    item(key = "buttons") {
+                        Row(
+                            modifier = Modifier.padding(start = Edge, top = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            PlayerButton(text = "Edit My Page", onClick = { editing = true }, modifier = Modifier.focusRequester(first))
+                            PlayerButton(text = "Settings", onClick = { showAccount = true })
+                        }
+                    }
                     for (shelf in shelves) {
                         when {
-                            shelf.id == "hero" -> item(key = "hero") {
-                                Hero(
-                                    pick = current,
-                                    index = slide.coerceIn(0, (shown.size - 1).coerceAtLeast(0)),
-                                    count = shown.size,
-                                    loading = picks == null,
-                                    playRequester = play,
-                                    onFocusChange = { heroFocused = it },
-                                    onPrevious = { if (shown.isNotEmpty()) slide = (slide - 1 + shown.size) % shown.size },
-                                    onNext = { if (shown.isNotEmpty()) slide = (slide + 1) % shown.size },
-                                    onPlay = { current?.let { onPlay(it.title) } },
-                                    onMoreInfo = { current?.let { onDetails(it.title.kind, it.title.id) } },
-                                )
-                            }
                             shelf.id == "resume" -> if (resume.isNotEmpty()) item(key = "resume") {
                                 ResumeShelf(resume, onResume)
                             }
@@ -304,16 +275,6 @@ fun LibraryScreen(
                             }
                         }
                     }
-                    // Choosing the rows.
-                    item(key = "edit") {
-                        Box(Modifier.padding(start = Edge, top = 6.dp)) {
-                            PlayerButton(
-                                text = "Edit Library",
-                                onClick = { editing = true },
-                                modifier = if (!heroOn || current == null) Modifier.focusRequester(play) else Modifier,
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -323,7 +284,7 @@ fun LibraryScreen(
         GroupEditor(
             groups = arranged,
             hidden = arranged.map { it.id }.toSet() - shownIds,
-            title = "Edit Library",
+            title = "Edit My Page",
             onToggle = { shelf ->
                 shownIds = if (shelf.id in shownIds) shownIds - shelf.id else shownIds + shelf.id
                 prefs.setShown(shownIds)
@@ -352,6 +313,12 @@ fun LibraryScreen(
             },
             onDone = { editing = false },
         )
+    }
+
+    if (showAccount) {
+        Dialog(onDismissRequest = { showAccount = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            AccountScreen(login = login, update = update, onSignOut = onSignOut)
+        }
     }
 }
 
@@ -447,103 +414,6 @@ private fun ChannelShelf(channels: List<Channel>, onWatch: (Channel) -> Unit) {
                     modifier = Modifier.padding(start = ArtFocusGap, end = ArtFocusGap, top = 6.dp),
                     style = WiptvType.caption.copy(color = sectionCaption()),
                 )
-            }
-        }
-    }
-}
-
-/** The banner's text: #n TRENDING, the title, its details and synopsis, Play and More info, the dots. */
-@Composable
-private fun Hero(
-    pick: LibraryPick?,
-    index: Int,
-    count: Int,
-    loading: Boolean,
-    playRequester: FocusRequester,
-    onFocusChange: (Boolean) -> Unit,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onPlay: () -> Unit,
-    onMoreInfo: () -> Unit,
-) {
-    Column(
-        modifier = Modifier.padding(start = Edge, top = 26.dp).width(500.dp).height(330.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        if (pick == null) {
-            Text(
-                text = when {
-                    loading -> "Finding what's trending…"
-                    !Tmdb.hasKey -> "Library"
-                    else -> "Nothing trending from your provider right now."
-                },
-                style = if (loading || !Tmdb.hasKey) WiptvType.hero else WiptvType.metadata,
-            )
-            return@Column
-        }
-        val t = pick.trending
-        Text(
-            text = "#${index + 1} TRENDING",
-            modifier = Modifier.background(WiptvColors.accent, WiptvShapes.small).padding(horizontal = 9.dp, vertical = 3.dp),
-            style = WiptvType.hint.copy(color = WiptvColors.onLight, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp),
-        )
-        Text(
-            text = t.name,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            style = WiptvType.hero.copy(fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.Bold),
-        )
-        Text(
-            text = listOfNotNull(
-                if (t.kind == VodKind.MOVIE) "Movie" else "TV show",
-                t.genres.joinToString(", ").ifBlank { null },
-                t.year,
-                t.rating.takeIf { it > 0 }?.let { "TMDB %.1f".format(it) },
-            ).joinToString(" · "),
-            style = WiptvType.metadata.copy(fontWeight = FontWeight.Medium),
-        )
-        if (t.overview.isNotBlank()) {
-            Text(
-                text = t.overview,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                style = WiptvType.metadata.copy(color = WiptvColors.text.copy(alpha = 0.86f)),
-            )
-        }
-        var playFocused by remember { mutableStateOf(false) }
-        var moreFocused by remember { mutableStateOf(false) }
-        Row(
-            modifier = Modifier
-                .padding(top = 6.dp)
-                .onFocusChanged { onFocusChange(it.hasFocus) }
-                // Left on Play and Right on More info move through the banner.
-                .onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    when {
-                        event.key == Key.DirectionLeft && playFocused -> { onPrevious(); true }
-                        event.key == Key.DirectionRight && moreFocused -> { onNext(); true }
-                        else -> false
-                    }
-                },
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            ActionButton(
-                text = if (t.kind == VodKind.MOVIE) "▶  Play" else "▶  Watch",
-                onClick = onPlay,
-                primary = true,
-                modifier = Modifier.focusRequester(playRequester).onFocusChanged { playFocused = it.isFocused },
-            )
-            ActionButton(text = "More info", onClick = onMoreInfo, modifier = Modifier.onFocusChanged { moreFocused = it.isFocused })
-        }
-        if (count > 1) {
-            Row(modifier = Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                repeat(count) { i ->
-                    Box(
-                        Modifier
-                            .size(width = if (i == index) 18.dp else 5.dp, height = 5.dp)
-                            .background(if (i == index) WiptvColors.text else WiptvColors.quiet.copy(alpha = 0.6f), WiptvShapes.pill),
-                    )
-                }
             }
         }
     }

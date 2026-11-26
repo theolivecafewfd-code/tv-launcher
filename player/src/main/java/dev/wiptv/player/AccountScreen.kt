@@ -45,16 +45,15 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 /**
- * Your provider account: whether it's active, when it runs out and how many screens you can
- * watch on at once. Live TV, the guide and films are added to this screen in the next phases.
+ * Settings, over Live TV or My Page: your provider account (whether it's active, when it runs
+ * out and how many screens you can watch on at once), the build and the update pill, Refresh and
+ * Sign out. Back closes it.
  */
 @Composable
 fun AccountScreen(
     login: Login,
     update: UpdateHandle,
     onSignOut: () -> Unit,
-    /** The menu's Settings: the top menu instead of the wordmark, and no "Back" hint. */
-    header: (@Composable () -> Unit)? = null,
 ) {
     var account by remember { mutableStateOf<Account?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -94,26 +93,17 @@ fun AccountScreen(
         modifier = Modifier
             .fillMaxSize()
             .wiptvBackground()
-            .padding(horizontal = if (header != null) 32.dp else 48.dp, vertical = if (header != null) 20.dp else 32.dp),
+            .padding(horizontal = 48.dp, vertical = 32.dp),
     ) {
-        if (header == null) UpdatePill(update, modifier = Modifier.align(Alignment.TopEnd))
+        UpdatePill(update, modifier = Modifier.align(Alignment.TopEnd))
 
         Column(
             modifier = Modifier.align(Alignment.TopStart).padding(top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            if (header != null) {
-                header()
-                Spacer(Modifier.height(18.dp))
-                Text(text = "Settings", style = WiptvType.pageTitle)
-                // The build, and installing an update (the menu only shows a lit Update).
-                UpdatePill(update, modifier = Modifier.padding(vertical = 6.dp))
-                Spacer(Modifier.height(6.dp))
-            } else {
-                Wordmark()
-                Spacer(Modifier.height(10.dp))
-            }
-            Text(text = "Your account", style = if (header != null) WiptvType.section else WiptvType.pageTitle)
+            Wordmark()
+            Spacer(Modifier.height(10.dp))
+            Text(text = "Your account", style = WiptvType.pageTitle)
             Text(text = "${login.username} · ${hostOf(login.server)}", style = WiptvType.metadata)
             Spacer(Modifier.height(18.dp))
 
@@ -136,10 +126,8 @@ fun AccountScreen(
                     onClick = { if (confirmSignOut) onSignOut() else confirmSignOut = true },
                 )
             }
-            if (header == null) {
-                Spacer(Modifier.height(10.dp))
-                Text(text = "Back returns to Live TV.", style = WiptvType.hint)
-            }
+            Spacer(Modifier.height(10.dp))
+            Text(text = "Back to close.", style = WiptvType.hint)
         }
     }
 }

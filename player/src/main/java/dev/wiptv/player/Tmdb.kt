@@ -18,6 +18,8 @@ data class TrendingTitle(
     val genres: List<String>,
     val backdrop: String?,
     val poster: String?,
+    /** Its place in this week's trending list for its kind (1 is the most popular). */
+    val rank: Int,
 )
 
 /**
@@ -49,6 +51,7 @@ object Tmdb {
                 genres = if (genreIds == null) emptyList() else (0 until genreIds.length()).mapNotNull { GENRES[genreIds.optInt(it)] }.distinct().take(2),
                 backdrop = image(item, "backdrop_path", "w1280"),
                 poster = image(item, "poster_path", "w342"),
+                rank = i + 1,
             )
         }.filter { it.name.isNotBlank() && it.backdrop != null }
     }
