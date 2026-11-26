@@ -116,7 +116,8 @@ fun WiptvHeader(
 }
 
 /**
- * The player's top menu: one centred capsule of destinations — search, Home, Live TV, Movies,
+ * The player's top menu: one centred row of destinations (no capsule; the current one sits in a
+ * small glass pill) — search, Home, Live TV, Movies,
  * TV Shows, My Page — and, at the right, a small pill with the clock, plus a lit Update button
  * when a newer build is ready ([updateLabel] is shown in Settings).
  * The caller adds the side margins.
@@ -137,7 +138,7 @@ fun WiptvTopMenu(
         }
     }
     Box(modifier = modifier.fillMaxWidth().height(40.dp)) {
-        NavCapsule(items = nav, modifier = Modifier.align(Alignment.Center))
+        NavCapsule(items = nav, modifier = Modifier.align(Alignment.Center), bare = true)
         Row(
             modifier = Modifier
                 .align(Alignment.CenterEnd)

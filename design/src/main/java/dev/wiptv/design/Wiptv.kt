@@ -307,21 +307,29 @@ class NavItem(
  * faint edge (the top menu). Each item is focusable on its own, in the order given. The focused
  * item fills white with dark text; the selected destination keeps a grey fill and bright text
  * wherever focus is, so the two never look alike. OK acts; focus alone never does.
+ *
+ * [bare] (the player's top menu) drops the capsule behind the items: they sit straight on the
+ * screen, and the selected one wears its own small glass pill instead of the grey fill.
  */
 @Composable
-fun NavCapsule(items: List<NavItem>, modifier: Modifier = Modifier) {
+fun NavCapsule(items: List<NavItem>, modifier: Modifier = Modifier, bare: Boolean = false) {
     Row(
-        modifier = modifier.height(40.dp).glass(WiptvShapes.pill).padding(horizontal = 4.dp),
+        modifier = modifier
+            .height(40.dp)
+            .then(if (bare) Modifier else Modifier.glass(WiptvShapes.pill))
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         items.forEach { item ->
             Surface(
                 onClick = item.onClick,
-                modifier = item.modifier.semantics { contentDescription = item.description },
+                modifier = item.modifier
+                    .then(if (bare && item.selected) Modifier.glass(WiptvShapes.pill) else Modifier)
+                    .semantics { contentDescription = item.description },
                 shape = ClickableSurfaceDefaults.shape(shape = WiptvShapes.pill),
                 colors = ClickableSurfaceDefaults.colors(
-                    containerColor = if (item.selected) WiptvColors.elevated else Color.Transparent,
+                    containerColor = if (item.selected && !bare) WiptvColors.elevated else Color.Transparent,
                     contentColor = if (item.selected) WiptvColors.text else WiptvColors.secondary,
                     focusedContainerColor = WiptvColors.focus,
                     focusedContentColor = WiptvColors.onLight,
