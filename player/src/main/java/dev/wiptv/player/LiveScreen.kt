@@ -109,8 +109,9 @@ private class WatchList(val channels: List<Channel>, val groupId: String, val gr
  * with what's on now, how far through it is and how long is left. OK on a tile watches it full
  * screen; Menu (≡) adds it to (or removes it from) Favourites. Nothing plays on this page.
  *
- * The guide (the menu's Guide) is part of this screen too: the group's channels against the day,
- * with day pills to go back through the week for catch-up. OK there watches full screen as well.
+ * The guide (TV guide, at the top of the groups) is part of this screen too: the group's channels
+ * against the day, with day pills to go back through the week for catch-up. OK there watches full
+ * screen as well.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -120,10 +121,6 @@ fun LiveScreen(
     onSignOut: () -> Unit,
     /** A favourite channel to open full screen straight away (from the launcher). */
     openChannel: Long? = null,
-    /** Open on ★ Favourites (the menu's Favourites) rather than the last group you were in. */
-    startOnFavourites: Boolean = false,
-    /** Open straight into the full guide (the menu's Guide), on the group you were last in. */
-    startInGuide: Boolean = false,
     header: @Composable () -> Unit = {
         Text(
             text = "Live TV",
@@ -140,7 +137,7 @@ fun LiveScreen(
     var groupsAttempt by remember { mutableIntStateOf(0) }
     val channelsByGroup = cache.channels
     var channelsError by remember { mutableStateOf<String?>(null) }
-    var selectedGroup by remember { mutableStateOf(if (startOnFavourites) FAVOURITES_ID else LastWatched.group(context)) }
+    var selectedGroup by remember { mutableStateOf(LastWatched.group(context)) }
     var showAccount by remember { mutableStateOf(false) }
 
     // Groups you've hidden or reordered (Edit groups).
@@ -238,7 +235,7 @@ fun LiveScreen(
 
     val unsorted = if (selectedGroup == FAVOURITES_ID) favourites else selectedGroup?.let { channelsByGroup[it] }
     val channels = remember(unsorted, sortByName) { unsorted?.let(::arrange) }
-    // The group you're on, so the menu's Guide opens on it.
+    // The group you're on, remembered for next time.
     LaunchedEffect(selectedGroup) { selectedGroup?.let { LastWatched.setGroup(context, it) } }
     fun groupName(id: String?): String =
         if (id == FAVOURITES_ID) "Favourites" else groups?.firstOrNull { it.id == id }?.name.orEmpty()
@@ -250,13 +247,14 @@ fun LiveScreen(
     val fullGuide = remember(login) { FullGuideStore(login) }
     var catchUp by remember { mutableStateOf<Pair<Channel, ResumePoint>?>(null) }
     val vodStore = remember { VodStore(context) }
-    // The menu's Guide: straight into the full guide once the group's channels are here, on the
-    // channel last watched if it's in the group.
-    var guideOpened by remember { mutableStateOf(!startInGuide) }
-    LaunchedEffect(channels) {
+    // TV guide: into the full guide once the group's channels are here, on the channel last
+    // watched if it's in the group.
+    var guideOpened by remember { mutableStateOf(true) }
+    LaunchedEffect(channels, guideOpened) {
         val list = channels ?: return@LaunchedEffect
-        if (guideOpened || list.isEmpty()) return@LaunchedEffect
+        if (guideOpened) return@LaunchedEffect
         guideOpened = true
+        if (list.isEmpty()) return@LaunchedEffect
         val last = LastWatched.channel(context)
         val from = list.firstOrNull { it.id == last } ?: list.first()
         gridFrom = from
@@ -393,6 +391,11 @@ fun LiveScreen(
                     contentPadding = PaddingValues(vertical = 4.dp, horizontal = 2.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
+                    item(key = "guide") {
+                        MenuItem(onClick = { guideOpened = false }, selected = false, trailing = "›") {
+                            Text(text = "TV guide", style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold))
+                        }
+                    }
                     item(key = "sort") {
                         // Channels in the provider's order, or by name.
                         MenuItem(

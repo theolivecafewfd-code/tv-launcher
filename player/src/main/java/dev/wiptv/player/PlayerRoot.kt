@@ -1,5 +1,6 @@
 package dev.wiptv.player
 
+import android.widget.Toast
 import dev.wiptv.update.UpdateState
 import dev.wiptv.update.Updater
 import dev.wiptv.update.label
@@ -29,7 +30,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.Alignment
 import dev.wiptv.design.GlassPill
-import dev.wiptv.design.DiceIcon
 import dev.wiptv.design.NavItem
 import dev.wiptv.design.SearchIcon
 import dev.wiptv.design.WiptvTopMenu
@@ -62,17 +62,16 @@ internal object Palette {
 }
 
 /**
- * The player's parts, in the top menu's order (version 0.3). Channels is Live TV; Guide is Live
- * TV opened straight into the full guide, and Favourites on ★ Favourites.
+ * The player's parts, in the top menu's order (after search). Live TV holds the guide and
+ * Favourites; My Page (LIBRARY, so other apps' "section" extras still work) holds Continue
+ * watching, My List and Settings.
  */
 enum class Section(val label: String) {
-    LIBRARY("Library"),
-    LIVE("Channels"),
+    HOME("Home"),
+    LIVE("Live TV"),
     MOVIES("Movies"),
     SERIES("TV Shows"),
-    GUIDE("Guide"),
-    FAVOURITES("Favourites"),
-    SETTINGS("Settings"),
+    LIBRARY("My Page"),
 }
 
 /** A title another app asked the player to open (the launcher's "Watch on IPTV"). */
@@ -81,7 +80,7 @@ data class OpenTitle(val kind: VodKind, val id: Long, val resumeKey: String? = n
 /** Shows the sign-in screen until there are saved details, then Live TV, Movies or Series. */
 @Composable
 fun PlayerRoot(
-    initialSection: Section = Section.LIBRARY,
+    initialSection: Section = Section.HOME,
     open: OpenTitle? = null,
     openChannel: Long? = null,
     onOpenFinished: () -> Unit = {},
@@ -106,7 +105,7 @@ fun PlayerRoot(
         // The title the launcher opened us on: only until you move to another section, so going
         // back to that section doesn't open it again.
         var launchOpen by remember { mutableStateOf(open) }
-        // A title to open on its details page in its section (Library's More info and My List);
+        // A title to open on its details page in its section (Home's More info, My Page's posters);
         // closing that page goes back to the section it was opened from.
         var surprise by remember { mutableStateOf<IndexedTitle?>(null) }
         var surpriseFrom by remember { mutableStateOf<Section?>(null) }
@@ -116,16 +115,17 @@ fun PlayerRoot(
         }
         // Keep the list of films and series the launcher asks about up to date (about daily).
         LaunchedEffect(current) { CatalogIndex.refreshIfStale(context, current) }
-        // A title Library opened to play or resume: closing it goes back to Library (rather than
-        // to the launcher, as one the launcher opened does).
-        var openedFromLibrary by remember { mutableStateOf(false) }
-        // A channel to play full screen on opening Live TV: the launcher's, or one picked in Library.
+        // Where a title Home or My Page opened to play or resume came from: closing it goes back
+        // there (rather than to the launcher, as one the launcher opened does).
+        var returnTo by remember { mutableStateOf<Section?>(null) }
+        // A channel to play full screen on opening Live TV: the launcher's, or one picked in My Page.
         var channelToOpen by remember { mutableStateOf(openChannel) }
         val openFinished: () -> Unit = {
-            if (openedFromLibrary) {
-                openedFromLibrary = false
+            val back = returnTo
+            if (back != null) {
+                returnTo = null
                 launchOpen = null
-                section = Section.LIBRARY
+                section = back
             } else {
                 onOpenFinished()
             }
@@ -135,7 +135,7 @@ fun PlayerRoot(
                 selected = section,
                 onSelect = {
                     launchOpen = null
-                    openedFromLibrary = false
+                    returnTo = null
                     channelToOpen = null
                     section = it
                 },
@@ -149,46 +149,51 @@ fun PlayerRoot(
                 LoginStore.clear(context)
                 login = null
             }
+            /** The details page of a title, in its section; closing it comes back to [from]. */
+            fun details(kind: VodKind, id: Long, from: Section) {
+                launchOpen = null
+                surprise = IndexedTitle(kind, id, "", null, null, null, null, "")
+                surpriseFrom = from
+                section = sectionOf(kind)
+            }
             when (section) {
+                Section.HOME -> HomeScreen(
+                    header = tabs,
+                    onPlay = { title ->
+                        // A film plays at once; a series opens its page.
+                        returnTo = Section.HOME
+                        launchOpen = OpenTitle(title.kind, title.id)
+                        section = sectionOf(title.kind)
+                    },
+                    onDetails = { kind, id -> details(kind, id, Section.HOME) },
+                )
                 Section.LIBRARY -> LibraryScreen(
                     login = current,
                     store = store,
                     header = tabs,
-                    onPlay = { title ->
-                        // A film plays at once; a series opens its page.
-                        openedFromLibrary = true
-                        launchOpen = OpenTitle(title.kind, title.id)
-                        section = sectionOf(title.kind)
-                    },
-                    onDetails = { kind, id ->
-                        launchOpen = null
-                        surprise = IndexedTitle(kind, id, "", null, null, null, null, "")
-                        surpriseFrom = Section.LIBRARY
-                        section = sectionOf(kind)
-                    },
+                    onSignOut = signOut,
+                    update = update,
+                    onDetails = { kind, id -> details(kind, id, Section.LIBRARY) },
                     onResume = { point ->
                         val kind = if (point.key.startsWith("movie:")) VodKind.MOVIE else VodKind.SERIES
                         val id = point.seriesId ?: point.key.substringAfter(':').toLongOrNull() ?: 0L
-                        openedFromLibrary = true
+                        returnTo = Section.LIBRARY
                         launchOpen = OpenTitle(kind, id, resumeKey = point.key)
                         section = sectionOf(kind)
                     },
                     onWatchChannel = { channel ->
-                        // Full screen; Back there goes to its group in Channels.
+                        // Full screen; Back there goes to its group in Live TV.
                         channelToOpen = channel.id
                         section = Section.LIVE
                     },
                 )
-                Section.LIVE, Section.GUIDE, Section.FAVOURITES -> LiveScreen(
+                Section.LIVE -> LiveScreen(
                     login = current,
                     update = update,
                     header = tabs,
-                    openChannel = channelToOpen.takeIf { section == Section.LIVE },
-                    startOnFavourites = section == Section.FAVOURITES,
-                    startInGuide = section == Section.GUIDE,
+                    openChannel = channelToOpen,
                     onSignOut = signOut,
                 )
-                Section.SETTINGS -> AccountScreen(login = current, update = update, onSignOut = signOut, header = tabs)
                 Section.MOVIES -> CatalogScreen(
                     VodKind.MOVIE, current, update, store, tabs,
                     openId = launchOpen?.takeIf { it.kind == VodKind.MOVIE && it.resumeKey == null }?.id,
@@ -296,15 +301,21 @@ fun PlayerButton(
 }
 
 /**
- * The top menu on every screen (version 0.3, after the max player): Library, Channels, Movies,
- * TV Shows, Guide, Favourites and Settings in one centred capsule, the clock at the right (with
- * a lit Update when there's a newer build). The player stands on its own now: no launcher links.
- * OK on a section switches to it; focus alone doesn't.
+ * The top menu on every screen (after Netflix's): search, then Home, Live TV, Movies, TV Shows
+ * and My Page in one centred capsule, the clock at the right (with a lit Update when there's a
+ * newer build). OK on a section switches to it; focus alone doesn't. Search isn't built yet: OK
+ * on it just says so.
  */
 @Composable
 fun SectionTabs(selected: Section, onSelect: (Section) -> Unit, update: UpdateHandle) {
+    val context = LocalContext.current
+    val search = NavItem(
+        icon = { colour -> SearchIcon(color = colour, size = 18.dp) },
+        description = "Search",
+        onClick = { Toast.makeText(context, "Search is coming soon", Toast.LENGTH_SHORT).show() },
+    )
     WiptvTopMenu(
-        nav = Section.entries.map { target ->
+        nav = listOf(search) + Section.entries.map { target ->
             NavItem(label = target.label, selected = selected == target, onClick = { if (selected != target) onSelect(target) })
         },
         updateLabel = update.state.label(BuildConfig.VERSION_CODE),

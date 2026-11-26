@@ -116,9 +116,9 @@ fun WiptvHeader(
 }
 
 /**
- * The player's top menu (version 0.3): one centred capsule of destinations — Library, Channels,
- * Movies, TV Shows, Guide, Favourites, Settings — and, at the right, a small pill with the clock,
- * plus a lit Update button when a newer build is ready ([updateLabel] is shown in Settings).
+ * The player's top menu: one centred capsule of destinations — search, Home, Live TV, Movies,
+ * TV Shows, My Page — and, at the right, a small pill with the clock, plus a lit Update button
+ * when a newer build is ready ([updateLabel] is shown in Settings).
  * The caller adds the side margins.
  */
 @Composable

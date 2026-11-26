@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageShader
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.res.imageResource
 import androidx.compose.ui.graphics.Shape
@@ -187,6 +188,35 @@ fun Modifier.wiptvBackground(): Modifier {
     val grain = remember(tile) { ShaderBrush(ImageShader(tile, TileMode.Repeated, TileMode.Repeated)) }
     return drawBehind {
         drawRect(Brush.verticalGradient(0f to WiptvColors.backgroundTop, 0.55f to WiptvColors.background, 1f to WiptvColors.background))
+        drawRect(grain, alpha = GRAIN_ALPHA)
+    }
+}
+
+/**
+ * The player's Home background: near-black, with a soft spotlight falling from the top centre
+ * (a wide, faint white glow, no blur) and the same grain as [wiptvBackground].
+ */
+@Composable
+fun Modifier.wiptvSpotlight(): Modifier {
+    val tile = ImageBitmap.imageResource(R.drawable.wiptv_grain)
+    val grain = remember(tile) { ShaderBrush(ImageShader(tile, TileMode.Repeated, TileMode.Repeated)) }
+    return drawBehind {
+        drawRect(WiptvColors.background)
+        val top = Offset(size.width / 2f, 0f)
+        // A circle of light stretched sideways into a wide, shallow pool.
+        scale(scaleX = 2.2f, scaleY = 1f, pivot = top) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    0f to Color.White.copy(alpha = 0.13f),
+                    0.45f to Color.White.copy(alpha = 0.05f),
+                    1f to Color.Transparent,
+                    center = top,
+                    radius = size.height * 0.75f,
+                ),
+                radius = size.height * 0.75f,
+                center = top,
+            )
+        }
         drawRect(grain, alpha = GRAIN_ALPHA)
     }
 }
