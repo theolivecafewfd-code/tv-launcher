@@ -50,17 +50,20 @@ fun PivotScrolling(
 /**
  * How a sideways row scrolls: the focused item stays fully on screen with [start] space before
  * it and [end] space after, so the next item always peeks in. Same behaviour on every device
- * (Fire TV's own default would otherwise pin focus a third of the way across).
+ * (Fire TV's own default would otherwise pin focus a third of the way across). With
+ * [pinToStart], the focused item always slides to the start instead, so it's the first one you
+ * see (until the row runs out at its end).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun RowScrolling(start: Dp, end: Dp, content: @Composable () -> Unit) {
+fun RowScrolling(start: Dp, end: Dp, pinToStart: Boolean = false, content: @Composable () -> Unit) {
     val density = LocalDensity.current
     val startPx = with(density) { start.toPx() }
     val endPx = with(density) { end.toPx() }
-    val spec = remember(startPx, endPx) {
+    val spec = remember(startPx, endPx, pinToStart) {
         object : BringIntoViewSpec {
             override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float = when {
+                pinToStart -> offset - startPx
                 offset < startPx / 2 -> offset - startPx
                 offset + size > containerSize - endPx / 2 -> offset + size - (containerSize - endPx)
                 else -> 0f

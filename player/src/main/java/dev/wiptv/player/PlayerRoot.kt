@@ -156,8 +156,17 @@ fun PlayerRoot(
                 surpriseFrom = from
                 section = sectionOf(kind)
             }
+            /** Continue watching a film or episode; closing the player comes back to [from]. */
+            fun resume(point: ResumePoint, from: Section) {
+                val kind = if (point.key.startsWith("movie:")) VodKind.MOVIE else VodKind.SERIES
+                val id = point.seriesId ?: point.key.substringAfter(':').toLongOrNull() ?: 0L
+                returnTo = from
+                launchOpen = OpenTitle(kind, id, resumeKey = point.key)
+                section = sectionOf(kind)
+            }
             when (section) {
                 Section.HOME -> HomeScreen(
+                    store = store,
                     header = tabs,
                     onPlay = { title ->
                         // A film plays at once; a series opens its page.
@@ -166,6 +175,7 @@ fun PlayerRoot(
                         section = sectionOf(title.kind)
                     },
                     onDetails = { kind, id -> details(kind, id, Section.HOME) },
+                    onResume = { point -> resume(point, Section.HOME) },
                 )
                 Section.LIBRARY -> LibraryScreen(
                     login = current,
@@ -174,13 +184,7 @@ fun PlayerRoot(
                     onSignOut = signOut,
                     update = update,
                     onDetails = { kind, id -> details(kind, id, Section.LIBRARY) },
-                    onResume = { point ->
-                        val kind = if (point.key.startsWith("movie:")) VodKind.MOVIE else VodKind.SERIES
-                        val id = point.seriesId ?: point.key.substringAfter(':').toLongOrNull() ?: 0L
-                        returnTo = Section.LIBRARY
-                        launchOpen = OpenTitle(kind, id, resumeKey = point.key)
-                        section = sectionOf(kind)
-                    },
+                    onResume = { point -> resume(point, Section.LIBRARY) },
                     onWatchChannel = { channel ->
                         // Full screen; Back there goes to its group in Live TV.
                         channelToOpen = channel.id

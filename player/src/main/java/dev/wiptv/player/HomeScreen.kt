@@ -4,10 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -30,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
 import dev.wiptv.design.ActionButton
+import dev.wiptv.design.PivotScrolling
 import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvShapes
 import dev.wiptv.design.WiptvType
@@ -44,19 +47,26 @@ private object HomeFeature {
     var pick: LibraryPick? = null
 }
 
+/** How tall the featured card is: the top of the row underneath peeks in below it. */
+private val FeatureHeight = 392.dp
+
 /**
  * Home, where the player opens (after Netflix's new home page): near-black with a soft spotlight
  * from the top, the top menu, and one large rounded card featuring a title from this week's top
  * 10 on TMDB that your provider has, picked at random — its artwork filling the card, with the
  * title, details, synopsis, Play and More info over it, and its place this week at the bottom
  * right. Play starts a film (a series opens its page); More info opens the details page.
- * Nothing else is on Home yet.
+ *
+ * Under the card, Continue watching (films and episodes together), where the focused card always
+ * slides to the start of the row. Down scrolls the page to it; Up goes back to the whole card.
  */
 @Composable
 fun HomeScreen(
+    store: VodStore,
     header: @Composable () -> Unit,
     onPlay: (IndexedTitle) -> Unit,
     onDetails: (VodKind, Long) -> Unit,
+    onResume: (ResumePoint) -> Unit,
 ) {
     val picks = rememberTrendingPicks()
     val pick = remember(picks) {
@@ -65,6 +75,9 @@ fun HomeScreen(
             all.filter { it.trending.rank <= 10 }.ifEmpty { all }.randomOrNull()
         }?.also { HomeFeature.pick = it }
     }
+
+    // Read each time Home opens, so it's up to date after watching something.
+    val resume = remember { store.resumePoints() }
 
     // Focus starts on Play once the card is there.
     val play = remember { FocusRequester() }
@@ -79,17 +92,32 @@ fun HomeScreen(
     Box(modifier = Modifier.fillMaxSize().wiptvSpotlight()) {
         Column(modifier = Modifier.fillMaxSize().padding(top = 20.dp)) {
             Box(modifier = Modifier.padding(horizontal = Edge)) { header() }
-            FeatureCard(
-                pick = pick,
-                loading = picks == null,
-                playRequester = play,
-                onPlay = onPlay,
-                onDetails = onDetails,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(start = Edge, end = Edge, top = 18.dp, bottom = 24.dp),
-            )
+            // Down to a row settles it near the top; Up to the card's buttons goes back to the
+            // very top, so the whole card shows again.
+            PivotScrolling(pivot = 34.dp, upToTopBelow = 64.dp) {
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentPadding = PaddingValues(top = 18.dp, bottom = 40.dp),
+                    verticalArrangement = Arrangement.spacedBy(22.dp),
+                ) {
+                    item(key = "feature") {
+                        FeatureCard(
+                            pick = pick,
+                            loading = picks == null,
+                            playRequester = play,
+                            onPlay = onPlay,
+                            onDetails = onDetails,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(FeatureHeight)
+                                .padding(horizontal = Edge),
+                        )
+                    }
+                    if (resume.isNotEmpty()) {
+                        item(key = "resume") { ResumeShelf(resume, onResume, pinToStart = true) }
+                    }
+                }
+            }
         }
     }
 }
