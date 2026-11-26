@@ -251,9 +251,9 @@ object Xtream {
      * What's on a channel now and next (the provider's "short EPG"): a handful of programmes from
      * now on. Cheap enough to ask for each channel as it comes on screen.
      */
-    suspend fun shortGuide(login: Login, channelId: Long, quick: Boolean = false): List<Programme> = withContext(Dispatchers.IO) {
+    suspend fun shortGuide(login: Login, channelId: Long, quick: Boolean = false, limit: Int = 8): List<Programme> = withContext(Dispatchers.IO) {
         // [quick]: for the launcher, which only waits a few seconds, so the request gives up as soon.
-        val url = "${api(login)}&action=get_short_epg&stream_id=$channelId&limit=8"
+        val url = "${api(login)}&action=get_short_epg&stream_id=$channelId&limit=$limit"
         val text = if (quick) fetch(url, readTimeoutMs = 5_000, connectTimeoutMs = 4_000) { it.bufferedReader().readText() } else get(url)
         val listings = runCatching { JSONObject(text).optJSONArray("epg_listings") }.getOrNull()
             ?: return@withContext emptyList()

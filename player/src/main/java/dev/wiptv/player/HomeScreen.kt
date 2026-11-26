@@ -59,14 +59,18 @@ private val FeatureHeight = 392.dp
  *
  * Under the card, Continue watching (films and episodes together), where the focused card always
  * slides to the start of the row. Down scrolls the page to it; Up goes back to the whole card.
+ * Then today's Premier League ([SportsShelf]), when there's a match on.
  */
 @Composable
 fun HomeScreen(
+    login: Login,
     store: VodStore,
     header: @Composable () -> Unit,
     onPlay: (IndexedTitle) -> Unit,
     onDetails: (VodKind, Long) -> Unit,
     onResume: (ResumePoint) -> Unit,
+    onWatchChannel: (Channel) -> Unit,
+    onOpenGroup: (String) -> Unit,
 ) {
     val picks = rememberTrendingPicks()
     val pick = remember(picks) {
@@ -78,6 +82,7 @@ fun HomeScreen(
 
     // Read each time Home opens, so it's up to date after watching something.
     val resume = remember { store.resumePoints() }
+    val sports = rememberSports(login)
 
     // Focus starts on Play once the card is there.
     val play = remember { FocusRequester() }
@@ -115,6 +120,9 @@ fun HomeScreen(
                     }
                     if (resume.isNotEmpty()) {
                         item(key = "resume") { ResumeShelf(resume, onResume, pinToStart = true) }
+                    }
+                    if (sports.visible) {
+                        item(key = "sports") { SportsShelf(login, sports, Edge, onWatchChannel, onOpenGroup) }
                     }
                 }
             }

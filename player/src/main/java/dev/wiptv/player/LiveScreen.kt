@@ -101,6 +101,11 @@ private object LastWatched {
     private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 }
 
+/** Lets another page open Live TV on a group (Home's Sports row, when a match's channel isn't found). */
+internal object LiveGroupPrefs {
+    fun setGroup(context: Context, id: String) = LastWatched.setGroup(context, id)
+}
+
 /** What full screen plays through: a group's channels and where to start. */
 private class WatchList(val channels: List<Channel>, val groupId: String, val groupName: String, val start: Int)
 
@@ -121,6 +126,8 @@ fun LiveScreen(
     onSignOut: () -> Unit,
     /** A favourite channel to open full screen straight away (from the launcher). */
     openChannel: Long? = null,
+    /** [openChannel] itself, when it may not be a favourite (Home's Sports row). */
+    openChannelInfo: Channel? = null,
     header: @Composable () -> Unit = {
         Text(
             text = "Live TV",
@@ -295,7 +302,7 @@ fun LiveScreen(
     // group. Back from full screen lands here in Live TV, on that group and channel.
     LaunchedEffect(openChannel) {
         val id = openChannel ?: return@LaunchedEffect
-        val channel = favourites.firstOrNull { it.id == id }
+        val channel = favourites.firstOrNull { it.id == id } ?: openChannelInfo?.takeIf { it.id == id }
         if (channel == null) {
             opening = false
             return@LaunchedEffect

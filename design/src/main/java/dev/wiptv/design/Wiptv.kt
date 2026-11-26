@@ -88,6 +88,9 @@ object WiptvColors {
     val error = Color(0xFFFFB8B4)
     val progress = accent
 
+    /** Live sport: the LIVE badge and the match minute. */
+    val live = Color(0xFFF0545C)
+
     /** A focused list row (guide, episodes): a subtle raised fill and a short pale bar on the left. */
     val rowFocus = elevated
     val rowFocusMarker = focus
