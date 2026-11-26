@@ -148,7 +148,8 @@ fun sectionCaption(): Color {
 /**
  * A titled row running edge to edge: its heading, then a sideways list of cards. The whole row is
  * one section: while it has focus its heading and captions are bright and its artwork undimmed.
- * [rowModifier] goes on the list itself (focus targets, restoring the last card).
+ * [rowModifier] goes on the list itself (focus targets, restoring the last card). With
+ * [pinToStart], the focused card always slides to the start of the row.
  */
 @Composable
 fun SectionRow(
@@ -161,13 +162,14 @@ fun SectionRow(
     contentStart: Dp = edge - ArtFocusGap,
     /** Space between the cards themselves; frames with a focus gap take it off both sides. */
     spacing: Dp = gap - ArtFocusGap * 2,
+    pinToStart: Boolean = false,
     content: LazyListScope.() -> Unit,
 ) {
     var active by remember { mutableStateOf(false) }
     Column(modifier = modifier.fillMaxWidth().onFocusChanged { active = it.hasFocus }) {
         CompositionLocalProvider(LocalSectionActive provides active) {
             Box(Modifier.padding(start = edge, end = edge, bottom = 2.dp)) { SectionHeading(title, active) }
-            RowScrolling(start = edge, end = 72.dp) {
+            RowScrolling(start = if (pinToStart) contentStart else edge, end = 72.dp, pinToStart = pinToStart) {
                 LazyRow(
                     modifier = rowModifier,
                     contentPadding = PaddingValues(start = contentStart, end = edge, top = 6.dp, bottom = 2.dp),

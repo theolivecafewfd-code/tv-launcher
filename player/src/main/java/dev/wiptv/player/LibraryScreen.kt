@@ -325,8 +325,13 @@ fun LibraryScreen(
 /** A title in a Library row, whichever list it came from. */
 private data class ShelfTitle(val key: String, val kind: VodKind, val id: Long, val name: String, val poster: String?, val backdrop: String?)
 
+/**
+ * Continue watching, films and episodes together, newest first: the cards widen when you rest on
+ * them, with the progress bar and the time left. Used on Home ([pinToStart]: the focused card
+ * slides to the start of the row) and My Page.
+ */
 @Composable
-private fun ResumeShelf(resume: List<ResumePoint>, onResume: (ResumePoint) -> Unit) {
+internal fun ResumeShelf(resume: List<ResumePoint>, onResume: (ResumePoint) -> Unit, pinToStart: Boolean = false) {
     val wideCard = rememberWideCard()
     val rowStart = rememberRowStart()
     SectionRow(
@@ -334,6 +339,7 @@ private fun ResumeShelf(resume: List<ResumePoint>, onResume: (ResumePoint) -> Un
         edge = Edge,
         contentStart = Edge,
         spacing = ContinueGap,
+        pinToStart = pinToStart,
         rowModifier = rowStart.rowModifier(resume.firstOrNull()?.key),
     ) {
         items(resume, key = { it.key }) { point ->
