@@ -1,6 +1,14 @@
 package dev.wiptv.player
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import dev.wiptv.design.ListRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,7 +17,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -56,48 +63,52 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** The Premier League for Home's row and the Sports page, and saving a new sports group. */
+/** The Premier League for Home's row and the Sports page, and the channels for each match. */
 class SportsRowState(
-    val group: Group?,
     /** Today's matches still to finish, live ones first (Home's row); null until ESPN first answers. */
     val matches: List<Match>?,
     /** Every match today and the next two days, finished ones too, in kick-off order (the Sports page). */
     val all: List<Match>?,
-    /** Whether the sports channels' guides have been read (so a missing channel means not found). */
+    /** Whether the sports channels' guides have been read. */
     val guideReady: Boolean,
+    /** The channel you chose for each match, else the one the guide says is showing it. */
     val channelFor: Map<String, Channel?>,
-    val setGroup: (Group) -> Unit,
+    /** The channels you chose, by match. */
+    val picked: Map<String, Channel>,
+    /** The channels to choose from for a match (empty until the guides are read). */
+    val options: (Match) -> List<ChannelOption>,
+    val setPick: (Match, Channel) -> Unit,
 ) {
-    /** Shown while there's a match today, or to choose the sports group the first time. */
-    val visible: Boolean get() = group == null || !matches.isNullOrEmpty()
+    /** Home shows the row while there's a match today. */
+    val visible: Boolean get() = !matches.isNullOrEmpty()
 }
 
 /**
  * The Premier League today and the next two days from ESPN, refreshed every minute while a match
- * is live (every five otherwise) while Home or Sports is open, with each match's channel found in
- * your sports group's guide.
+ * is live (every five otherwise) while Home or Sports is open, and your provider's sports
+ * channels' guides, read once there's a match to find a channel for and every half hour after.
  */
 @Composable
 fun rememberSports(
     login: Login,
-    /** The Sports page: the channels are looked for on every day shown, not just today. */
+    /** The Sports page: channels are looked for on every day shown, not just today. */
     allDays: Boolean = false,
 ): SportsRowState {
     val context = LocalContext.current
     val prefs = remember { SportsPrefs(context) }
-    var group by remember { mutableStateOf(prefs.group()) }
     var matches by remember { mutableStateOf(SportsCache.matches) }
     var guide by remember { mutableStateOf(SportsCache.guide) }
+    var pickedVersion by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
         while (true) {
             val fresh = System.currentTimeMillis() - SportsCache.matchesAt < 55_000
             if (!fresh) {
                 try {
-                    val today = Espn.premierLeague()
-                    SportsCache.matches = today
+                    val found = Espn.premierLeague()
+                    SportsCache.matches = found
                     SportsCache.matchesAt = System.currentTimeMillis()
-                    matches = today
+                    matches = found
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -108,46 +119,53 @@ fun rememberSports(
         }
     }
 
-    // The sports channels' guides, read once there's a match to find and again every half hour.
     val needGuide = matches.orEmpty().any { !it.finished && (allDays || it.day == java.time.LocalDate.now()) }
-    LaunchedEffect(group?.id, needGuide) {
-        val chosen = group ?: return@LaunchedEffect
+    LaunchedEffect(needGuide) {
         if (!needGuide) return@LaunchedEffect
         while (true) {
             val kept = SportsCache.guide
-            if (kept != null && kept.groupId == chosen.id && System.currentTimeMillis() - kept.loadedAt < SportsCache.GUIDE_KEEP_MS) {
+            if (kept != null && System.currentTimeMillis() - kept.loadedAt < SportsCache.GUIDE_KEEP_MS) {
                 guide = kept
             } else {
                 try {
-                    guide = SportsCache.loadGuide(login, chosen)
+                    guide = SportsCache.loadGuide(login)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    // The provider didn't answer: the cards say the channel wasn't found.
-                    guide = SportsGuide(chosen.id, System.currentTimeMillis(), emptyList(), emptyMap())
+                    // The provider didn't answer: nothing to choose from until the next try.
+                    guide = SportsGuide(System.currentTimeMillis(), emptyList(), emptyMap())
                 }
             }
             delay(SportsCache.GUIDE_KEEP_MS)
         }
     }
 
-    val current = guide?.takeIf { it.groupId == group?.id }
     // ESPN's list from an earlier day (the player left running overnight) drops yesterday's games.
     val today = java.time.LocalDate.now()
     val all = matches?.filter { !it.day.isBefore(today) }
     val shown = all?.filter { !it.finished && it.day == today }?.sortedWith(compareByDescending<Match> { it.live }.thenBy { it.kickOff })
-    val channels = remember(all, current) {
-        if (current == null) emptyMap() else all.orEmpty().filter { !it.finished }.associate { it.id to SportsMatcher.channelFor(it, current) }
+    val current = guide
+    // A saved pick, with the guide's own copy of the channel once it's read (its logo and catch-up up to date).
+    val picked = remember(all, current, pickedVersion) {
+        all.orEmpty().mapNotNull { m ->
+            prefs.pick(m.id)?.let { p -> m.id to (current?.channels?.firstOrNull { it.id == p.id } ?: p) }
+        }.toMap()
+    }
+    val channels = remember(all, current, picked) {
+        all.orEmpty().filter { !it.finished }.associate { m ->
+            m.id to (picked[m.id] ?: current?.let { SportsMatcher.channelFor(m, it) })
+        }
     }
     return SportsRowState(
-        group = group,
         matches = shown,
         all = all,
         guideReady = current != null,
         channelFor = channels,
-        setGroup = {
-            prefs.setGroup(it)
-            group = it
+        picked = picked,
+        options = { m -> current?.let { SportsMatcher.options(m, it) }.orEmpty() },
+        setPick = { m, channel ->
+            prefs.setPick(m.id, channel, all.orEmpty().map { it.id }.toSet())
+            pickedVersion++
         },
     )
 }
@@ -158,64 +176,43 @@ private val CardShape = RoundedCornerShape(14.dp)
 
 /**
  * The Sports row: "Premier League", then a card per match today, live ones first. A card shows
- * LIVE and the minute (or TODAY and the kick-off time), both teams with their badges and the
- * score, and the channel it's on. OK watches that channel full screen; with no channel found it
- * opens your sports group in Live TV. The last card shows and changes the sports group.
+ * LIVE and the minute (or TODAY and the kick-off time), both teams with their badges, records and
+ * the score, and the channel. OK watches the channel you chose for that match, or opens the list
+ * of channels to choose from; Menu (≡) opens the list to change it. All fixtures comes last.
  */
 @Composable
 fun SportsShelf(
-    login: Login,
     state: SportsRowState,
     edge: androidx.compose.ui.unit.Dp,
     onWatchChannel: (Channel) -> Unit,
-    onOpenGroup: (String) -> Unit,
     /** Opens the Sports page (the "All fixtures" card). */
     onSeeAll: () -> Unit,
 ) {
-    var choosing by remember { mutableStateOf(false) }
+    var choosing by remember { mutableStateOf<Match?>(null) }
     val rowStart = rememberRowStart()
     val matches = state.matches.orEmpty()
-    val group = state.group
     SectionRow(
         title = "Premier League",
         edge = edge,
         contentStart = edge,
         spacing = 14.dp,
-        rowModifier = rowStart.rowModifier(matches.firstOrNull()?.id ?: "group"),
+        rowModifier = rowStart.rowModifier(matches.firstOrNull()?.id ?: "all"),
     ) {
         items(matches, key = { it.id }) { match ->
-            val channel = state.channelFor[match.id]
             MatchCard(
                 match = match,
-                channel = channel,
-                searching = group != null && !state.guideReady,
-                onClick = {
-                    when {
-                        channel != null -> onWatchChannel(channel)
-                        group != null -> onOpenGroup(group.id)
-                        else -> choosing = true
-                    }
-                },
+                state = state,
+                onWatch = onWatchChannel,
+                onChoose = { choosing = match },
                 modifier = rowStart.card(match.id),
             )
         }
         item(key = "all") {
             SeeAllCard(onClick = onSeeAll, modifier = rowStart.card("all"))
         }
-        item(key = "group") {
-            GroupCard(group = group, onClick = { choosing = true }, modifier = rowStart.card("group"))
-        }
     }
-    if (choosing) {
-        SportsGroupPicker(
-            login = login,
-            current = group?.id,
-            onPick = {
-                state.setGroup(it)
-                choosing = false
-            },
-            onDismiss = { choosing = false },
-        )
+    choosing?.let { match ->
+        ChannelPanel(match = match, state = state, onWatch = onWatchChannel, onDismiss = { choosing = null })
     }
 }
 
@@ -236,18 +233,30 @@ private fun SeeAllCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
 
 /**
  * A match: LIVE and the minute, FULL TIME, or [label] ("TODAY" on Home) and the kick-off time;
- * both teams with their badges, records and score; and the channel it's on.
+ * both teams with their badges, records and score; and the channel. OK watches the channel you
+ * chose for it, or [onChoose]s one; Menu (≡) always opens the choice, to change it.
  */
 @Composable
 internal fun MatchCard(
     match: Match,
-    channel: Channel?,
-    searching: Boolean,
-    onClick: () -> Unit,
+    state: SportsRowState,
+    onWatch: (Channel) -> Unit,
+    onChoose: () -> Unit,
     modifier: Modifier = Modifier,
     label: String = "TODAY",
 ) {
-    SportsCardFrame(onClick = onClick, modifier = modifier.width(CardWidth)) {
+    val picked = state.picked[match.id]
+    val found = state.channelFor[match.id]
+    SportsCardFrame(
+        onClick = { if (picked != null) onWatch(picked) else onChoose() },
+        modifier = modifier
+            .width(CardWidth)
+            .onPreviewKeyEvent { event ->
+                if (event.key != Key.Menu) return@onPreviewKeyEvent false
+                if (event.type == KeyEventType.KeyUp) onChoose()
+                true
+            },
+    ) {
         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 when {
@@ -272,6 +281,7 @@ internal fun MatchCard(
             Box(Modifier.fillMaxWidth().height(1.dp).background(WiptvColors.border))
             Spacer(Modifier.height(7.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val channel = picked ?: found
                 if (channel?.logo != null) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current).data(channel.logo).size(48, 48).build(),
@@ -282,20 +292,19 @@ internal fun MatchCard(
                 }
                 Text(
                     text = when {
-                        match.finished && channel == null -> "Full time"
-                        channel != null -> ChannelLabels.of(channel.name).name
-                        searching -> "Finding the channel…"
-                        // The guide only reaches a day or two ahead.
-                        match.day != java.time.LocalDate.now() -> "Channel nearer the day"
-                        else -> "Channel not found"
+                        picked != null -> "✓ " + ChannelLabels.of(picked.name).name
+                        match.finished -> "Full time"
+                        found != null -> ChannelLabels.of(found.name).name + "  ·  OK to choose"
+                        !state.guideReady -> "Looking for channels…"
+                        else -> "OK to choose a channel"
                     },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                     style = WiptvType.hint.copy(color = if (channel != null) WiptvColors.secondary else WiptvColors.quiet),
                 )
-                if (channel != null && match.live) {
-                    Text(text = "▶", style = WiptvType.hint.copy(color = WiptvColors.text))
+                if (picked != null) {
+                    Text(text = "≡ change", style = WiptvType.hint.copy(fontSize = 11.sp, color = WiptvColors.quiet))
                 }
             }
         }
@@ -336,37 +345,6 @@ private fun TeamLine(side: Side) {
     }
 }
 
-/** The last card: which group your sports channels are in, and OK to choose (or change) it. */
-@Composable
-internal fun GroupCard(group: Group?, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    SportsCardFrame(onClick = onClick, modifier = modifier.width(if (group == null) CardWidth else 200.dp)) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            if (group == null) {
-                Text(text = "Choose your sports channels", style = WiptvType.body.copy(fontWeight = FontWeight.SemiBold, color = WiptvColors.text))
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "Pick the Live TV group with Sky Sports, TNT Sports and so on, so each match shows its channel.",
-                    style = WiptvType.hint,
-                )
-            } else {
-                Text(text = "Sports channels", style = WiptvType.hint)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = group.name,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = WiptvType.body.copy(fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
-                )
-                Spacer(Modifier.height(6.dp))
-                Text(text = "OK to change", style = WiptvType.hint)
-            }
-        }
-    }
-}
-
 /** A Sports card: a dark rounded panel with a faint edge; focus is the white outline. */
 @Composable
 private fun SportsCardFrame(onClick: () -> Unit, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
@@ -397,64 +375,137 @@ private fun Badge(text: String, fill: Color, colour: Color) {
 
 private fun kickOffTime(time: Long): String = SimpleDateFormat("HH:mm", Locale.UK).format(Date(time))
 
-/** Choosing the Live TV group with your sports channels: a list of your groups over Home. */
+/**
+ * The channels for a match, in a glass panel down the right: those whose guide names both teams
+ * around kick-off first ("Showing this game"), then ones with football on, then your other sports
+ * channels. Each row has the channel's logo and name, what's on at kick-off and its times. OK
+ * remembers it for this match and watches it.
+ */
 @Composable
-internal fun SportsGroupPicker(login: Login, current: String?, onPick: (Group) -> Unit, onDismiss: () -> Unit) {
-    val cache = remember(login) { SessionCache.of(login, "LIVE") }
-    var groups by remember { mutableStateOf(cache.liveGroups) }
-    var failed by remember { mutableStateOf(false) }
-    LaunchedEffect(login) {
-        if (groups != null) return@LaunchedEffect
-        try {
-            groups = Xtream.liveGroups(login).also { cache.liveGroups = it }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            failed = true
-        }
+internal fun ChannelPanel(match: Match, state: SportsRowState, onWatch: (Channel) -> Unit, onDismiss: () -> Unit) {
+    val options = remember(match.id, state.guideReady) { state.options(match) }
+    val picked = state.picked[match.id]
+    // The one you chose before, or the best guess, at the top of the list.
+    val ordered = remember(options, picked) {
+        val chosen = picked?.let { p -> options.firstOrNull { it.channel.id == p.id } ?: ChannelOption(p, null, "Your pick", showing = false) }
+        listOfNotNull(chosen) + options.filter { it.channel.id != picked?.id }
     }
-    // Focus on the group in use (or the first), once the list is there.
-    val target = remember { FocusRequester() }
-    LaunchedEffect(groups) {
-        if (groups.isNullOrEmpty()) return@LaunchedEffect
+    val first = remember { FocusRequester() }
+    LaunchedEffect(ordered.isNotEmpty()) {
+        if (ordered.isEmpty()) return@LaunchedEffect
         repeat(20) {
-            if (runCatching { target.requestFocus() }.isSuccess) return@LaunchedEffect
+            if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
             delay(50)
         }
     }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)), contentAlignment = Alignment.Center) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Row(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
             Column(
                 modifier = Modifier
-                    .width(440.dp)
-                    .heightIn(max = 440.dp)
+                    .width(400.dp)
+                    .fillMaxSize()
+                    .padding(top = 16.dp, bottom = 16.dp, end = 16.dp)
                     .glass(WiptvShapes.panel, Glass.Drawer)
-                    .padding(horizontal = 18.dp, vertical = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                    .padding(start = 14.dp, end = 14.dp, top = 18.dp, bottom = 8.dp),
             ) {
-                Text(text = "Your sports channels", style = WiptvType.pageTitle.copy(fontSize = 22.sp, lineHeight = 28.sp))
-                Text(text = "Pick the group with your sports channels. Back to close.", style = WiptvType.hint)
-                Spacer(Modifier.height(6.dp))
-                val list = groups
+                Text(
+                    text = "${match.home.shortName} v ${match.away.shortName}",
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 10.dp),
+                    style = WiptvType.body.copy(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold),
+                )
+                Text(
+                    text = (if (match.live) "Live now · ${match.clock}" else "${matchDay(match)} · ${kickOffTime(match.kickOff)}") + "  ·  OK watches · Back closes",
+                    modifier = Modifier.padding(start = 10.dp, top = 2.dp, bottom = 10.dp),
+                    style = WiptvType.hint,
+                )
                 when {
-                    list != null -> {
-                        val focusOn = list.firstOrNull { it.id == current }?.id ?: list.firstOrNull()?.id
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            items(list, key = { it.id }) { g ->
-                                MenuItem(
-                                    onClick = { onPick(g) },
-                                    selected = g.id == current,
-                                    modifier = if (g.id == focusOn) Modifier.focusRequester(target) else Modifier,
-                                ) {
-                                    Text(text = g.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = WiptvType.body.copy(color = androidx.tv.material3.LocalContentColor.current))
-                                }
-                            }
+                    !state.guideReady -> Text(
+                        text = "Looking through your sports channels' guides…",
+                        modifier = Modifier.padding(start = 10.dp),
+                        style = WiptvType.metadata.copy(color = WiptvColors.quiet),
+                    )
+                    ordered.isEmpty() -> Text(
+                        text = "No sports channels found in your Live TV.",
+                        modifier = Modifier.padding(start = 10.dp),
+                        style = WiptvType.metadata.copy(color = WiptvColors.quiet),
+                    )
+                    else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        itemsIndexed(ordered, key = { _, o -> o.channel.id }) { index, option ->
+                            ChannelOptionRow(
+                                option = option,
+                                chosen = option.channel.id == picked?.id,
+                                onClick = {
+                                    state.setPick(match, option.channel)
+                                    onDismiss()
+                                    onWatch(option.channel)
+                                },
+                                modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
+                            )
                         }
                     }
-                    failed -> Text(text = "Couldn't load your Live TV groups. Back, then try again.", style = WiptvType.metadata.copy(color = WiptvColors.warning))
-                    else -> Text(text = "Loading your Live TV groups…", style = WiptvType.metadata)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ChannelOptionRow(option: ChannelOption, chosen: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    ListRow(
+        onClick = onClick,
+        modifier = modifier,
+        selected = chosen,
+        contentPadding = PaddingValues(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier.size(width = 52.dp, height = 36.dp).clip(WiptvShapes.small).background(WiptvColors.elevated),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (option.channel.logo != null) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current).data(option.channel.logo).size(104, 72).build(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(4.dp),
+                )
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = (if (chosen) "✓ " else "") + ChannelLabels.of(option.channel.name).name,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = WiptvType.control.copy(fontSize = 15.sp, lineHeight = 19.sp, color = WiptvColors.text),
+            )
+            val p = option.programme
+            Text(
+                text = if (p == null) "Nothing in the guide at kick-off" else "${p.title}  ·  ${kickOffTime(p.start)}–${kickOffTime(p.end)}",
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                style = WiptvType.hint,
+            )
+        }
+        Text(
+            text = option.tag,
+            maxLines = 1,
+            modifier = Modifier
+                .background(if (option.showing) WiptvColors.accent.copy(alpha = 0.18f) else WiptvColors.elevated, WiptvShapes.pill)
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+            style = WiptvType.hint.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = if (option.showing) WiptvColors.accent else WiptvColors.quiet),
+        )
+    }
+}
+
+/** "Today", "Tomorrow" or the weekday a match is on. */
+private fun matchDay(match: Match): String {
+    val today = java.time.LocalDate.now()
+    return when (match.day) {
+        today -> "Today"
+        today.plusDays(1) -> "Tomorrow"
+        else -> match.day.format(java.time.format.DateTimeFormatter.ofPattern("EEEE", Locale.UK))
     }
 }

@@ -187,10 +187,6 @@ fun PlayerRoot(
                         channelInfo = channel
                         section = Section.LIVE
                     },
-                    onOpenGroup = { groupId ->
-                        LiveGroupPrefs.setGroup(context, groupId)
-                        section = Section.LIVE
-                    },
                     onSeeAllSports = { section = Section.SPORTS },
                 )
                 Section.SPORTS -> SportsScreen(
@@ -200,10 +196,6 @@ fun PlayerRoot(
                         // Full screen; Back there goes to its group in Live TV.
                         channelToOpen = channel.id
                         channelInfo = channel
-                        section = Section.LIVE
-                    },
-                    onOpenGroup = { groupId ->
-                        LiveGroupPrefs.setGroup(context, groupId)
                         section = Section.LIVE
                     },
                 )

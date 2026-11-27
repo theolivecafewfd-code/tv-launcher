@@ -126,22 +126,48 @@ object Espn {
     }
 }
 
-/** The Live TV group with your sports channels, chosen once on Home. */
+/** The channel you chose for each match, so OK on its card goes straight there next time. */
 class SportsPrefs(context: Context) {
     private val prefs = context.getSharedPreferences("sports", Context.MODE_PRIVATE)
 
-    fun group(): Group? {
-        val id = prefs.getString("group", null) ?: return null
-        return Group(id, prefs.getString("groupName", null) ?: "Sports")
+    fun pick(matchId: String): Channel? {
+        val text = prefs.getString("pick.$matchId", null) ?: return null
+        return runCatching {
+            val o = JSONObject(text)
+            Channel(
+                id = o.getLong("id"),
+                number = 0,
+                name = o.getString("name"),
+                logo = o.optString("logo").takeIf { it.startsWith("http") },
+                groupId = o.optString("group"),
+                guideId = null,
+                catchUp = false,
+            )
+        }.getOrNull()
     }
 
-    fun setGroup(group: Group) {
-        prefs.edit().putString("group", group.id).putString("groupName", group.name).apply()
+    /** Saves [channel] for [matchId], and forgets picks for matches no longer in [keep]. */
+    fun setPick(matchId: String, channel: Channel, keep: Set<String>) {
+        val o = JSONObject().put("id", channel.id).put("name", channel.name).put("logo", channel.logo ?: "").put("group", channel.groupId)
+        val edit = prefs.edit().putString("pick.$matchId", o.toString())
+        prefs.all.keys.filter { it.startsWith("pick.") && it.removePrefix("pick.") !in keep && it != "pick.$matchId" }.forEach { edit.remove(it) }
+        edit.apply()
     }
 }
 
-/** A sports group's channels and what's on them, kept while the player runs. */
-class SportsGuide(val groupId: String, val loadedAt: Long, val channels: List<Channel>, val programmes: Map<Long, List<Programme>>)
+/** Your provider's sports channels and what's on them, kept while the player runs. */
+class SportsGuide(val loadedAt: Long, val channels: List<Channel>, val programmes: Map<Long, List<Programme>>)
+
+/** A channel that might show a match, for the list you choose from. */
+class ChannelOption(
+    val channel: Channel,
+    /** What the guide has on it at kick-off. */
+    val programme: Programme?,
+    /** "Showing this game", "Football on" or "Sports channel". */
+    val tag: String,
+    /** The guide names both teams on it around kick-off. */
+    val showing: Boolean,
+)
 
 /** Kept between visits to Home, so coming back doesn't ask ESPN or the provider again at once. */
 object SportsCache {
@@ -155,9 +181,38 @@ object SportsCache {
     /** The most channels whose guides are read (a few at a time), to spare the Fire Stick. */
     private const val MAX_CHANNELS = 150
 
-    /** Reads the guide (the next day or so) of every channel in [group]. */
-    suspend fun loadGuide(login: Login, group: Group): SportsGuide {
-        val channels = Xtream.liveChannels(login, group.id).take(MAX_CHANNELS)
+    /** The most groups looked through for sports channels. */
+    private const val MAX_GROUPS = 16
+
+    /**
+     * Finds your provider's sports channels without you choosing a group: the groups named for
+     * sport (and the UK and Irish ones), then the channels in them that look like sport (Sky
+     * Sports, TNT, Premier Sports, Amazon, DAZN, match and event channels…), Irish and UK ones
+     * first; then reads the next day or so of each one's guide.
+     */
+    suspend fun loadGuide(login: Login): SportsGuide {
+        val groups = Xtream.liveGroups(login)
+            .map { it to SportsChannels.groupScore(it.name) }
+            .filter { it.second > 0 }
+            .sortedByDescending { it.second }
+            .take(MAX_GROUPS)
+        val found = mutableListOf<Pair<Channel, Int>>()
+        for ((group, groupScore) in groups) {
+            val inGroup = try {
+                Xtream.liveChannels(login, group.id)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emptyList()
+            }
+            val sportsGroup = SportsChannels.isSportsGroup(group.name)
+            inGroup.forEach { channel ->
+                val score = SportsChannels.channelScore(channel.name)
+                // In a sports group every channel counts; elsewhere only ones named for sport.
+                if (score > 0 || sportsGroup) found += channel to (score + groupScore)
+            }
+        }
+        val channels = found.distinctBy { it.first.id }.sortedByDescending { it.second }.map { it.first }.take(MAX_CHANNELS)
         val programmes = mutableMapOf<Long, List<Programme>>()
         for (batch in channels.chunked(4)) {
             coroutineScope {
@@ -174,7 +229,47 @@ object SportsCache {
                 }.awaitAll()
             }.forEach { (id, list) -> programmes[id] = list }
         }
-        return SportsGuide(group.id, System.currentTimeMillis(), channels, programmes).also { guide = it }
+        return SportsGuide(System.currentTimeMillis(), channels, programmes).also { guide = it }
+    }
+}
+
+/** How sporty a group or channel name looks. */
+object SportsChannels {
+    private val HOME = Regex("(^|[^a-z])(uk|ie|irl|ireland|gb|eng|england)([^a-z]|$)")
+    private val BROADCASTERS = listOf(
+        "sky sports", "tnt sport", "bt sport", "premier sports", "amazon", "prime video", "dazn",
+        "viaplay", "premier league", "mutv", "lfc tv", "lfctv", "virgin media",
+    )
+    private val SPORTY = listOf("sport", "football", "soccer", "match", "event", "bein", "espn", "setanta", "fubo")
+
+    /** Short names that must stand alone ("epl", not the middle of "replay"). */
+    private val WORDS = Regex("(^|[^a-z])(epl|ppv|rte)([^a-z]|$)")
+
+    fun isSportsGroup(name: String) = name.lowercase().let { n ->
+        "sport" in n || "football" in n || "event" in n || WORDS.containsMatchIn(n)
+    }
+
+    /** A group's score: sports groups first, Irish and UK ones before others; 0 to skip it. */
+    fun groupScore(name: String): Int {
+        val n = name.lowercase()
+        val home = HOME.containsMatchIn(n)
+        return when {
+            isSportsGroup(n) && home -> 4
+            isSportsGroup(n) -> 2
+            home -> 1
+            else -> 0
+        }
+    }
+
+    /** A channel's score: big UK and Irish broadcasters first, then anything sporty; 0 if not sport. */
+    fun channelScore(name: String): Int {
+        val n = name.lowercase()
+        val home = if (HOME.containsMatchIn(n)) 1 else 0
+        return when {
+            BROADCASTERS.any { it in n } -> 4 + home
+            SPORTY.any { it in n } || WORDS.containsMatchIn(n) -> 2 + home
+            else -> 0
+        }
     }
 }
 
@@ -185,16 +280,26 @@ object SportsCache {
  * description, "Live" helps, and highlights or replays don't count.
  */
 object SportsMatcher {
-    fun channelFor(match: Match, guide: SportsGuide): Channel? {
+    /** The channel most likely to be showing [match], or null. */
+    fun channelFor(match: Match, guide: SportsGuide): Channel? = options(match, guide).firstOrNull { it.showing }?.channel
+
+    /**
+     * Channels to choose from for [match]: those whose guide names both teams around kick-off
+     * (best first), then ones with football on then, then the other sports channels.
+     */
+    fun options(match: Match, guide: SportsGuide, others: Int = 25): List<ChannelOption> {
         val home = aliases(match.home)
         val away = aliases(match.away)
-        var best: Channel? = null
-        var bestScore = 0
+        val showing = mutableListOf<Pair<ChannelOption, Int>>()
+        val football = mutableListOf<ChannelOption>()
+        val rest = mutableListOf<ChannelOption>()
         for (channel in guide.channels) {
-            val programmes = guide.programmes[channel.id] ?: continue
-            for (p in programmes) {
-                // On around kick-off: starts before it's well under way and runs past the start.
-                if (p.start > match.kickOff + 45 * 60_000L || p.end < match.kickOff + 10 * 60_000L) continue
+            val programmes = guide.programmes[channel.id].orEmpty()
+            // On around kick-off: starts before it's well under way and runs past the start.
+            val around = programmes.filter { p -> p.start <= match.kickOff + 45 * 60_000L && p.end >= match.kickOff + 10 * 60_000L }
+            var best: Programme? = null
+            var bestScore = 0
+            for (p in around) {
                 val title = normalise(p.title)
                 val all = title + normalise(p.description)
                 if (home.none { it in all } || away.none { it in all }) continue
@@ -203,12 +308,21 @@ object SportsMatcher {
                 if (NOT_LIVE.any { it in title }) score -= 3
                 if (score > bestScore) {
                     bestScore = score
-                    best = channel
+                    best = p
                 }
             }
+            val atKickOff = around.firstOrNull { match.kickOff in it.start until it.end } ?: around.firstOrNull()
+            when {
+                best != null -> showing += ChannelOption(channel, best, "Showing this game", showing = true) to bestScore
+                atKickOff != null && FOOTBALL.any { it in normalise(atKickOff.title + " " + atKickOff.description) } ->
+                    football += ChannelOption(channel, atKickOff, "Football on", showing = false)
+                else -> rest += ChannelOption(channel, atKickOff, "Sports channel", showing = false)
+            }
         }
-        return best
+        return showing.sortedByDescending { it.second }.map { it.first } + football + rest.take(others)
     }
+
+    private val FOOTBALL = listOf(" premier league ", " football ", " soccer ", " epl ")
 
     private val NOT_LIVE = listOf(" highlights ", " replay ", " reaction ", " classic ", " review ", " rewind ")
 

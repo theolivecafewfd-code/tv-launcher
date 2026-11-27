@@ -71,7 +71,6 @@ fun HomeScreen(
     onDetails: (VodKind, Long) -> Unit,
     onResume: (ResumePoint) -> Unit,
     onWatchChannel: (Channel) -> Unit,
-    onOpenGroup: (String) -> Unit,
     onSeeAllSports: () -> Unit,
 ) {
     val picks = rememberTrendingPicks()
@@ -124,7 +123,7 @@ fun HomeScreen(
                         item(key = "resume") { ResumeShelf(resume, onResume, pinToStart = true) }
                     }
                     if (sports.visible) {
-                        item(key = "sports") { SportsShelf(login, sports, Edge, onWatchChannel, onOpenGroup, onSeeAllSports) }
+                        item(key = "sports") { SportsShelf(sports, Edge, onWatchChannel, onSeeAllSports) }
                     }
                 }
             }

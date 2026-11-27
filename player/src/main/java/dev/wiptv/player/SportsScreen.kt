@@ -40,34 +40,33 @@ private val Edge = 32.dp
 /**
  * Sports: the Premier League today and the next two days, a row of match cards for each day
  * ("Today", "Tomorrow", "Sunday"), with the badges, each team's record, live scores and the
- * channel showing it. OK on a match watches that channel (or opens your sports group in Live TV).
- * Days without a game are listed at the bottom, then the card to choose your sports channels.
+ * channel. OK on a match watches the channel you chose for it, or opens the list of channels that
+ * might be showing it, from your provider's guide; Menu (≡) opens the list to change it. Days
+ * without a game are listed at the bottom.
  */
 @Composable
 fun SportsScreen(
     login: Login,
     header: @Composable () -> Unit,
     onWatchChannel: (Channel) -> Unit,
-    onOpenGroup: (String) -> Unit,
 ) {
     val sports = rememberSports(login, allDays = true)
     val today = LocalDate.now()
     val days = (0 until SPORTS_DAYS).map { today.plusDays(it.toLong()) }
     val all = sports.all
     val byDay = all.orEmpty().groupBy { it.day }
-    var choosing by remember { mutableStateOf(false) }
-    val group = sports.group
+    var choosing by remember { mutableStateOf<Match?>(null) }
 
-    // Focus starts on the first match (or the sports channels card when there are none).
+    // Focus starts on the first match.
     val first = remember { FocusRequester() }
-    LaunchedEffect(all != null) {
-        if (all == null) return@LaunchedEffect
+    val firstMatch = days.firstNotNullOfOrNull { byDay[it]?.firstOrNull() }?.id
+    LaunchedEffect(firstMatch) {
+        if (firstMatch == null) return@LaunchedEffect
         repeat(20) {
             if (runCatching { first.requestFocus() }.isSuccess) return@LaunchedEffect
             delay(50)
         }
     }
-    val firstMatch = days.firstNotNullOfOrNull { byDay[it]?.firstOrNull() }?.id
 
     Box(modifier = Modifier.fillMaxSize().wiptvSpotlight()) {
         Column(modifier = Modifier.fillMaxSize().padding(top = 20.dp)) {
@@ -116,19 +115,12 @@ fun SportsScreen(
                                 rowModifier = rowStart.rowModifier(matches.first().id),
                             ) {
                                 items(matches, key = { it.id }) { match ->
-                                    val channel = sports.channelFor[match.id]
                                     MatchCard(
                                         match = match,
-                                        channel = channel,
-                                        searching = group != null && !sports.guideReady && !match.finished,
+                                        state = sports,
+                                        onWatch = onWatchChannel,
+                                        onChoose = { choosing = match },
                                         label = "PREMIER LEAGUE",
-                                        onClick = {
-                                            when {
-                                                channel != null -> onWatchChannel(channel)
-                                                group != null -> onOpenGroup(group.id)
-                                                else -> choosing = true
-                                            }
-                                        },
                                         modifier = rowStart.card(match.id)
                                             .then(if (match.id == firstMatch) Modifier.focusRequester(first) else Modifier),
                                     )
@@ -147,34 +139,13 @@ fun SportsScreen(
                             )
                         }
                     }
-                    if (all != null) {
-                        item(key = "group") {
-                            SectionRow(title = "Your sports channels", edge = Edge, contentStart = Edge, spacing = 14.dp) {
-                                item(key = "group") {
-                                    GroupCard(
-                                        group = group,
-                                        onClick = { choosing = true },
-                                        modifier = if (firstMatch == null) Modifier.focusRequester(first) else Modifier,
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
     }
 
-    if (choosing) {
-        SportsGroupPicker(
-            login = login,
-            current = group?.id,
-            onPick = {
-                sports.setGroup(it)
-                choosing = false
-            },
-            onDismiss = { choosing = false },
-        )
+    choosing?.let { match ->
+        ChannelPanel(match = match, state = sports, onWatch = onWatchChannel, onDismiss = { choosing = null })
     }
 }
 
