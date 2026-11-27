@@ -121,6 +121,8 @@ fun VodDetailScreen(
     // on the TV (no download), as on the launcher's details pages.
     var similar by remember(item.key) { mutableStateOf<List<VodItem>>(emptyList()) }
     LaunchedEffect(item.key) {
+        // A TV show's page has its episodes instead.
+        if (item.kind != VodKind.MOVIE) return@LaunchedEffect
         similar = withContext(Dispatchers.IO) {
             CatalogIndex.similar(context, item.kind, item.id, item.categoryId, item.name).map {
                 VodItem(
@@ -169,8 +171,8 @@ fun VodDetailScreen(
             }.orEmpty()
             val index = episodes.indexOfFirst { "episode:${it.id}" == focusEpisode }
             if (index >= 0) {
-                // The header, then the season tabs, then the episodes.
-                listState.scrollToItem(2 + index)
+                // The episodes panel's list.
+                listState.scrollToItem(index)
                 repeat(40) {
                     if (runCatching { episodeFocus.requestFocus() }.isSuccess) return@LaunchedEffect
                     delay(50)
@@ -262,10 +264,49 @@ fun VodDetailScreen(
                 poster = if (loaded) item.poster else null,
                 modifier = Modifier.fillMaxSize(),
                 delayMillis = 0,
-                leftFade = 0.98f,
-                textScrim = 0.58f,
+                // A TV show's artwork shows more: its text sits low, the episodes are on glass.
+                leftFade = if (item.kind == VodKind.SERIES) 0.9f else 0.98f,
+                textScrim = if (item.kind == VodKind.SERIES) 0.5f else 0.58f,
             )
 
+            if (item.kind == VodKind.SERIES) {
+                // A TV show: one screen, with the episodes in a panel on the right.
+                val trailer = s?.trailer
+                SeriesPage(
+                    item = item,
+                    series = s,
+                    error = error,
+                    title = title,
+                    plot = plot,
+                    shownSeason = s?.takeIf { it.seasons.isNotEmpty() }?.let { d ->
+                        if (season in d.seasons) season else {
+                            (focusEpisode ?: resume?.key)?.let { key ->
+                                d.seasons.firstOrNull { sn -> d.episodes[sn].orEmpty().any { "episode:${it.id}" == key } }
+                            } ?: d.seasons.first()
+                        }
+                    },
+                    onSeason = { season = it },
+                    resume = resume,
+                    watched = watched,
+                    refresh = refresh,
+                    store = store,
+                    inList = inList,
+                    onToggleList = {
+                        inList = store.toggleFavourite(item)
+                        onListChanged()
+                    },
+                    onPlayEpisode = { episode, from -> s?.let { playEpisode(it, episode, from) } },
+                    onTrailer = trailer?.let { t -> { openTrailer(context, t) } },
+                    onMoreInfo = { showMore = true },
+                    showMoreInfo = plotCut || cast != null,
+                    firstButton = firstButton,
+                    moreInfoButton = moreInfoButton,
+                    focusEpisode = focusEpisode,
+                    episodeFocus = episodeFocus,
+                    episodesState = listState,
+                    onPlotCut = { plotCut = it },
+                )
+            } else
             // Rows already on screen stay put; one coming on from below settles near the top, so
             // the header scrolls away and about five episodes show. Up on the buttons brings it back.
             // Back up to the buttons or season tabs: one smooth scroll to the top, header included.

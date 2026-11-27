@@ -56,6 +56,35 @@ object Tmdb {
         }.filter { it.name.isNotBlank() && it.backdrop != null }
     }
 
+    /** Logos found so far (or none), by name and year, while the player runs. */
+    private val logos = mutableMapOf<String, String?>()
+
+    /**
+     * A series' title logo (the transparent title art) from TMDB, found by its name and first
+     * year; null when TMDB has no PNG logo for it, or there's no key.
+     */
+    suspend fun seriesLogo(name: String, year: String?): String? = withContext(Dispatchers.IO) {
+        if (!hasKey || name.isBlank()) return@withContext null
+        val cacheKey = "$name|$year"
+        if (cacheKey in logos) return@withContext logos[cacheKey]
+        val query = URLEncoder.encode(name, "UTF-8")
+        val yearPart = year?.takeIf { it.length == 4 }?.let { "&first_air_date_year=$it" }.orEmpty()
+        var results = JSONObject(get("$API/search/tv?query=$query$yearPart")).optJSONArray("results")
+        if ((results == null || results.length() == 0) && yearPart.isNotEmpty()) {
+            results = JSONObject(get("$API/search/tv?query=$query")).optJSONArray("results")
+        }
+        val id = results?.optJSONObject(0)?.optLong("id")?.takeIf { it > 0 }
+        val logo = if (id == null) null else {
+            val list = JSONObject(get("$API/tv/$id/images?include_image_language=en,null")).optJSONArray("logos")
+            val pngs = if (list == null) emptyList() else (0 until list.length()).mapNotNull { list.optJSONObject(it) }
+                .filter { it.optString("file_path").endsWith(".png") }
+            val best = pngs.firstOrNull { it.optString("iso_639_1") == "en" } ?: pngs.firstOrNull()
+            best?.optString("file_path")?.let { "$IMAGES/w500$it" }
+        }
+        logos[cacheKey] = logo
+        logo
+    }
+
     private fun image(item: JSONObject, field: String, size: String): String? {
         if (item.isNull(field)) return null
         val path = item.optString(field)
