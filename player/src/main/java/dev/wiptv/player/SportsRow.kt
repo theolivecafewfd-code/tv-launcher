@@ -56,11 +56,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Home's Sports row: what it needs to draw, and to save a new sports group. */
+/** The Premier League for Home's row and the Sports page, and saving a new sports group. */
 class SportsRowState(
     val group: Group?,
-    /** Today's matches still to finish, live ones first; null until ESPN first answers. */
+    /** Today's matches still to finish, live ones first (Home's row); null until ESPN first answers. */
     val matches: List<Match>?,
+    /** Every match today and the next two days, finished ones too, in kick-off order (the Sports page). */
+    val all: List<Match>?,
     /** Whether the sports channels' guides have been read (so a missing channel means not found). */
     val guideReady: Boolean,
     val channelFor: Map<String, Channel?>,
@@ -71,11 +73,16 @@ class SportsRowState(
 }
 
 /**
- * Today's Premier League from ESPN, refreshed every minute while a match is live (every five
- * otherwise) while Home is open, with each match's channel found in your sports group's guide.
+ * The Premier League today and the next two days from ESPN, refreshed every minute while a match
+ * is live (every five otherwise) while Home or Sports is open, with each match's channel found in
+ * your sports group's guide.
  */
 @Composable
-fun rememberSports(login: Login): SportsRowState {
+fun rememberSports(
+    login: Login,
+    /** The Sports page: the channels are looked for on every day shown, not just today. */
+    allDays: Boolean = false,
+): SportsRowState {
     val context = LocalContext.current
     val prefs = remember { SportsPrefs(context) }
     var group by remember { mutableStateOf(prefs.group()) }
@@ -87,7 +94,7 @@ fun rememberSports(login: Login): SportsRowState {
             val fresh = System.currentTimeMillis() - SportsCache.matchesAt < 55_000
             if (!fresh) {
                 try {
-                    val today = Espn.premierLeagueToday()
+                    val today = Espn.premierLeague()
                     SportsCache.matches = today
                     SportsCache.matchesAt = System.currentTimeMillis()
                     matches = today
@@ -101,8 +108,8 @@ fun rememberSports(login: Login): SportsRowState {
         }
     }
 
-    // The sports channels' guides, read once there's a match today and again every half hour.
-    val needGuide = matches.orEmpty().any { !it.finished }
+    // The sports channels' guides, read once there's a match to find and again every half hour.
+    val needGuide = matches.orEmpty().any { !it.finished && (allDays || it.day == java.time.LocalDate.now()) }
     LaunchedEffect(group?.id, needGuide) {
         val chosen = group ?: return@LaunchedEffect
         if (!needGuide) return@LaunchedEffect
@@ -125,13 +132,17 @@ fun rememberSports(login: Login): SportsRowState {
     }
 
     val current = guide?.takeIf { it.groupId == group?.id }
-    val shown = matches?.filter { !it.finished }?.sortedWith(compareByDescending<Match> { it.live }.thenBy { it.kickOff })
-    val channels = remember(shown, current) {
-        if (current == null) emptyMap() else shown.orEmpty().associate { it.id to SportsMatcher.channelFor(it, current) }
+    // ESPN's list from an earlier day (the player left running overnight) drops yesterday's games.
+    val today = java.time.LocalDate.now()
+    val all = matches?.filter { !it.day.isBefore(today) }
+    val shown = all?.filter { !it.finished && it.day == today }?.sortedWith(compareByDescending<Match> { it.live }.thenBy { it.kickOff })
+    val channels = remember(all, current) {
+        if (current == null) emptyMap() else all.orEmpty().filter { !it.finished }.associate { it.id to SportsMatcher.channelFor(it, current) }
     }
     return SportsRowState(
         group = group,
         matches = shown,
+        all = all,
         guideReady = current != null,
         channelFor = channels,
         setGroup = {
@@ -158,6 +169,8 @@ fun SportsShelf(
     edge: androidx.compose.ui.unit.Dp,
     onWatchChannel: (Channel) -> Unit,
     onOpenGroup: (String) -> Unit,
+    /** Opens the Sports page (the "All fixtures" card). */
+    onSeeAll: () -> Unit,
 ) {
     var choosing by remember { mutableStateOf(false) }
     val rowStart = rememberRowStart()
@@ -186,6 +199,9 @@ fun SportsShelf(
                 modifier = rowStart.card(match.id),
             )
         }
+        item(key = "all") {
+            SeeAllCard(onClick = onSeeAll, modifier = rowStart.card("all"))
+        }
         item(key = "group") {
             GroupCard(group = group, onClick = { choosing = true }, modifier = rowStart.card("group"))
         }
@@ -203,15 +219,41 @@ fun SportsShelf(
     }
 }
 
+/** The card after today's matches on Home: OK opens the Sports page with the next few days. */
 @Composable
-private fun MatchCard(match: Match, channel: Channel?, searching: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun SeeAllCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    SportsCardFrame(onClick = onClick, modifier = modifier.width(180.dp)) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Text(text = "All fixtures  ›", style = WiptvType.body.copy(fontWeight = FontWeight.SemiBold, color = WiptvColors.text))
+            Spacer(Modifier.height(6.dp))
+            Text(text = "Today and the next two days", style = WiptvType.hint)
+        }
+    }
+}
+
+/**
+ * A match: LIVE and the minute, FULL TIME, or [label] ("TODAY" on Home) and the kick-off time;
+ * both teams with their badges, records and score; and the channel it's on.
+ */
+@Composable
+internal fun MatchCard(
+    match: Match,
+    channel: Channel?,
+    searching: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    label: String = "TODAY",
+) {
     SportsCardFrame(onClick = onClick, modifier = modifier.width(CardWidth)) {
         Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (match.live) {
-                    Badge(text = "● LIVE", fill = WiptvColors.live, colour = Color.White)
-                } else {
-                    Badge(text = "TODAY", fill = WiptvColors.elevated, colour = WiptvColors.secondary)
+                when {
+                    match.live -> Badge(text = "● LIVE", fill = WiptvColors.live, colour = Color.White)
+                    match.finished -> Badge(text = "FULL TIME", fill = WiptvColors.elevated, colour = WiptvColors.quiet)
+                    else -> Badge(text = label, fill = WiptvColors.elevated, colour = WiptvColors.secondary)
                 }
                 Spacer(Modifier.weight(1f))
                 Text(
@@ -240,8 +282,11 @@ private fun MatchCard(match: Match, channel: Channel?, searching: Boolean, onCli
                 }
                 Text(
                     text = when {
+                        match.finished && channel == null -> "Full time"
                         channel != null -> ChannelLabels.of(channel.name).name
                         searching -> "Finding the channel…"
+                        // The guide only reaches a day or two ahead.
+                        match.day != java.time.LocalDate.now() -> "Channel nearer the day"
                         else -> "Channel not found"
                     },
                     maxLines = 1,
@@ -275,9 +320,13 @@ private fun TeamLine(side: Side) {
             text = side.shortName,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f, fill = false),
             style = WiptvType.body.copy(fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
         )
+        if (side.record != null) {
+            Text(text = side.record, style = WiptvType.hint.copy(fontSize = 12.sp, color = WiptvColors.quiet))
+        }
+        Spacer(Modifier.weight(1f))
         if (side.score != null) {
             Text(
                 text = side.score,
@@ -289,7 +338,7 @@ private fun TeamLine(side: Side) {
 
 /** The last card: which group your sports channels are in, and OK to choose (or change) it. */
 @Composable
-private fun GroupCard(group: Group?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun GroupCard(group: Group?, onClick: () -> Unit, modifier: Modifier = Modifier) {
     SportsCardFrame(onClick = onClick, modifier = modifier.width(if (group == null) CardWidth else 200.dp)) {
         Column(
             modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp),
@@ -350,7 +399,7 @@ private fun kickOffTime(time: Long): String = SimpleDateFormat("HH:mm", Locale.U
 
 /** Choosing the Live TV group with your sports channels: a list of your groups over Home. */
 @Composable
-private fun SportsGroupPicker(login: Login, current: String?, onPick: (Group) -> Unit, onDismiss: () -> Unit) {
+internal fun SportsGroupPicker(login: Login, current: String?, onPick: (Group) -> Unit, onDismiss: () -> Unit) {
     val cache = remember(login) { SessionCache.of(login, "LIVE") }
     var groups by remember { mutableStateOf(cache.liveGroups) }
     var failed by remember { mutableStateOf(false) }
