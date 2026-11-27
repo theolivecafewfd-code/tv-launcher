@@ -50,7 +50,7 @@ fun SportsScreen(
     header: @Composable () -> Unit,
     onWatchChannel: (Channel) -> Unit,
 ) {
-    val sports = rememberSports(login, allDays = true)
+    val sports = rememberSports(login)
     val today = LocalDate.now()
     val days = (0 until SPORTS_DAYS).map { today.plusDays(it.toLong()) }
     val all = sports.all

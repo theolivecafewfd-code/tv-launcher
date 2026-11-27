@@ -45,6 +45,87 @@ data class Match(
 ) {
     /** The day it kicks off, on the TV's clock. */
     val day: LocalDate get() = Instant.ofEpochMilli(kickOff).atZone(ZoneId.systemDefault()).toLocalDate()
+
+    /** Not started and more than half an hour from kick-off: too soon to choose a channel. */
+    fun notOnYet(now: Long = System.currentTimeMillis()): Boolean = !live && !finished && kickOff - now > NOT_ON_YET_MS
+}
+
+/** How long before kick-off a match's channels can be chosen. */
+const val NOT_ON_YET_MS = 30 * 60_000L
+
+/** A game on UK TV, from the listings: the teams as written there and the channels showing it. */
+class TvListing(val day: LocalDate, val time: String, val teams: String, val channels: List<String>)
+
+/**
+ * Which UK channels show each Premier League game, from live-footballontv.com's listings page (a
+ * public web page; nothing about the viewer is sent). Saturday 3pm games aren't on UK TV, so they
+ * aren't listed. If the page changes or doesn't answer, there's just no listing.
+ */
+object TvListings {
+    private const val PAGE = "https://www.live-footballontv.com/live-premier-league-football-on-tv.html"
+
+    /** The day anchors ("2026Nov28"), each game's time, teams and competition, and its channels, in page order. */
+    private val TOKEN = Regex(
+        "<a id=\"(\\d{4})([A-Z][a-z]{2})(\\d{2})\"|fixture__time\">([^<]*)<|fixture__teams\">([^<]*)<|" +
+            "fixture__competition\">([^<]*)<|channel-pill\"[^>]*>([^<]*)<",
+    )
+    private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+    suspend fun premierLeague(): List<TvListing> = withContext(Dispatchers.IO) {
+        val connection = (URL(PAGE).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 10_000
+            readTimeout = 15_000
+            setRequestProperty("User-Agent", "WIPTVPlayer/${BuildConfig.VERSION_NAME}")
+        }
+        val html = try {
+            if (connection.responseCode !in 200..299) error("Listings answered ${connection.responseCode}")
+            connection.inputStream.bufferedReader().readText()
+        } finally {
+            connection.disconnect()
+        }
+        parse(html)
+    }
+
+    fun parse(html: String): List<TvListing> {
+        val found = mutableListOf<TvListing>()
+        var day: LocalDate? = null
+        var time = ""
+        var teams = ""
+        var competition = ""
+        var channels = mutableListOf<String>()
+        fun finish() {
+            val d = day
+            if (d != null && teams.isNotBlank() && competition.trim().equals("Premier League", ignoreCase = true) && channels.isNotEmpty()) {
+                found += TvListing(d, time, teams, channels.distinct())
+            }
+            time = ""
+            teams = ""
+            competition = ""
+            channels = mutableListOf()
+        }
+        for (m in TOKEN.findAll(html)) {
+            val g = m.groupValues
+            when {
+                g[1].isNotEmpty() -> {
+                    finish()
+                    val month = MONTHS.indexOf(g[2]) + 1
+                    day = if (month > 0) runCatching { LocalDate.of(g[1].toInt(), month, g[3].toInt()) }.getOrNull() else null
+                }
+                g[4].isNotEmpty() -> {
+                    finish()
+                    time = g[4].trim()
+                }
+                g[5].isNotEmpty() -> teams = unescape(g[5]).trim()
+                g[6].isNotEmpty() -> competition = unescape(g[6])
+                g[7].isNotEmpty() -> unescape(g[7]).trim().takeIf { it.isNotEmpty() }?.let { channels += it }
+            }
+        }
+        finish()
+        return found
+    }
+
+    private fun unescape(text: String) =
+        text.replace("&amp;", "&").replace("&#039;", "'").replace("&#39;", "'").replace("&quot;", "\"").replace("&nbsp;", " ")
 }
 
 /**
@@ -156,7 +237,13 @@ class SportsPrefs(context: Context) {
 }
 
 /** Your provider's sports channels and what's on them, kept while the player runs. */
-class SportsGuide(val loadedAt: Long, val channels: List<Channel>, val programmes: Map<Long, List<Programme>>)
+class SportsGuide(
+    val loadedAt: Long,
+    val channels: List<Channel>,
+    val programmes: Map<Long, List<Programme>>,
+    /** The groups named for the Premier League ("EPL", "Premier League"), where channels are for one game or team. */
+    val leagueGroups: Set<String> = emptySet(),
+)
 
 /** A channel that might show a match, for the list you choose from. */
 class ChannelOption(
@@ -174,6 +261,11 @@ object SportsCache {
     var matches: List<Match>? = null
     var matchesAt = 0L
     var guide: SportsGuide? = null
+    var listings: List<TvListing>? = null
+    var listingsAt = 0L
+
+    /** How long the TV listings are kept before they're read again. */
+    const val LISTINGS_KEEP_MS = 60 * 60_000L
 
     /** How long the sports channels' guides are kept before they're read again. */
     const val GUIDE_KEEP_MS = 30 * 60_000L
@@ -182,13 +274,13 @@ object SportsCache {
     private const val MAX_CHANNELS = 150
 
     /** The most groups looked through for sports channels. */
-    private const val MAX_GROUPS = 16
+    private const val MAX_GROUPS = 20
 
     /**
-     * Finds your provider's sports channels without you choosing a group: the groups named for
-     * sport (and the UK and Irish ones), then the channels in them that look like sport (Sky
-     * Sports, TNT, Premier Sports, Amazon, DAZN, match and event channels…), Irish and UK ones
-     * first; then reads the next day or so of each one's guide.
+     * Finds your provider's sports channels without you choosing a group: the Premier League groups
+     * first (every channel in them), then the groups named for sport (UK and Irish ones before
+     * others) and the channels in them that look like sport (Sky Sports, TNT, Premier Sports,
+     * Amazon, DAZN, match and event channels…); then reads the next day or so of each one's guide.
      */
     suspend fun loadGuide(login: Login): SportsGuide {
         val groups = Xtream.liveGroups(login)
@@ -197,6 +289,7 @@ object SportsCache {
             .sortedByDescending { it.second }
             .take(MAX_GROUPS)
         val found = mutableListOf<Pair<Channel, Int>>()
+        val leagueGroups = mutableSetOf<String>()
         for ((group, groupScore) in groups) {
             val inGroup = try {
                 Xtream.liveChannels(login, group.id)
@@ -206,10 +299,13 @@ object SportsCache {
                 emptyList()
             }
             val sportsGroup = SportsChannels.isSportsGroup(group.name)
+            val league = SportsChannels.isLeagueGroup(group.name)
+            if (league) leagueGroups += group.id
             inGroup.forEach { channel ->
                 val score = SportsChannels.channelScore(channel.name)
                 // In a sports group every channel counts; elsewhere only ones named for sport.
-                if (score > 0 || sportsGroup) found += channel to (score + groupScore)
+                // The Premier League groups' channels always make the cut.
+                if (score > 0 || sportsGroup) found += channel to (score + groupScore + if (league) 100 else 0)
             }
         }
         val channels = found.distinctBy { it.first.id }.sortedByDescending { it.second }.map { it.first }.take(MAX_CHANNELS)
@@ -229,7 +325,7 @@ object SportsCache {
                 }.awaitAll()
             }.forEach { (id, list) -> programmes[id] = list }
         }
-        return SportsGuide(System.currentTimeMillis(), channels, programmes).also { guide = it }
+        return SportsGuide(System.currentTimeMillis(), channels, programmes, leagueGroups).also { guide = it }
     }
 }
 
@@ -246,14 +342,21 @@ object SportsChannels {
     private val WORDS = Regex("(^|[^a-z])(epl|ppv|rte)([^a-z]|$)")
 
     fun isSportsGroup(name: String) = name.lowercase().let { n ->
-        "sport" in n || "football" in n || "event" in n || WORDS.containsMatchIn(n)
+        "sport" in n || "football" in n || "event" in n || isLeagueGroup(n) || WORDS.containsMatchIn(n)
     }
 
-    /** A group's score: sports groups first, Irish and UK ones before others; 0 to skip it. */
+    /** A group for the Premier League itself ("EPL", "Premier League", "PL Hub"). */
+    fun isLeagueGroup(name: String) = name.lowercase().let { n ->
+        "premier league" in n || LEAGUE.containsMatchIn(n)
+    }
+    private val LEAGUE = Regex("(^|[^a-z])(epl|pl)([^a-z]|$)")
+
+    /** A group's score: Premier League groups, then sports groups, Irish and UK ones before others; 0 to skip it. */
     fun groupScore(name: String): Int {
         val n = name.lowercase()
         val home = HOME.containsMatchIn(n)
         return when {
+            isLeagueGroup(n) -> 8
             isSportsGroup(n) && home -> 4
             isSportsGroup(n) -> 2
             home -> 1
@@ -281,16 +384,58 @@ object SportsChannels {
  */
 object SportsMatcher {
     /** The channel most likely to be showing [match], or null. */
-    fun channelFor(match: Match, guide: SportsGuide): Channel? = options(match, guide).firstOrNull { it.showing }?.channel
+    fun channelFor(match: Match, guide: SportsGuide, listing: TvListing? = null): Channel? =
+        options(match, guide, listing).firstOrNull { it.showing }?.channel
 
-    /**
-     * Channels to choose from for [match]: those whose guide names both teams around kick-off
-     * (best first), then ones with football on then, then the other sports channels.
-     */
-    fun options(match: Match, guide: SportsGuide, others: Int = 25): List<ChannelOption> {
+    /** The UK TV listing for [match]: same day, both teams named. */
+    fun listingFor(match: Match, listings: List<TvListing>?): TvListing? {
         val home = aliases(match.home)
         val away = aliases(match.away)
+        return listings.orEmpty().firstOrNull { l ->
+            val teams = normalise(l.teams)
+            l.day == match.day && home.any { it in teams } && away.any { it in teams }
+        }
+    }
+
+    /** "Sky Sports Main Event" as it might be named by a provider: "sky sport main event", "sky sport pl"… */
+    private fun channelKeys(name: String): List<String> {
+        val n = normalise(name).replace(" sports ", " sport ")
+        return listOf(n, n.replace(" premier league ", " pl ")).distinct()
+    }
+
+    /**
+     * Whether a provider's channel ([provider], normalised) is the listed one ([listed]): the listed
+     * name, then nothing but quality and country tags, so "Sky Sports+" isn't every Sky Sports
+     * channel and "TNT Sports 1" isn't "TNT Sports 10".
+     */
+    private fun sameChannel(listed: String, provider: String): Boolean {
+        val at = provider.indexOf(listed)
+        if (at < 0) return false
+        val rest = provider.substring(at + listed.length).trim()
+        return rest.isEmpty() || rest.split(' ').all { it in TAGS }
+    }
+
+    private val TAGS = setOf(
+        "hd", "fhd", "uhd", "sd", "4k", "8k", "hdr", "hevc", "h265", "h264", "raw", "backup", "alt", "vip", "plus",
+        "uk", "ie", "irl", "ireland", "gb", "1080p", "720p", "50fps", "60fps", "fps",
+    )
+
+    /**
+     * Channels to choose from for [match], best first:
+     * - "Showing this game": its guide names both teams around kick-off, or its own name does
+     *   (a provider's channel for the one game);
+     * - "On TV for this game": the UK listings name it for this game;
+     * - "Team channel": a Premier League group's channel named for one of the teams;
+     * - "Football on": football is on it at kick-off;
+     * - "Sports channel": a few of the big UK and Irish sports channels, in case.
+     */
+    fun options(match: Match, guide: SportsGuide, listing: TvListing? = null, others: Int = 8): List<ChannelOption> {
+        val home = aliases(match.home)
+        val away = aliases(match.away)
+        val listed = listing?.channels.orEmpty().flatMap { channelKeys(it) }
         val showing = mutableListOf<Pair<ChannelOption, Int>>()
+        val onTv = mutableListOf<ChannelOption>()
+        val team = mutableListOf<ChannelOption>()
         val football = mutableListOf<ChannelOption>()
         val rest = mutableListOf<ChannelOption>()
         for (channel in guide.channels) {
@@ -312,14 +457,22 @@ object SportsMatcher {
                 }
             }
             val atKickOff = around.firstOrNull { match.kickOff in it.start until it.end } ?: around.firstOrNull()
+            val name = normalise(channel.name)
+            val inLeagueGroup = channel.groupId in guide.leagueGroups
+            val keys = channelKeys(channel.name)
             when {
                 best != null -> showing += ChannelOption(channel, best, "Showing this game", showing = true) to bestScore
+                home.any { it in name } && away.any { it in name } ->
+                    showing += ChannelOption(channel, atKickOff, "Showing this game", showing = true) to 5
+                listed.any { l -> keys.any { k -> sameChannel(l, k) } } -> onTv += ChannelOption(channel, atKickOff, "On TV for this game", showing = true)
+                inLeagueGroup && (home.any { it in name } || away.any { it in name }) ->
+                    team += ChannelOption(channel, atKickOff, "Team channel", showing = false)
                 atKickOff != null && FOOTBALL.any { it in normalise(atKickOff.title + " " + atKickOff.description) } ->
                     football += ChannelOption(channel, atKickOff, "Football on", showing = false)
-                else -> rest += ChannelOption(channel, atKickOff, "Sports channel", showing = false)
+                SportsChannels.channelScore(channel.name) >= 4 -> rest += ChannelOption(channel, atKickOff, "Sports channel", showing = false)
             }
         }
-        return showing.sortedByDescending { it.second }.map { it.first } + football + rest.take(others)
+        return showing.sortedByDescending { it.second }.map { it.first } + onTv + team + football + rest.take(others)
     }
 
     private val FOOTBALL = listOf(" premier league ", " football ", " soccer ", " epl ")

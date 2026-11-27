@@ -9,6 +9,8 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import dev.wiptv.design.ListRow
+import dev.wiptv.design.ActionButton
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,6 +79,12 @@ class SportsRowState(
     val picked: Map<String, Channel>,
     /** The channels to choose from for a match (empty until the guides are read). */
     val options: (Match) -> List<ChannelOption>,
+    /** The UK TV listing for a match, once the listings are read. */
+    val listingFor: (Match) -> TvListing?,
+    /** Whether the TV listings have been read. */
+    val listingsReady: Boolean,
+    /** The TV listings couldn't be read. */
+    val listingsFailed: Boolean,
     val setPick: (Match, Channel) -> Unit,
 ) {
     /** Home shows the row while there's a match today. */
@@ -85,20 +93,38 @@ class SportsRowState(
 
 /**
  * The Premier League today and the next two days from ESPN, refreshed every minute while a match
- * is live (every five otherwise) while Home or Sports is open, and your provider's sports
- * channels' guides, read once there's a match to find a channel for and every half hour after.
+ * is live (every five otherwise) while Home or Sports is open; the UK TV listings, every hour; and
+ * your provider's sports channels' guides, read once there's a match today and every half hour.
  */
 @Composable
-fun rememberSports(
-    login: Login,
-    /** The Sports page: channels are looked for on every day shown, not just today. */
-    allDays: Boolean = false,
-): SportsRowState {
+fun rememberSports(login: Login): SportsRowState {
     val context = LocalContext.current
     val prefs = remember { SportsPrefs(context) }
     var matches by remember { mutableStateOf(SportsCache.matches) }
     var guide by remember { mutableStateOf(SportsCache.guide) }
     var pickedVersion by remember { mutableStateOf(0) }
+    var listings by remember { mutableStateOf(SportsCache.listings) }
+    var listingsFailed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (SportsCache.listings == null || System.currentTimeMillis() - SportsCache.listingsAt > SportsCache.LISTINGS_KEEP_MS) {
+                try {
+                    val found = TvListings.premierLeague()
+                    SportsCache.listings = found
+                    SportsCache.listingsAt = System.currentTimeMillis()
+                    listingsFailed = false
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // The listings page didn't answer: no listing until the next try.
+                    listingsFailed = SportsCache.listings == null
+                }
+            }
+            listings = SportsCache.listings
+            delay(if (listings == null) 10 * 60_000L else SportsCache.LISTINGS_KEEP_MS)
+        }
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -119,7 +145,7 @@ fun rememberSports(
         }
     }
 
-    val needGuide = matches.orEmpty().any { !it.finished && (allDays || it.day == java.time.LocalDate.now()) }
+    val needGuide = matches.orEmpty().any { !it.finished && it.day == java.time.LocalDate.now() }
     LaunchedEffect(needGuide) {
         if (!needGuide) return@LaunchedEffect
         while (true) {
@@ -151,18 +177,22 @@ fun rememberSports(
             prefs.pick(m.id)?.let { p -> m.id to (current?.channels?.firstOrNull { it.id == p.id } ?: p) }
         }.toMap()
     }
-    val channels = remember(all, current, picked) {
+    val channels = remember(all, current, picked, listings) {
         all.orEmpty().filter { !it.finished }.associate { m ->
-            m.id to (picked[m.id] ?: current?.let { SportsMatcher.channelFor(m, it) })
+            m.id to (picked[m.id] ?: current?.let { SportsMatcher.channelFor(m, it, SportsMatcher.listingFor(m, listings)) })
         }
     }
+    val shownListings = listings
     return SportsRowState(
         matches = shown,
         all = all,
         guideReady = current != null,
         channelFor = channels,
         picked = picked,
-        options = { m -> current?.let { SportsMatcher.options(m, it) }.orEmpty() },
+        options = { m -> current?.let { SportsMatcher.options(m, it, SportsMatcher.listingFor(m, shownListings)) }.orEmpty() },
+        listingFor = { m -> SportsMatcher.listingFor(m, shownListings) },
+        listingsReady = shownListings != null,
+        listingsFailed = listingsFailed,
         setPick = { m, channel ->
             prefs.setPick(m.id, channel, all.orEmpty().map { it.id }.toSet())
             pickedVersion++
@@ -246,9 +276,12 @@ internal fun MatchCard(
     label: String = "TODAY",
 ) {
     val picked = state.picked[match.id]
-    val found = state.channelFor[match.id]
+    val notYet = match.notOnYet()
+    // Before kick-off the card names the UK TV channel; nearer the time, the channel found for it.
+    val found = if (notYet) null else state.channelFor[match.id]
+    val listing = state.listingFor(match)
     SportsCardFrame(
-        onClick = { if (picked != null) onWatch(picked) else onChoose() },
+        onClick = { if (picked != null && !notYet) onWatch(picked) else onChoose() },
         modifier = modifier
             .width(CardWidth)
             .onPreviewKeyEvent { event ->
@@ -294,6 +327,8 @@ internal fun MatchCard(
                     text = when {
                         picked != null -> "✓ " + ChannelLabels.of(picked.name).name
                         match.finished -> "Full time"
+                        notYet && listing != null -> listing.channels.first() + if (listing.channels.size > 1) "  +${listing.channels.size - 1}" else ""
+                        notYet -> "Not on yet"
                         found != null -> ChannelLabels.of(found.name).name + "  ·  OK to choose"
                         !state.guideReady -> "Looking for channels…"
                         else -> "OK to choose a channel"
@@ -301,7 +336,7 @@ internal fun MatchCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
-                    style = WiptvType.hint.copy(color = if (channel != null) WiptvColors.secondary else WiptvColors.quiet),
+                    style = WiptvType.hint.copy(color = if (channel != null || (notYet && listing != null)) WiptvColors.secondary else WiptvColors.quiet),
                 )
                 if (picked != null) {
                     Text(text = "≡ change", style = WiptvType.hint.copy(fontSize = 11.sp, color = WiptvColors.quiet))
@@ -314,7 +349,7 @@ internal fun MatchCard(
 /** A team: its badge, its name and (once it has kicked off) its goals. */
 @Composable
 private fun TeamLine(side: Side) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(20.dp).clip(CircleShape).background(WiptvColors.elevated), contentAlignment = Alignment.Center) {
             if (side.logo != null) {
                 AsyncImage(
@@ -325,22 +360,30 @@ private fun TeamLine(side: Side) {
                 )
             }
         }
-        Text(
-            text = side.shortName,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false),
-            style = WiptvType.body.copy(fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
-        )
-        if (side.record != null) {
-            Text(text = side.record, style = WiptvType.hint.copy(fontSize = 12.sp, color = WiptvColors.quiet))
-        }
-        Spacer(Modifier.weight(1f))
-        if (side.score != null) {
+        Row(
+            modifier = Modifier.weight(1f).padding(start = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(
-                text = side.score,
-                style = WiptvType.body.copy(fontSize = 16.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, color = WiptvColors.text),
+                text = side.shortName,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+                style = WiptvType.body.copy(fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, color = WiptvColors.text),
             )
+            if (side.record != null) {
+                Text(text = side.record, maxLines = 1, style = WiptvType.hint.copy(fontSize = 12.sp, color = WiptvColors.quiet))
+            }
+        }
+        // The score in a column of its own at the right, so both teams' line up.
+        Box(modifier = Modifier.width(28.dp), contentAlignment = Alignment.CenterEnd) {
+            if (side.score != null) {
+                Text(
+                    text = side.score,
+                    style = WiptvType.body.copy(fontSize = 16.sp, lineHeight = 19.sp, fontWeight = FontWeight.Bold, color = WiptvColors.text),
+                )
+            }
         }
     }
 }
@@ -383,7 +426,11 @@ private fun kickOffTime(time: Long): String = SimpleDateFormat("HH:mm", Locale.U
  */
 @Composable
 internal fun ChannelPanel(match: Match, state: SportsRowState, onWatch: (Channel) -> Unit, onDismiss: () -> Unit) {
-    val options = remember(match.id, state.guideReady) { state.options(match) }
+    if (match.notOnYet()) {
+        MatchInfoPanel(match, state, onDismiss)
+        return
+    }
+    val options = remember(match.id, state.guideReady, state.listingsReady) { state.options(match) }
     val picked = state.picked[match.id]
     // The one you chose before, or the best guess, at the top of the list.
     val ordered = remember(options, picked) {
@@ -398,6 +445,49 @@ internal fun ChannelPanel(match: Match, state: SportsRowState, onWatch: (Channel
             delay(50)
         }
     }
+    SidePanel(onDismiss) {
+        PanelTitle(match, hint = "OK watches · Back closes")
+        state.listingFor(match)?.let { listing ->
+            Text(
+                text = "On TV: " + listing.channels.joinToString(", "),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 10.dp, bottom = 10.dp),
+                style = WiptvType.hint.copy(color = WiptvColors.secondary),
+            )
+        }
+        when {
+            !state.guideReady -> Text(
+                text = "Looking through your sports channels' guides…",
+                modifier = Modifier.padding(start = 10.dp),
+                style = WiptvType.metadata.copy(color = WiptvColors.quiet),
+            )
+            ordered.isEmpty() -> Text(
+                text = "No sports channels found in your Live TV.",
+                modifier = Modifier.padding(start = 10.dp),
+                style = WiptvType.metadata.copy(color = WiptvColors.quiet),
+            )
+            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                itemsIndexed(ordered, key = { _, o -> o.channel.id }) { index, option ->
+                    ChannelOptionRow(
+                        option = option,
+                        chosen = option.channel.id == picked?.id,
+                        onClick = {
+                            state.setPick(match, option.channel)
+                            onDismiss()
+                            onWatch(option.channel)
+                        },
+                        modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** The glass panel down the right of the screen, over a dimmed page. */
+@Composable
+private fun SidePanel(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Row(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
@@ -408,46 +498,83 @@ internal fun ChannelPanel(match: Match, state: SportsRowState, onWatch: (Channel
                     .padding(top = 16.dp, bottom = 16.dp, end = 16.dp)
                     .glass(WiptvShapes.panel, Glass.Drawer)
                     .padding(start = 14.dp, end = 14.dp, top = 18.dp, bottom = 8.dp),
-            ) {
-                Text(
-                    text = "${match.home.shortName} v ${match.away.shortName}",
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 10.dp),
-                    style = WiptvType.body.copy(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold),
-                )
-                Text(
-                    text = (if (match.live) "Live now · ${match.clock}" else "${matchDay(match)} · ${kickOffTime(match.kickOff)}") + "  ·  OK watches · Back closes",
-                    modifier = Modifier.padding(start = 10.dp, top = 2.dp, bottom = 10.dp),
-                    style = WiptvType.hint,
-                )
-                when {
-                    !state.guideReady -> Text(
-                        text = "Looking through your sports channels' guides…",
-                        modifier = Modifier.padding(start = 10.dp),
-                        style = WiptvType.metadata.copy(color = WiptvColors.quiet),
+                content = content,
+            )
+        }
+    }
+}
+
+/** "Everton v Liverpool", then when it is and what the keys do. */
+@Composable
+private fun PanelTitle(match: Match, hint: String) {
+    Text(
+        text = "${match.home.shortName} v ${match.away.shortName}",
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(start = 10.dp),
+        style = WiptvType.body.copy(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold),
+    )
+    Text(
+        text = (if (match.live) "Live now · ${match.clock}" else "${matchDay(match)} · ${kickOffTime(match.kickOff)}") + "  ·  $hint",
+        modifier = Modifier.padding(start = 10.dp, top = 2.dp, bottom = 10.dp),
+        style = WiptvType.hint,
+    )
+}
+
+/**
+ * A game more than half an hour away: no channels to choose yet, just the teams, kick-off, the UK
+ * TV channels showing it, and when to come back.
+ */
+@Composable
+private fun MatchInfoPanel(match: Match, state: SportsRowState, onDismiss: () -> Unit) {
+    val close = remember { FocusRequester() }
+    LaunchedEffect(Unit) {
+        repeat(20) {
+            if (runCatching { close.requestFocus() }.isSuccess) return@LaunchedEffect
+            delay(50)
+        }
+    }
+    val listing = state.listingFor(match)
+    val picked = state.picked[match.id]
+    SidePanel(onDismiss) {
+        PanelTitle(match, hint = "Back closes")
+        Column(Modifier.padding(start = 10.dp, end = 10.dp)) {
+            TeamLine(match.home)
+            Spacer(Modifier.height(6.dp))
+            TeamLine(match.away)
+            Text(
+                text = "ON TV",
+                modifier = Modifier.padding(top = 22.dp, bottom = 8.dp),
+                style = WiptvType.hint.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp),
+            )
+            when {
+                listing != null -> listing.channels.forEach { name ->
+                    Text(
+                        text = name,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                        style = WiptvType.metadata.copy(color = WiptvColors.text),
                     )
-                    ordered.isEmpty() -> Text(
-                        text = "No sports channels found in your Live TV.",
-                        modifier = Modifier.padding(start = 10.dp),
-                        style = WiptvType.metadata.copy(color = WiptvColors.quiet),
-                    )
-                    else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        itemsIndexed(ordered, key = { _, o -> o.channel.id }) { index, option ->
-                            ChannelOptionRow(
-                                option = option,
-                                chosen = option.channel.id == picked?.id,
-                                onClick = {
-                                    state.setPick(match, option.channel)
-                                    onDismiss()
-                                    onWatch(option.channel)
-                                },
-                                modifier = if (index == 0) Modifier.focusRequester(first) else Modifier,
-                            )
-                        }
-                    }
                 }
+                state.listingsReady -> Text(
+                    text = "Not on UK TV. Your provider may still have it on a match channel.",
+                    style = WiptvType.metadata.copy(color = WiptvColors.quiet),
+                )
+                state.listingsFailed -> Text(text = "Couldn't reach the TV listings.", style = WiptvType.metadata.copy(color = WiptvColors.quiet))
+                else -> Text(text = "Checking the TV listings…", style = WiptvType.metadata.copy(color = WiptvColors.quiet))
             }
+            if (picked != null) {
+                Text(
+                    text = "Your channel: " + ChannelLabels.of(picked.name).name,
+                    modifier = Modifier.padding(top = 14.dp),
+                    style = WiptvType.metadata.copy(color = WiptvColors.secondary),
+                )
+            }
+            Text(
+                text = "Not on yet. From ${kickOffTime(match.kickOff - NOT_ON_YET_MS)} you can choose a channel here and watch.",
+                modifier = Modifier.padding(top = 22.dp, bottom = 16.dp),
+                style = WiptvType.metadata.copy(color = WiptvColors.secondary),
+            )
+            ActionButton(text = "Close", onClick = onDismiss, modifier = Modifier.focusRequester(close), primary = true)
         }
     }
 }
