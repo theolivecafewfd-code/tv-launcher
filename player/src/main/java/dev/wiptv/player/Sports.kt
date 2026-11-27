@@ -46,12 +46,12 @@ data class Match(
     /** The day it kicks off, on the TV's clock. */
     val day: LocalDate get() = Instant.ofEpochMilli(kickOff).atZone(ZoneId.systemDefault()).toLocalDate()
 
-    /** Not started and more than half an hour from kick-off: too soon to choose a channel. */
+    /** Not started and more than an hour from kick-off (most games have an hour's build-up): too soon to watch. */
     fun notOnYet(now: Long = System.currentTimeMillis()): Boolean = !live && !finished && kickOff - now > NOT_ON_YET_MS
 }
 
 /** How long before kick-off a match's channels can be chosen. */
-const val NOT_ON_YET_MS = 30 * 60_000L
+const val NOT_ON_YET_MS = 60 * 60_000L
 
 /** A game on UK TV, from the listings: the teams as written there and the channels showing it. */
 class TvListing(val day: LocalDate, val time: String, val teams: String, val channels: List<String>)
@@ -243,6 +243,8 @@ class SportsGuide(
     val programmes: Map<Long, List<Programme>>,
     /** The groups named for the Premier League ("EPL", "Premier League"), where channels are for one game or team. */
     val leagueGroups: Set<String> = emptySet(),
+    /** False while only the channels are known and their guides are still being read. */
+    val complete: Boolean = true,
 )
 
 /** A channel that might show a match, for the list you choose from. */
@@ -282,7 +284,7 @@ object SportsCache {
      * others) and the channels in them that look like sport (Sky Sports, TNT, Premier Sports,
      * Amazon, DAZN, match and event channels…); then reads the next day or so of each one's guide.
      */
-    suspend fun loadGuide(login: Login): SportsGuide {
+    suspend fun loadGuide(login: Login, onChannels: (SportsGuide) -> Unit = {}): SportsGuide {
         val groups = Xtream.liveGroups(login)
             .map { it to SportsChannels.groupScore(it.name) }
             .filter { it.second > 0 }
@@ -309,6 +311,8 @@ object SportsCache {
             }
         }
         val channels = found.distinctBy { it.first.id }.sortedByDescending { it.second }.map { it.first }.take(MAX_CHANNELS)
+        // The channels first, so ones named for a game or team show while the guides are read.
+        onChannels(SportsGuide(System.currentTimeMillis(), channels, emptyMap(), leagueGroups, complete = false))
         val programmes = mutableMapOf<Long, List<Programme>>()
         for (batch in channels.chunked(4)) {
             coroutineScope {
