@@ -71,8 +71,12 @@ class SportsRowState(
     val matches: List<Match>?,
     /** Every match today and the next two days, finished ones too, in kick-off order (the Sports page). */
     val all: List<Match>?,
-    /** Whether the sports channels' guides have been read. */
+    /** Whether your sports channels have been found (their guides may still be being read). */
     val guideReady: Boolean,
+    /** Whether the sports channels' guides have all been read. */
+    val guideComplete: Boolean,
+    /** Asks for the channels and guides now (a panel is open), not only near kick-off. */
+    val requestGuide: () -> Unit,
     /** The channel you chose for each match, else the one the guide says is showing it. */
     val channelFor: Map<String, Channel?>,
     /** The channels you chose, by match. */
@@ -145,7 +149,9 @@ fun rememberSports(login: Login): SportsRowState {
         }
     }
 
-    val needGuide = matches.orEmpty().any { !it.finished && it.day == java.time.LocalDate.now() }
+    // The guides are read when a game is live or within the hour, or when a panel asks for them.
+    var guideWanted by remember { mutableStateOf(false) }
+    val needGuide = guideWanted || matches.orEmpty().any { it.live || (!it.finished && !it.notOnYet()) }
     LaunchedEffect(needGuide) {
         if (!needGuide) return@LaunchedEffect
         while (true) {
@@ -154,7 +160,7 @@ fun rememberSports(login: Login): SportsRowState {
                 guide = kept
             } else {
                 try {
-                    guide = SportsCache.loadGuide(login)
+                    guide = SportsCache.loadGuide(login) { partial -> guide = partial }
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -187,6 +193,8 @@ fun rememberSports(login: Login): SportsRowState {
         matches = shown,
         all = all,
         guideReady = current != null,
+        guideComplete = current?.complete == true,
+        requestGuide = { guideWanted = true },
         channelFor = channels,
         picked = picked,
         options = { m -> current?.let { SportsMatcher.options(m, it, SportsMatcher.listingFor(m, shownListings)) }.orEmpty() },
@@ -325,8 +333,8 @@ internal fun MatchCard(
                 }
                 Text(
                     text = when {
-                        picked != null -> "✓ " + ChannelLabels.of(picked.name).name
                         match.finished -> "Full time"
+                        picked != null -> "✓ " + ChannelLabels.of(picked.name).name
                         notYet && listing != null -> listing.channels.first() + if (listing.channels.size > 1) "  +${listing.channels.size - 1}" else ""
                         notYet -> "Not on yet"
                         found != null -> ChannelLabels.of(found.name).name + "  ·  OK to choose"
@@ -426,11 +434,12 @@ private fun kickOffTime(time: Long): String = SimpleDateFormat("HH:mm", Locale.U
  */
 @Composable
 internal fun ChannelPanel(match: Match, state: SportsRowState, onWatch: (Channel) -> Unit, onDismiss: () -> Unit) {
-    if (match.notOnYet()) {
+    LaunchedEffect(Unit) { state.requestGuide() }
+    if (match.finished || match.notOnYet()) {
         MatchInfoPanel(match, state, onDismiss)
         return
     }
-    val options = remember(match.id, state.guideReady, state.listingsReady) { state.options(match) }
+    val options = remember(match.id, state.guideReady, state.guideComplete, state.listingsReady) { state.options(match) }
     val picked = state.picked[match.id]
     // The one you chose before, or the best guess, at the top of the list.
     val ordered = remember(options, picked) {
@@ -457,7 +466,7 @@ internal fun ChannelPanel(match: Match, state: SportsRowState, onWatch: (Channel
             )
         }
         when {
-            !state.guideReady -> Text(
+            !state.guideReady || (ordered.isEmpty() && !state.guideComplete) -> Text(
                 text = "Looking through your sports channels' guides…",
                 modifier = Modifier.padding(start = 10.dp),
                 style = WiptvType.metadata.copy(color = WiptvColors.quiet),
@@ -522,61 +531,93 @@ private fun PanelTitle(match: Match, hint: String) {
 }
 
 /**
- * A game more than half an hour away: no channels to choose yet, just the teams, kick-off, the UK
- * TV channels showing it, and when to come back.
+ * A game that's over (the result) or more than an hour away: the teams, kick-off, the UK TV
+ * channels showing it, and your channels named for it (its match channel, either team's channel,
+ * or the UK ones), which you can choose ahead so OK on the card plays it once it's on.
  */
 @Composable
 private fun MatchInfoPanel(match: Match, state: SportsRowState, onDismiss: () -> Unit) {
     val close = remember { FocusRequester() }
-    LaunchedEffect(Unit) {
+    val firstRow = remember { FocusRequester() }
+    val listing = state.listingFor(match)
+    val picked = state.picked[match.id]
+    // Only channels that are about this game; not the "something sporty" fallbacks.
+    val yours = remember(match.id, state.guideReady, state.guideComplete, state.listingsReady) {
+        if (match.finished) emptyList() else state.options(match).filter { it.showing || it.tag == "Team channel" }
+    }
+    LaunchedEffect(yours.isNotEmpty()) {
         repeat(20) {
-            if (runCatching { close.requestFocus() }.isSuccess) return@LaunchedEffect
+            if (runCatching { (if (yours.isNotEmpty()) firstRow else close).requestFocus() }.isSuccess) return@LaunchedEffect
             delay(50)
         }
     }
-    val listing = state.listingFor(match)
-    val picked = state.picked[match.id]
     SidePanel(onDismiss) {
-        PanelTitle(match, hint = "Back closes")
+        PanelTitle(match, hint = if (yours.isNotEmpty()) "OK chooses · Back closes" else "Back closes")
         Column(Modifier.padding(start = 10.dp, end = 10.dp)) {
             TeamLine(match.home)
             Spacer(Modifier.height(6.dp))
             TeamLine(match.away)
-            Text(
-                text = "ON TV",
-                modifier = Modifier.padding(top = 22.dp, bottom = 8.dp),
-                style = WiptvType.hint.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp),
-            )
-            when {
-                listing != null -> listing.channels.forEach { name ->
-                    Text(
-                        text = name,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                        style = WiptvType.metadata.copy(color = WiptvColors.text),
-                    )
-                }
-                state.listingsReady -> Text(
-                    text = "Not on UK TV. Your provider may still have it on a match channel.",
-                    style = WiptvType.metadata.copy(color = WiptvColors.quiet),
-                )
-                state.listingsFailed -> Text(text = "Couldn't reach the TV listings.", style = WiptvType.metadata.copy(color = WiptvColors.quiet))
-                else -> Text(text = "Checking the TV listings…", style = WiptvType.metadata.copy(color = WiptvColors.quiet))
-            }
-            if (picked != null) {
+            if (match.finished) {
                 Text(
-                    text = "Your channel: " + ChannelLabels.of(picked.name).name,
-                    modifier = Modifier.padding(top = 14.dp),
+                    text = "Full time.",
+                    modifier = Modifier.padding(top = 22.dp, bottom = 16.dp),
                     style = WiptvType.metadata.copy(color = WiptvColors.secondary),
                 )
+            } else {
+                PanelLabel("ON TV")
+                when {
+                    listing != null -> Text(
+                        text = listing.channels.joinToString(", "),
+                        style = WiptvType.metadata.copy(color = WiptvColors.text),
+                    )
+                    state.listingsReady -> Text(text = "Not on UK TV.", style = WiptvType.metadata.copy(color = WiptvColors.quiet))
+                    state.listingsFailed -> Text(text = "Couldn't reach the TV listings.", style = WiptvType.metadata.copy(color = WiptvColors.quiet))
+                    else -> Text(text = "Checking the TV listings…", style = WiptvType.metadata.copy(color = WiptvColors.quiet))
+                }
+                PanelLabel("YOUR CHANNELS")
+            }
+        }
+        if (!match.finished) {
+            when {
+                yours.isNotEmpty() -> LazyColumn(modifier = Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    itemsIndexed(yours, key = { _, o -> o.channel.id }) { index, option ->
+                        ChannelOptionRow(
+                            option = option,
+                            chosen = option.channel.id == picked?.id,
+                            onClick = { state.setPick(match, option.channel) },
+                            modifier = if (index == 0) Modifier.focusRequester(firstRow) else Modifier,
+                        )
+                    }
+                }
+                !state.guideComplete -> Text(
+                    text = "Looking through your channels…",
+                    modifier = Modifier.padding(start = 10.dp),
+                    style = WiptvType.metadata.copy(color = WiptvColors.quiet),
+                )
+                else -> Text(
+                    text = "None of your channels name this game yet. Look again nearer kick-off.",
+                    modifier = Modifier.padding(start = 10.dp),
+                    style = WiptvType.metadata.copy(color = WiptvColors.quiet),
+                )
             }
             Text(
-                text = "Not on yet. From ${kickOffTime(match.kickOff - NOT_ON_YET_MS)} you can choose a channel here and watch.",
-                modifier = Modifier.padding(top = 22.dp, bottom = 16.dp),
+                text = "Not on yet. From ${kickOffTime(match.kickOff - NOT_ON_YET_MS)} " +
+                    (if (picked != null) "OK on the card plays ${ChannelLabels.of(picked.name).name}." else "you can watch it from here."),
+                modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 16.dp, bottom = 14.dp),
                 style = WiptvType.metadata.copy(color = WiptvColors.secondary),
             )
-            ActionButton(text = "Close", onClick = onDismiss, modifier = Modifier.focusRequester(close), primary = true)
         }
+        ActionButton(text = "Close", onClick = onDismiss, modifier = Modifier.padding(start = 10.dp).focusRequester(close), primary = yours.isEmpty())
     }
+}
+
+@Composable
+private fun PanelLabel(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier.padding(top = 20.dp, bottom = 8.dp),
+        style = WiptvType.hint.copy(fontSize = 10.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp),
+    )
 }
 
 @Composable
