@@ -24,7 +24,12 @@ data class Side(
     val logo: String?,
     /** The goals so far (once it has kicked off). */
     val score: String?,
+    /** This season's wins, draws and losses, "9-2-1", when ESPN has it. */
+    val record: String? = null,
 )
+
+/** How many days the Sports page shows: today and the next two. */
+const val SPORTS_DAYS = 3
 
 /** One Premier League match from ESPN. */
 data class Match(
@@ -37,7 +42,10 @@ data class Match(
     val clock: String,
     val home: Side,
     val away: Side,
-)
+) {
+    /** The day it kicks off, on the TV's clock. */
+    val day: LocalDate get() = Instant.ofEpochMilli(kickOff).atZone(ZoneId.systemDefault()).toLocalDate()
+}
 
 /**
  * Premier League fixtures and live scores from ESPN's public scoreboard (no key, nothing about
@@ -47,24 +55,29 @@ data class Match(
 object Espn {
     private const val SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/scoreboard"
 
-    /** Today's matches (Irish time), in kick-off order. */
-    suspend fun premierLeagueToday(): List<Match> = withContext(Dispatchers.IO) {
+    /** The matches today and the next [days] - 1 days (Irish time), in kick-off order. */
+    suspend fun premierLeague(days: Int = SPORTS_DAYS): List<Match> = withContext(Dispatchers.IO) {
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now(zone)
-        val json = JSONObject(get("$SCOREBOARD?dates=${today.format(DateTimeFormatter.BASIC_ISO_DATE)}"))
-        val events = json.optJSONArray("events") ?: return@withContext emptyList()
-        (0 until events.length()).mapNotNull { i ->
-            val event = events.optJSONObject(i) ?: return@mapNotNull null
-            val game = event.optJSONArray("competitions")?.optJSONObject(0) ?: return@mapNotNull null
-            val kickOff = parseTime(game.optString("date").ifBlank { event.optString("date") }) ?: return@mapNotNull null
-            if (Instant.ofEpochMilli(kickOff).atZone(zone).toLocalDate() != today) return@mapNotNull null
+        val last = today.plusDays((days - 1).toLong())
+        // One request a day (ESPN's scoreboard doesn't take a range), then trimmed to local days.
+        val events = (0 until days).flatMap { offset ->
+            val date = today.plusDays(offset.toLong()).format(DateTimeFormatter.BASIC_ISO_DATE)
+            val list = JSONObject(get("$SCOREBOARD?dates=$date")).optJSONArray("events")
+            if (list == null) emptyList() else (0 until list.length()).mapNotNull { list.optJSONObject(it) }
+        }.distinctBy { it.optString("id") }
+        events.mapIndexedNotNull { i, event ->
+            val game = event.optJSONArray("competitions")?.optJSONObject(0) ?: return@mapIndexedNotNull null
+            val kickOff = parseTime(game.optString("date").ifBlank { event.optString("date") }) ?: return@mapIndexedNotNull null
+            val day = Instant.ofEpochMilli(kickOff).atZone(zone).toLocalDate()
+            if (day.isBefore(today) || day.isAfter(last)) return@mapIndexedNotNull null
             val status = game.optJSONObject("status")
             val type = status?.optJSONObject("type")
             val state = type?.optString("state").orEmpty()
-            val sides = game.optJSONArray("competitors") ?: return@mapNotNull null
+            val sides = game.optJSONArray("competitors") ?: return@mapIndexedNotNull null
             val list = (0 until sides.length()).mapNotNull { sides.optJSONObject(it) }
-            val home = list.firstOrNull { it.optString("homeAway") == "home" } ?: list.getOrNull(0) ?: return@mapNotNull null
-            val away = list.firstOrNull { it.optString("homeAway") == "away" } ?: list.getOrNull(1) ?: return@mapNotNull null
+            val home = list.firstOrNull { it.optString("homeAway") == "home" } ?: list.getOrNull(0) ?: return@mapIndexedNotNull null
+            val away = list.firstOrNull { it.optString("homeAway") == "away" } ?: list.getOrNull(1) ?: return@mapIndexedNotNull null
             val started = state == "in" || state == "post"
             Match(
                 id = event.optString("id").ifBlank { "$i" },
@@ -86,8 +99,12 @@ object Espn {
             shortName = team.optString("shortDisplayName").ifBlank { name },
             logo = team.optString("logo").takeIf { it.startsWith("https://") },
             score = if (started) item.optString("score").takeIf { it.isNotBlank() && it != "null" } else null,
+            record = item.optJSONArray("records")?.optJSONObject(0)?.optString("summary")
+                ?.takeIf { it.matches(RECORD) },
         )
     }
+
+    private val RECORD = Regex("\\d+-\\d+-\\d+")
 
     private fun parseTime(text: String): Long? =
         runCatching { OffsetDateTime.parse(text).toInstant().toEpochMilli() }.getOrNull()

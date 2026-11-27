@@ -69,6 +69,7 @@ internal object Palette {
 enum class Section(val label: String) {
     HOME("Home"),
     LIVE("Live TV"),
+    SPORTS("Sports"),
     MOVIES("Movies"),
     SERIES("TV Shows"),
     LIBRARY("My Page"),
@@ -180,6 +181,21 @@ fun PlayerRoot(
                     },
                     onDetails = { kind, id -> details(kind, id, Section.HOME) },
                     onResume = { point -> resume(point, Section.HOME) },
+                    onWatchChannel = { channel ->
+                        // Full screen; Back there goes to its group in Live TV.
+                        channelToOpen = channel.id
+                        channelInfo = channel
+                        section = Section.LIVE
+                    },
+                    onOpenGroup = { groupId ->
+                        LiveGroupPrefs.setGroup(context, groupId)
+                        section = Section.LIVE
+                    },
+                    onSeeAllSports = { section = Section.SPORTS },
+                )
+                Section.SPORTS -> SportsScreen(
+                    login = current,
+                    header = tabs,
                     onWatchChannel = { channel ->
                         // Full screen; Back there goes to its group in Live TV.
                         channelToOpen = channel.id

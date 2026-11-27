@@ -59,7 +59,8 @@ private val FeatureHeight = 392.dp
  *
  * Under the card, Continue watching (films and episodes together), where the focused card always
  * slides to the start of the row. Down scrolls the page to it; Up goes back to the whole card.
- * Then today's Premier League ([SportsShelf]), when there's a match on.
+ * Then today's Premier League ([SportsShelf]), when there's a match on, ending with All fixtures
+ * (the Sports page).
  */
 @Composable
 fun HomeScreen(
@@ -71,6 +72,7 @@ fun HomeScreen(
     onResume: (ResumePoint) -> Unit,
     onWatchChannel: (Channel) -> Unit,
     onOpenGroup: (String) -> Unit,
+    onSeeAllSports: () -> Unit,
 ) {
     val picks = rememberTrendingPicks()
     val pick = remember(picks) {
@@ -122,7 +124,7 @@ fun HomeScreen(
                         item(key = "resume") { ResumeShelf(resume, onResume, pinToStart = true) }
                     }
                     if (sports.visible) {
-                        item(key = "sports") { SportsShelf(login, sports, Edge, onWatchChannel, onOpenGroup) }
+                        item(key = "sports") { SportsShelf(login, sports, Edge, onWatchChannel, onOpenGroup, onSeeAllSports) }
                     }
                 }
             }
