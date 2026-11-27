@@ -28,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -65,6 +66,7 @@ import kotlinx.coroutines.CancellationException
  * on the right a glass panel with ‹ Season › and that season's episodes. Right from the buttons
  * goes into the episodes, Left comes back. The data and playing are VodDetailScreen's.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 internal fun SeriesPage(
     item: VodItem,
@@ -259,6 +261,7 @@ private fun PillLine(label: String, values: List<String>) {
  * then the season's episodes, each with its still, number and name, and its length or how far
  * you've got. The list scrolls inside the panel.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun EpisodesPanel(
     item: VodItem,
