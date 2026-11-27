@@ -99,7 +99,8 @@ private class CatalogChoice(context: Context, kind: VodKind) {
 }
 
 /**
- * Films or series as a grid of posters, one category at a time. "Filter and sort" at the top
+ * Films or series as a grid of posters, one category at a time, with the focused one's details
+ * (artwork, synopsis, genres, cast) in a panel on the right. "Filter and sort" at the top
  * right picks the category and the order (and hides or reorders categories with Edit categories).
  * OK on a poster opens its details. Continue watching and My List are in Library.
  */
@@ -354,29 +355,39 @@ fun CatalogScreen(
             } else if (posters != null) {
                 // A fresh grid, at the top, for each category and order.
                 val grid = remember(kind, category?.id, sort) { LazyGridState() }
-                // The focused row moves to the top, one row per press.
-                PivotScrolling(pivot = 6.dp, alwaysAlign = true) {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(6),
-                        state = grid,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                        contentPadding = PaddingValues(
-                            start = ScreenEdge - ArtFocusGap,
-                            end = ScreenEdge - ArtFocusGap,
-                            top = 6.dp,
-                            bottom = 40.dp,
-                        ),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        itemsIndexed(posters, key = { _, item -> item.key }) { index, item ->
-                            GridPoster(
-                                item = item,
-                                onClick = { detail = item },
-                                modifier = if (index == 0) Modifier.focusRequester(firstPoster) else Modifier,
-                            )
+                // The poster with focus, whose details show in the panel on the right.
+                var peeked by remember(kind, category?.id, sort) { mutableStateOf<VodItem?>(null) }
+                Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    // The focused row moves to the top, one row per press.
+                    PivotScrolling(pivot = 6.dp, alwaysAlign = true) {
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(4),
+                            state = grid,
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            contentPadding = PaddingValues(
+                                start = ScreenEdge - ArtFocusGap,
+                                end = 12.dp,
+                                top = 6.dp,
+                                bottom = 40.dp,
+                            ),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            itemsIndexed(posters, key = { _, item -> item.key }) { index, item ->
+                                GridPoster(
+                                    item = item,
+                                    onClick = { detail = item },
+                                    onFocused = { peeked = item },
+                                    modifier = if (index == 0) Modifier.focusRequester(firstPoster) else Modifier,
+                                )
+                            }
                         }
                     }
+                    CatalogPeek(
+                        item = peeked ?: posters.firstOrNull(),
+                        login = login,
+                        modifier = Modifier.padding(top = 6.dp, bottom = 24.dp, end = ScreenEdge).width(288.dp),
+                    )
                 }
             }
         }
@@ -553,14 +564,17 @@ private fun FilterButton(onClick: () -> Unit) {
  * one's name turns bold and gains its year.
  */
 @Composable
-private fun GridPoster(item: VodItem, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun GridPoster(item: VodItem, onClick: () -> Unit, onFocused: () -> Unit, modifier: Modifier = Modifier) {
     var focused by remember { mutableStateOf(false) }
     val title = remember(item.name, item.year) { DisplayTitles.withoutYear(item.name, item.year) }
     Column(modifier = Modifier.width(PosterWidth + ArtFocusGap * 2)) {
         ArtFrame(
             width = PosterWidth,
             height = PosterHeight,
-            onFocusChange = { focused = it },
+            onFocusChange = {
+                focused = it
+                if (it) onFocused()
+            },
             onClick = onClick,
             modifier = modifier,
         ) {
