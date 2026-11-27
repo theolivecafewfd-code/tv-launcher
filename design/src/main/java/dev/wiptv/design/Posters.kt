@@ -9,6 +9,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -329,8 +330,8 @@ val ContinueGap = 14.dp
 
 /**
  * A Continue watching card, the same in both apps: a portrait poster at rest; the one you rest on
- * ([wide], from [rememberWideCard]) widens to its landscape still or backdrop (or the poster on a
- * soft wash of itself), with the progress bar along the bottom. Underneath: the [title], and on
+ * ([wide], from [rememberWideCard]) widens, keeping the same poster on a soft wash of itself, with
+ * the progress bar along the bottom. Underneath: the [title], and on
  * the focused card the [episode], time [left] and "OK to resume". Focus is one thin, soft outline,
  * with no lift or glow. [tag] goes top left (the launcher's "IPTV").
  */
@@ -436,56 +437,45 @@ fun ContinueCard(
 }
 
 /**
- * The picture: the portrait poster while narrow; once wide, a crossfade to the landscape still or
- * backdrop. With no landscape picture, the sharp poster sits on a dark wash made from itself
- * (never stretched). Images come from Coil's cache after the first load.
+ * The picture: the same portrait poster narrow and wide, so nothing flashes as the card widens.
+ * Wide, it stays sharp in the middle at full height while a soft wash made from itself fades in
+ * either side (never stretched). With no poster, the landscape still or backdrop fills the card.
  */
 @Composable
 private fun ContinueArtwork(title: String, posterUrl: String?, imageUrl: String?, wide: Boolean) {
-    Crossfade(targetState = wide, animationSpec = tween(CARD_GROW_MS), label = "continueArt") { isWide ->
-        Box(Modifier.fillMaxSize().background(WiptvColors.surface)) {
-            when {
-                isWide && imageUrl != null -> AsyncImage(
-                    model = imageUrl,
-                    contentDescription = title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                isWide && posterUrl != null -> {
+    val wash by animateFloatAsState(if (wide) 0.45f else 0f, animationSpec = tween(CARD_GROW_MS), label = "continueWash")
+    Box(Modifier.fillMaxSize().background(WiptvColors.surface)) {
+        when {
+            posterUrl != null -> {
+                if (wash > 0f) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current).data(posterUrl).size(12, 18).build(),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        alpha = 0.45f,
+                        alpha = wash,
                         modifier = Modifier.fillMaxSize(),
                     )
-                    AsyncImage(
-                        model = posterUrl,
-                        contentDescription = title,
-                        contentScale = ContentScale.Fit,
-                        modifier = Modifier.fillMaxHeight().align(Alignment.Center),
-                    )
                 }
-                posterUrl != null -> AsyncImage(
+                AsyncImage(
                     model = posterUrl,
                     contentDescription = title,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                imageUrl != null -> AsyncImage(
-                    model = imageUrl,
-                    contentDescription = title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-                else -> Text(
-                    text = title,
-                    maxLines = 4,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.align(Alignment.Center).padding(8.dp),
-                    style = WiptvType.hint,
+                    modifier = Modifier.fillMaxHeight().aspectRatio(2f / 3f).align(Alignment.Center),
                 )
             }
+            imageUrl != null -> AsyncImage(
+                model = imageUrl,
+                contentDescription = title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+            else -> Text(
+                text = title,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center).padding(8.dp),
+                style = WiptvType.hint,
+            )
         }
     }
 }

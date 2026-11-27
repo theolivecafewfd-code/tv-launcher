@@ -148,11 +148,15 @@ fun VodPlayerScreen(
     val panelOpen = tracksShown != null || sleepOpen
     // Skip intro, for episodes: once you've skipped in a series, it shows around the same point
     // in its other episodes; until then, in the first five minutes. Skipping or Back hides it.
+    // Only when you start before that point: resuming part-way through never offers it, and an
+    // intro point remembered later than [INTRO_LATEST_MS] (a skip saved by mistake) is ignored.
     val seriesId = start.seriesId
-    val introAt = remember { seriesId?.let { store.introAt(it) } }
+    val introAt = remember { seriesId?.let { store.introAt(it) }?.takeIf { it <= INTRO_LATEST_MS } }
     var introDone by remember { mutableStateOf(false) }
-    val inIntroWindow = if (introAt != null) position in (introAt - 30_000)..(introAt + 60_000) else position in 10_000..INTRO_WINDOW_MS
-    val showSkip = seriesId != null && !introDone && error == null && duration > 0 && inIntroWindow && !showNext && !panelOpen
+    val introWindow = if (introAt != null) (introAt - 30_000).coerceAtLeast(0)..(introAt + 60_000) else 10_000L..INTRO_WINDOW_MS
+    val startedBeforeIntro = start.position < introWindow.first + 10_000
+    val showSkip = seriesId != null && startedBeforeIntro && !introDone && error == null && duration > 0 &&
+        position in introWindow && !showNext && !panelOpen
     val controls = remember(seriesId) {
         PlayerControl.entries.filter { it != PlayerControl.SKIP || seriesId != null }
     }
@@ -320,7 +324,8 @@ fun VodPlayerScreen(
     }
 
     fun skipIntro() {
-        seriesId?.let { store.setIntroAt(it, player.currentPosition) }
+        val at = player.currentPosition
+        if (at <= INTRO_LATEST_MS) seriesId?.let { store.setIntroAt(it, at) }
         introDone = true
         seekBy(INTRO_SKIP_MS)
     }
@@ -565,6 +570,9 @@ fun VodPlayerScreen(
 /** Skip intro: how far it jumps, and (until you've skipped in a series) how long it's offered. */
 private const val INTRO_SKIP_MS = 85_000L
 private const val INTRO_WINDOW_MS = 5 * 60_000L
+
+/** The latest an intro is taken to be: a remembered skip later than this is ignored. */
+private const val INTRO_LATEST_MS = 10 * 60_000L
 
 /** How long before the end the Play Next card shows, and its countdown. */
 private const val NEXT_CARD_MS = 60_000L
