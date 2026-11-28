@@ -47,7 +47,7 @@ import dev.wiptv.design.WiptvColors
 import dev.wiptv.design.WiptvShapes
 import dev.wiptv.design.WiptvType
 import dev.wiptv.design.rememberRowStart
-import dev.wiptv.design.rememberWideCard
+import dev.wiptv.design.rememberFocusedCard
 import dev.wiptv.design.wiptvBackground
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -326,13 +326,13 @@ fun LibraryScreen(
 private data class ShelfTitle(val key: String, val kind: VodKind, val id: Long, val name: String, val poster: String?, val backdrop: String?)
 
 /**
- * Continue watching, films and episodes together, newest first: the cards widen when you rest on
- * them, with the progress bar and the time left. Used on Home ([pinToStart]: the focused card
+ * Continue watching, films and episodes together, newest first: portrait cards that grow a little
+ * when focused, with the progress bar and the time left. Used on Home ([pinToStart]: the focused card
  * slides to the start of the row) and My Page.
  */
 @Composable
 internal fun ResumeShelf(resume: List<ResumePoint>, onResume: (ResumePoint) -> Unit, pinToStart: Boolean = false) {
-    val wideCard = rememberWideCard()
+    val focusedCard = rememberFocusedCard()
     val rowStart = rememberRowStart()
     SectionRow(
         title = "Continue watching",
@@ -350,9 +350,8 @@ internal fun ResumeShelf(resume: List<ResumePoint>, onResume: (ResumePoint) -> U
                 posterUrl = point.poster,
                 imageUrl = point.image,
                 progress = point.progress,
-                wide = wideCard.wide == point.key,
-                focused = wideCard.focused == point.key,
-                onFocusChange = { wideCard.onFocus(point.key, it) },
+                focused = focusedCard.focused == point.key,
+                onFocusChange = { focusedCard.onFocus(point.key, it) },
                 onClick = { onResume(point) },
                 modifier = rowStart.card(point.key),
             )
@@ -364,7 +363,6 @@ internal fun ResumeShelf(resume: List<ResumePoint>, onResume: (ResumePoint) -> U
 @Composable
 private fun PosterShelf(title: String, titles: List<ShelfTitle>?, onDetails: (VodKind, Long) -> Unit) {
     if (titles != null && titles.isEmpty()) return
-    val wideCard = rememberWideCard()
     val rowStart = rememberRowStart()
     SectionRow(title = title, edge = Edge, rowModifier = rowStart.rowModifier(titles?.firstOrNull()?.key)) {
         if (titles == null) {
@@ -374,10 +372,7 @@ private fun PosterShelf(title: String, titles: List<ShelfTitle>?, onDetails: (Vo
                 PosterCard(
                     name = t.name,
                     posterUrl = t.poster,
-                    backdropUrl = t.backdrop,
                     onClick = { onDetails(t.kind, t.id) },
-                    wide = wideCard.wide == t.key,
-                    onFocus = { wideCard.onFocus(t.key, it) },
                     modifier = rowStart.card(t.key),
                 )
             }

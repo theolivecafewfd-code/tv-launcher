@@ -27,7 +27,7 @@ The rework was done in five parts, each its own PR, merged when Wayne said "merg
 - **Playback (#89, #90, #94, #96):** the Play Next card at the end of an episode; resuming moves on to the next episode when one is finished; Skip intro; Audio & subtitles; Continue watching asks Continue or Episodes, and Resume or Start over.
 - **Live TV (#86, #76, #66):** the full guide grid (Right on a channel), catch-up ⟲ and its badge, favourites on Menu (≡), full-screen zapping.
 - **Details pages:** seasons, episodes, More like this, More info, My List, resume.
-- **Launcher (#58–#95):** TV Shows | Movies home with the focused card's hero at the top; rows: Continue watching, Your channels (with now and next, #81), My List, Recommended (#87), then a "More … in WIPTV Player" pill; posters widen to their backdrop (#91–#93) and Up or Down into a row lands on its first card (#95). Back asks "Leave WIPTV?" (#78). Apps tray, quick settings, details, search and Surprise me.
+- **Launcher (#58–#95):** TV Shows | Movies home with the focused card's hero at the top; rows: Continue watching, Your channels, My List, Recommended (#87), then a "More … in WIPTV Player" pill; cards no longer widen: every card grows slightly when focused (#114), and Up or Down into a row lands on its first card (#95). Back asks "Leave WIPTV?" (#78). Apps tray, quick settings, details, search and Surprise me.
 
 ## How the launcher link works
 
@@ -44,7 +44,7 @@ The `design` module is the single source of the look for both apps. Change thing
 - Tokens: `WiptvColors` (version 0.3), `WiptvType`, `WiptvShapes`, `Glass` recipes, `wiptvBackground()`.
 - `Header.kt`: `WiptvTopMenu` (the player's menu), `WiptvHeader` (the launcher's header) and the weather.
 - `Hero.kt`, `Cinematic.kt`: the launcher's hero and details pieces (`HeroInfo`, `CinematicBackdrop`, `ArtFrame`, `ActionButton`, `InfoSheet`).
-- `Posters.kt`: `PosterCard`, `SectionRow`, row emphasis, the widening card, `ContinueCard`.
+- `Posters.kt`: `PosterCard`, `SectionRow`, row emphasis, `ContinueCard`, `rememberFocusedCard`.
 - `Rows.kt` (`ListRow`) and `Playback.kt` (`PlaybackPanel`, `PlaybackProgress`, `KeyHints`; Live TV's info bar still uses these).
 - `Wiptv.kt`: `WiptvButton`, `GlassPill`, `focusOutline`. `Scrolling.kt`: `PivotScrolling`, `RowScrolling`.
 

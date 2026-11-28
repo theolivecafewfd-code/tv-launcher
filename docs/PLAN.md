@@ -23,7 +23,7 @@ Nov 24, 2026 · Wayne
 | Player: Search | Next (Wayne picks) | The player lost the launcher's search when the links went |
 | Player: full Favourites page | Next (Wayne picks) | Favourites opens Live TV on the Favourites group for now |
 | Player: Live TV sleep timer | Next (Wayne picks) | Films and episodes have one |
-| Launcher home: TV Shows \| Movies | Done | Hero at the top; Continue watching, Your channels (now and next, #81), My List, Recommended (#87), a More pill; widening posters (#91–#93) |
+| Launcher home: TV Shows \| Movies | Done | Hero at the top; Continue watching, Your channels, My List, Recommended (#87), a More pill; plain cards that grow slightly on focus (#114) |
 | Launcher details, search, Surprise me, Apps tray | Done | Kept as they are while the launcher lasts |
 | Launcher link | Done | Details, search, Continue watching, My List and Your channels shared with the player (#52–#65) |
 | Native screenshots | Done | Emulator run against a pretend provider, only on request (#36) |
