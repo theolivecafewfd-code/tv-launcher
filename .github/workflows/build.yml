@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Run by hand to build and publish both apps whatever changed.
   workflow_dispatch:
 
 permissions:
@@ -20,23 +21,70 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Each app is built and published only when something it's made of changed, so a player
+      # change doesn't put out a new launcher too. The launcher is released only when app/ itself
+      # changes; a shared change (design/, update/, the Gradle setup) still compiles it on pull
+      # requests, so a break shows up there, but doesn't publish it.
+      - name: Which apps changed
+        id: which
+        run: |
+          case "${{ github.event_name }}" in
+            pull_request) base="${{ github.event.pull_request.base.sha }}" ;;
+            push) base="${{ github.event.before }}" ;;
+            *) base="" ;;
+          esac
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            echo "launcher=true" >> "$GITHUB_OUTPUT"
+            echo "player=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Building both apps"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$base" HEAD)
+          shared=$(echo "$changed" | grep -E '^(design/|update/|gradle/|build\.gradle\.kts|settings\.gradle\.kts|gradle\.properties|gradlew)' || true)
+          launcher=false; player=false
+          echo "$changed" | grep -q '^app/' && launcher=true
+          echo "$changed" | grep -q '^player/' && player=true
+          if [ -n "$shared" ]; then
+            player=true
+            [ "${{ github.event_name }}" = pull_request ] && launcher=true
+          fi
+          # A change to this workflow builds both on its pull request, to check it, but publishes neither.
+          if [ "${{ github.event_name }}" = pull_request ] && echo "$changed" | grep -q '^\.github/workflows/build\.yml$'; then
+            launcher=true; player=true
+          fi
+          echo "launcher=$launcher" >> "$GITHUB_OUTPUT"
+          echo "player=$player" >> "$GITHUB_OUTPUT"
+          echo "::notice::Launcher: $launcher, player: $player"
 
       - uses: actions/setup-java@v5
+        if: steps.which.outputs.launcher == 'true' || steps.which.outputs.player == 'true'
         with:
           distribution: temurin
           java-version: "17"
 
       - uses: gradle/actions/setup-gradle@v5
+        if: steps.which.outputs.launcher == 'true' || steps.which.outputs.player == 'true'
 
-      - name: Build both apps
+      - name: Build the apps that changed
+        if: steps.which.outputs.launcher == 'true' || steps.which.outputs.player == 'true'
         env:
+          LAUNCHER: ${{ steps.which.outputs.launcher }}
+          PLAYER: ${{ steps.which.outputs.player }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         run: |
-          if [ -n "$TMDB_API_KEY" ]; then echo "::notice::TMDB key found"; else echo "::warning::TMDB_API_KEY secret is missing, so the film carousel will be empty"; fi
+          if [ "$LAUNCHER" = true ]; then
+            if [ -n "$TMDB_API_KEY" ]; then echo "::notice::TMDB key found"; else echo "::warning::TMDB_API_KEY secret is missing, so the film carousel will be empty"; fi
+          fi
+          tasks=""
+          [ "$LAUNCHER" = true ] && tasks="$tasks :app:assembleRelease"
+          [ "$PLAYER" = true ] && tasks="$tasks :player:assembleRelease"
           chmod +x gradlew
           # On failure, repeat the compiler's errors as annotations, so they can be read without the full log.
           set +e
-          ./gradlew :app:assembleRelease :player:assembleRelease 2>&1 | tee build.log
+          ./gradlew $tasks 2>&1 | tee build.log
           status=${PIPESTATUS[0]}
           set -e
           if [ "$status" -ne 0 ]; then
@@ -45,16 +93,22 @@ jobs:
             echo "::error title=Build failed::$errors"
             exit "$status"
           fi
-          cp app/build/outputs/apk/release/app-release.apk tv-launcher.apk
-          cp player/build/outputs/apk/release/player-release.apk wiptv-player.apk
-          # The update pill reads these instead of GitHub's API, which allows only 60 checks an hour.
-          echo "${{ github.run_number }}" > tv-launcher.build.txt
-          echo "${{ github.run_number }}" > wiptv-player.build.txt
+          # The update pill reads the build.txt files instead of GitHub's API, which allows only 60 checks an hour.
+          if [ "$LAUNCHER" = true ]; then
+            cp app/build/outputs/apk/release/app-release.apk tv-launcher.apk
+            echo "${{ github.run_number }}" > tv-launcher.build.txt
+          fi
+          if [ "$PLAYER" = true ]; then
+            cp player/build/outputs/apk/release/player-release.apk wiptv-player.apk
+            echo "${{ github.run_number }}" > wiptv-player.build.txt
+          fi
 
       - name: Keep the app files with this run
+        if: steps.which.outputs.launcher == 'true' || steps.which.outputs.player == 'true'
         uses: actions/upload-artifact@v5
         with:
           name: apps
+          if-no-files-found: ignore
           path: |
             tv-launcher.apk
             wiptv-player.apk
@@ -62,7 +116,7 @@ jobs:
       # Only merged changes on main become a release, with a download link that never changes:
       # https://github.com/<owner>/tv-launcher/releases/latest/download/tv-launcher.apk
       - name: Publish release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && steps.which.outputs.launcher == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
@@ -74,7 +128,7 @@ jobs:
       # never changes either and it never becomes the "latest" release the launcher looks at:
       # https://github.com/<owner>/tv-launcher/releases/download/player/wiptv-player.apk
       - name: Publish player release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && steps.which.outputs.player == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: player
@@ -87,7 +141,7 @@ jobs:
       # Each build number goes up only after its app is uploaded, so the pill never finds a
       # number whose app isn't there yet.
       - name: Publish build numbers
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && steps.which.outputs.launcher == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
@@ -96,7 +150,7 @@ jobs:
           make_latest: "true"
 
       - name: Publish player build number
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && steps.which.outputs.player == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: player
