@@ -5,15 +5,11 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.tv.material3.LocalContentColor
 import dev.wiptv.design.ArtFocusGap
-import dev.wiptv.design.PlaybackProgress
 import dev.wiptv.design.PosterHeight
 import dev.wiptv.design.PosterWidth
-import dev.wiptv.design.PosterWide
-import dev.wiptv.design.CARD_GROW_MS
 import dev.wiptv.design.ContinueCard
 import dev.wiptv.design.ContinueGap
 import dev.wiptv.design.LocalSectionActive
@@ -22,7 +18,7 @@ import dev.wiptv.design.PosterPlaceholder
 import dev.wiptv.design.SectionDim
 import dev.wiptv.design.SectionHeading
 import dev.wiptv.design.SectionRow
-import dev.wiptv.design.rememberWideCard
+import dev.wiptv.design.rememberFocusedCard
 import dev.wiptv.design.rememberRowStart
 import dev.wiptv.design.sectionCaption
 import dev.wiptv.design.ArtFrame
@@ -43,7 +39,6 @@ import dev.wiptv.design.SearchIcon
 import dev.wiptv.design.NavItem
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.runtime.getValue
@@ -66,7 +61,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -175,10 +169,7 @@ private fun SourceTag(source: Source) {
     )
 }
 
-/**
- * One row of posters (the shared [SectionRow] and [PosterCard], as in the player). The poster you
- * rest on widens to its landscape picture, as in Continue watching.
- */
+/** One row of posters (the shared [SectionRow] and [PosterCard], as in the player). */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun PosterRow(
@@ -190,7 +181,6 @@ fun PosterRow(
     up: FocusRequester?,
     down: FocusRequester?,
 ) {
-    val wideCard = rememberWideCard()
     // A row still loading has no titles yet: it shows placeholders that can take focus. If
     // focus is on one when the titles arrive, it moves to the first title.
     var waiting by remember { mutableStateOf(false) }
@@ -228,11 +218,7 @@ fun PosterRow(
                 onClick = { onOpen(title) },
                 onLongClick = { onPlay(title) },
                 modifier = upAndDown.then(memory.card(title.key)),
-                wide = wideCard.wide == title.key,
-                onFocus = {
-                    if (it) onFocusTitle(title)
-                    wideCard.onFocus(title.key, it)
-                },
+                onFocus = { if (it) onFocusTitle(title) },
             )
         }
     }
@@ -250,18 +236,15 @@ internal fun TitlePoster(
     modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     compact: Boolean = false,
-    wide: Boolean = false,
     onFocus: (Boolean) -> Unit = {},
 ) {
     PosterCard(
         name = title.name,
         posterUrl = title.posterUrl,
-        backdropUrl = title.backdropUrl,
         onClick = onClick,
         modifier = modifier,
         onLongClick = onLongClick,
         compact = compact,
-        wide = wide,
         onFocus = onFocus,
     ) {
         val onIptv = if (title.iptv != null) true else IptvBadges.has(title)
@@ -296,15 +279,13 @@ internal fun IptvPosterCard(title: IptvTitle, onClick: () -> Unit, modifier: Mod
 
 /**
  * Your channels: the live channels you've starred in WIPTV Player, in its order, as poster-shaped
- * cards in the shared row. The one you rest on widens, like the other rows, to show what's on:
- * the logo, now (title, times, progress) and next, from [programmes] (null until loaded). OK plays
- * it full screen in the player; Back there goes to the channel's group in Live TV.
+ * cards in the shared row: the logo with the name underneath. OK plays it full screen in the
+ * player; Back there goes to the channel's group in Live TV.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ChannelRow(
     channels: List<IptvChannel>,
-    programmes: (IptvChannel) -> List<IptvProgramme>?,
     onWatch: (IptvChannel) -> Unit,
     onFocusChannel: (IptvChannel) -> Unit,
     requester: FocusRequester,
@@ -316,7 +297,6 @@ fun ChannelRow(
         up?.ifAttached()?.let { this.up = it }
         down?.ifAttached()?.let { this.down = it }
     }
-    val wideCard = rememberWideCard()
     val memory = rememberRowStart()
     SectionRow(
         title = "Your channels",
@@ -326,12 +306,7 @@ fun ChannelRow(
         items(channels, key = { it.id }) { channel ->
             ChannelPoster(
                 channel = channel,
-                programmes = programmes(channel),
-                wide = wideCard.wide == "ch:${channel.id}",
-                onFocus = { has ->
-                    if (has) onFocusChannel(channel)
-                    wideCard.onFocus("ch:${channel.id}", has)
-                },
+                onFocus = { has -> if (has) onFocusChannel(channel) },
                 onClick = { onWatch(channel) },
                 modifier = upAndDown.then(memory.card(channel.id)),
             )
@@ -339,24 +314,18 @@ fun ChannelRow(
     }
 }
 
-/**
- * A starred channel as a poster: the logo on a soft panel with the name underneath; widened, the
- * logo moves left and what's on now and next fills the rest.
- */
+/** A starred channel as a poster: the logo on a soft panel with the name underneath. */
 @Composable
 private fun ChannelPoster(
     channel: IptvChannel,
-    programmes: List<IptvProgramme>?,
-    wide: Boolean,
     onFocus: (Boolean) -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val width by animateDpAsState(if (wide) PosterWide else PosterWidth, animationSpec = tween(CARD_GROW_MS), label = "channelWidth")
-    Column(modifier = Modifier.width(width + ArtFocusGap * 2)) {
+    Column(modifier = Modifier.width(PosterWidth + ArtFocusGap * 2)) {
         ArtFrame(
-            width = width,
+            width = PosterWidth,
             height = PosterHeight,
             onFocusChange = {
                 focused = it
@@ -366,26 +335,22 @@ private fun ChannelPoster(
             modifier = modifier,
         ) {
             Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.07f)))
-            Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                // The logo: the whole card while narrow, a column on the left once wide.
-                Box(modifier = Modifier.width(PosterWidth).fillMaxHeight().padding(16.dp), contentAlignment = Alignment.Center) {
-                    if (channel.logoUrl != null) {
-                        AsyncImage(
-                            model = channel.logoUrl,
-                            contentDescription = channel.name,
-                            contentScale = ContentScale.Fit,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    } else {
-                        Text(
-                            text = channel.name,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                            style = WiptvType.metadata.copy(color = WiptvColors.secondary),
-                        )
-                    }
+            Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                if (channel.logoUrl != null) {
+                    AsyncImage(
+                        model = channel.logoUrl,
+                        contentDescription = channel.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                } else {
+                    Text(
+                        text = channel.name,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        style = WiptvType.metadata.copy(color = WiptvColors.secondary),
+                    )
                 }
-                if (wide) ChannelNowNext(programmes, Modifier.weight(1f).padding(end = 14.dp))
             }
             SectionDim()
         }
@@ -402,50 +367,11 @@ private fun ChannelPoster(
     }
 }
 
-/** Inside a widened channel card: now (title, times, progress) and next. */
-@Composable
-private fun ChannelNowNext(programmes: List<IptvProgramme>?, modifier: Modifier) {
-    val now = System.currentTimeMillis()
-    val current = programmes?.firstOrNull { it.start <= now && now < it.end }
-    val next = programmes?.firstOrNull { it.start >= (current?.end ?: now) }
-    val clock = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.UK) }
-    fun hhmm(t: Long) = clock.format(java.util.Date(t))
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        when {
-            programmes == null -> Text("Loading what's on…", style = WiptvType.hint)
-            current == null -> Text("No programme information", style = WiptvType.hint)
-            else -> {
-                Text("Now", style = WiptvType.hint)
-                Text(
-                    text = current.title,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    style = WiptvType.body.copy(fontWeight = FontWeight.Medium, color = WiptvColors.text),
-                )
-                Text("${hhmm(current.start)}–${hhmm(current.end)}", style = WiptvType.hint.copy(color = WiptvColors.secondary))
-                PlaybackProgress(
-                    fraction = ((now - current.start).toFloat() / (current.end - current.start)).coerceIn(0f, 1f),
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-        }
-        if (next != null) {
-            Text(
-                text = "Next · ${hhmm(next.start)} · ${next.title}",
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 6.dp),
-                style = WiptvType.hint.copy(color = WiptvColors.secondary),
-            )
-        }
-    }
-}
-
 /**
  * Continue watching: films and episodes you've started in WIPTV Player, as the shared
- * [ContinueCard] (the player's Continue watching uses the same card). Cards are portrait posters;
- * the one you rest on widens to its landscape picture, with the title, episode, time left and
- * "OK to resume" underneath. OK resumes in the player.
+ * [ContinueCard] (the player's Continue watching uses the same card). Cards are portrait posters
+ * that grow a little when focused, with the title, episode, time left and "OK to resume"
+ * underneath. OK resumes in the player.
  */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -462,7 +388,7 @@ fun ContinueRow(
         up?.ifAttached()?.let { this.up = it }
         down.ifAttached()?.let { this.down = it }
     }
-    val wideCard = rememberWideCard()
+    val focusedCard = rememberFocusedCard()
     // Moving up or down into the row lands on its first card.
     val memory = rememberRowStart()
     SectionRow(
@@ -480,11 +406,10 @@ fun ContinueRow(
                 posterUrl = item.posterUrl,
                 imageUrl = item.imageUrl,
                 progress = item.progress,
-                wide = wideCard.wide == item.key,
-                focused = wideCard.focused == item.key,
+                focused = focusedCard.focused == item.key,
                 onFocusChange = {
                     if (it) onFocusItem(item)
-                    wideCard.onFocus(item.key, it)
+                    focusedCard.onFocus(item.key, it)
                 },
                 onClick = { onResume(item) },
                 modifier = upAndDown.then(memory.card(item.key)),

@@ -547,7 +547,6 @@ fun HomeScreen(
                             item(key = "channels") {
                                 ChannelRow(
                                     channels = channels,
-                                    programmes = { onNow[it.id]?.second },
                                     onWatch = {
                                         if (!Iptv.watchChannel(context, it)) {
                                             Toast.makeText(context, "Couldn't open WIPTV Player", Toast.LENGTH_SHORT).show()
