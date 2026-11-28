@@ -35,8 +35,11 @@ Guidance for Claude working in this repo. Read [docs/HANDOVER.md](docs/HANDOVER.
 
 ## Build, CI and releases
 
-- `.github/workflows/build.yml` builds `:app` and `:player` (release) on every PR and on every push to `main`. Builds queue one at a time per branch.
-- Merging to `main` publishes the launcher as release `build-N` (the repo's latest, `tv-launcher.apk`) and replaces the single `player` release ("WIPTV Player build N", `wiptv-player.apk`, never "latest"). N is the Actions run number, which is also the `versionCode`.
+- `.github/workflows/build.yml` builds only the apps a change touches, on every PR and every push to `main`. Builds queue one at a time per branch.
+  - `player/` changed, or a shared part (`design/`, `update/`, the Gradle setup): the player is built and, on `main`, released.
+  - `app/` changed: the launcher is built and, on `main`, released. A shared change alone compiles the launcher on the PR (to catch breaks) but doesn't release it.
+  - A change to `build.yml` builds both on its PR and releases neither. Running the workflow by hand (Actions → Build → Run workflow on `main`) builds and releases both.
+- A launcher release is `build-N` (the repo's latest, `tv-launcher.apk`). A player release replaces the single `player` release ("WIPTV Player build N", `wiptv-player.apk`, never "latest"). N is the Actions run number, which is also the `versionCode`, so the two apps' numbers no longer match.
 - Download links: `is.gd/mAyKiF` (launcher) and `is.gd/pPSEvh` (player). Both point at fixed release URLs.
 - **Local Android builds may not be possible** in a cloud session, because the SDK and Maven downloads can be blocked. Push and let CI build. If the log download is blocked, compiler errors are also posted as a single `Build failed` annotation:
   `gh api repos/theolivecafewfd-code/tv-launcher/check-runs/<id>/annotations`
